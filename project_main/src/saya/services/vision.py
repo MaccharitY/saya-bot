@@ -13,7 +13,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import urllib.error
-import urllib.parse
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -93,6 +92,14 @@ def to_data_url(path: Path, *, max_bytes: int = MAX_IMAGE_BYTES) -> str:
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
 
+_SUFFIX_BY_MIME = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
 def download_image(
     url: str,
     *,
@@ -102,27 +109,28 @@ def download_image(
 ) -> Path:
     """把图片存到本地缓存并返回路径。
 
-    **QQ 的图片链接是临时链、会过期**，所以收到消息后要尽快下载。
+    **扩展名按文件内容给，不按 URL 给。** QQ 的图片链接常常没有可用的后缀，
+    而下游工具（YOLO 等）是**靠扩展名判断能不能读**的 —— 缓存成 `.img` 的话，
+    附属那边会直接报 "No images found"。这个坑实测撞过。
+
     缓存键是 URL 的哈希，同一张图不会被下两次。
     """
-    target = _cache_path(url, cache_dir)
-    if target.is_file() and target.stat().st_size > 0:
-        return target
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:20]
+    if cache_dir.is_dir():
+        cached = sorted(cache_dir.glob(f"{digest}.*"))
+        if cached:
+            return cached[0]
 
     fetch = fetcher or _http_get
     data = fetch(url, timeout)
     if not data:
         raise VisionError(f"下载到的图片是空的：{url}")
 
+    suffix = _SUFFIX_BY_MIME.get(sniff_mime(data) or "", ".bin")
     cache_dir.mkdir(parents=True, exist_ok=True)
+    target = cache_dir / f"{digest}{suffix}"
     target.write_bytes(data)
     return target
-
-
-def _cache_path(url: str, cache_dir: Path) -> Path:
-    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:20]
-    suffix = Path(urllib.parse.urlparse(url).path).suffix[:8] or ".img"
-    return cache_dir / f"{digest}{suffix}"
 
 
 def _http_get(url: str, timeout: float) -> bytes:

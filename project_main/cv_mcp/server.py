@@ -23,14 +23,29 @@
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+# ⚠️ MCP Python SDK 在 2.x 里把 `FastMCP` 改名成了 `MCPServer`
+# （`mcp.server.fastmcp` → `mcp.server.mcpserver`），v1 的写法在 2.x 上会直接
+# 抛 ModuleNotFoundError。所以这里两个版本都认 —— 这类"依赖改名"是真实世界里
+# 很常见的地雷，不值得让整个附属因此起不来。
+#
+# 顺带一提：我们**手写的那个客户端不受影响** —— 它说的是协议本身，
+# 不是某个 SDK 的类名。这也是自己实现协议的一个附带好处。
+try:  # mcp >= 2
+    from mcp.server.mcpserver import MCPServer as _Server
+except ImportError:  # mcp < 2
+    from mcp.server.fastmcp import FastMCP as _Server  # type: ignore[no-redef]
 
-mcp = FastMCP("saya-cv")
+mcp = _Server("saya-cv")
 
-_YOLO_WEIGHTS = "yolo11n.pt"  # nano：先跑通，够用；要精度可换 s/m
+# 权重放专门的缓存目录，**别落在仓库里**。
+# （Ultralytics 默认把模型下到当前工作目录，实测因此往仓库扔了个 5.6MB 的 .pt。）
+_MODEL_DIR = Path(os.environ.get("SAYA_CV_MODEL_DIR", Path.home() / ".cache" / "saya-cv"))
+_YOLO_WEIGHTS = str(_MODEL_DIR / "yolo11n.pt")  # nano：先跑通，够用；要精度可换 s/m
+
 _yolo = None
 _ocr = None
 
@@ -40,6 +55,7 @@ def _get_yolo():
     if _yolo is None:
         from ultralytics import YOLO
 
+        _MODEL_DIR.mkdir(parents=True, exist_ok=True)
         _yolo = YOLO(_YOLO_WEIGHTS)
     return _yolo
 

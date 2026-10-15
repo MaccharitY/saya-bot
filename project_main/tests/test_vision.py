@@ -112,6 +112,26 @@ class DownloadTest(unittest.TestCase):
         two = download_image("https://example.com/b", cache_dir=self.cache, fetcher=fetcher)
         self.assertNotEqual(one, two)
 
+    def test_extension_comes_from_content_not_url(self):
+        """回归用例：QQ 图片链接没有可用后缀，缓存成 .img 会让下游工具拒读。
+
+        实测撞过：Ultralytics 靠扩展名判断，直接报 "No images found"。
+        """
+        path = download_image(
+            "https://multimedia.nt.qq.com.cn/download?fileid=abc",
+            cache_dir=self.cache,
+            fetcher=lambda url, timeout: PNG_1PX,
+        )
+        self.assertEqual(path.suffix, ".png")
+
+    def test_cached_file_is_reused_across_calls(self):
+        calls: list[str] = []
+        fetcher = lambda url, timeout: (calls.append(url), PNG_1PX)[1]  # noqa: E731
+        first = download_image("https://x/y", cache_dir=self.cache, fetcher=fetcher)
+        second = download_image("https://x/y", cache_dir=self.cache, fetcher=fetcher)
+        self.assertEqual(first, second)
+        self.assertEqual(len(calls), 1)
+
     def test_empty_response_raises(self):
         with self.assertRaises(VisionError):
             download_image(

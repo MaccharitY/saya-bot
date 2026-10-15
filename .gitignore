@@ -35,6 +35,15 @@ project_main/logs/
 project_main/media/
 pre/requirement/tmp/
 
+# ---- 模型权重（几 MB 到几百 MB，可重下） ----
+*.pt
+*.pth
+*.onnx
+runs/
+
+# ---- 实验产出的中间文件 ----
+pre/experiments/testset/images/
+
 # ---- 编辑器 / 系统 ----
 .vscode/
 .idea/

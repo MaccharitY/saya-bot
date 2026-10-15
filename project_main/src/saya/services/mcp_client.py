@@ -19,6 +19,7 @@ import os
 import subprocess
 import threading
 import time
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from queue import Empty, Queue
@@ -61,6 +62,9 @@ class McpStdioClient:
         self._queue: Queue[Any] = Queue()
         self._call_lock = threading.Lock()
         self._next_id = 0
+        # 收着子进程 stderr 的最后几行：**server 起不来时，原因全在这里**。
+        # 不接的话只能看到一句"server 已退出"，等于没有排查线索。
+        self._stderr_tail: deque[str] = deque(maxlen=40)
         self.server_info: dict[str, Any] = {}
 
     # ---- 生命周期 ----
@@ -95,6 +99,7 @@ class McpStdioClient:
             raise McpError(f"启动 MCP server 失败：{exc}（命令：{' '.join(self._command)}）") from exc
 
         threading.Thread(target=self._read_loop, name="mcp-reader", daemon=True).start()
+        threading.Thread(target=self._drain_stderr, name="mcp-stderr", daemon=True).start()
         self._handshake()
 
     def close(self) -> None:
@@ -201,7 +206,7 @@ class McpStdioClient:
                     raise McpError(f"{method} 超时（{self._timeout:.0f}s）") from None
 
                 if message is _READ_TIMEOUT_SENTINEL:
-                    raise McpError(f"MCP server 已退出，{method} 未完成")
+                    raise McpError(self._server_gone_message(method))
 
                 if message.get("id") != request_id:
                     continue  # 通知或过期响应，跳过
@@ -223,6 +228,25 @@ class McpStdioClient:
         except OSError as exc:
             raise McpError(f"向 MCP server 写入失败：{exc}") from exc
 
+    def _server_gone_message(self, method: str) -> str:
+        """server 没了的时候，尽量把"为什么"一起说出来。"""
+        process = self._process
+        code = process.returncode if process is not None else None
+        head = f"MCP server 已退出（退出码 {code}），{method} 未完成"
+        if self._stderr_tail:
+            return head + "；它最后输出的是：\n  " + "\n  ".join(list(self._stderr_tail)[-6:])
+        return head + "（它没有输出任何错误信息）"
+
+    def _drain_stderr(self) -> None:
+        process = self._process
+        if process is None or process.stderr is None:
+            return
+        try:
+            for line in process.stderr:
+                self._stderr_tail.append(line.rstrip())
+        except (OSError, ValueError):
+            pass
+
     def _read_loop(self) -> None:
         process = self._process
         assert process is not None and process.stdout is not None
@@ -237,6 +261,11 @@ class McpStdioClient:
                     # 有些 server 会把日志打到 stdout —— 不是协议消息，丢掉即可
                     continue
         finally:
+            # 万一进程已经没了，等一下把它收掉，这样报错里才有退出码可用
+            try:
+                process.wait(timeout=2)
+            except Exception:  # noqa: BLE001
+                pass
             # 无论如何都要放结束哨兵：宁可让调用方收到"server 已退出"，
             # 也不要让它一直等到超时。
             self._queue.put(_READ_TIMEOUT_SENTINEL)
