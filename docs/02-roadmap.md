@@ -1,7 +1,11 @@
 # 02 · 路线图与任务
 
 > 这是**进度的唯一权威**。动手前先看这里，动手后更新这里。
-> 最后更新：2026-10-15（因 ADR-008 前移真 QQ 接入，里程碑重排）
+> 最后更新：2026-10-15（**pre 全线暂停**，先跑通 chatbot；看图先只做路线 A）
+
+> 🔻 **2026-10-15 排序变更**：项目所有者要求"**先把 chatbot 跑通，再去 pre**"，
+> 并且"**先做主模型多模态的方案，留好 MCP 的空间就行**"。
+> 因此：`pre/` 相关任务全部挂起；看图**只实现路线 A**，MCP / 专用 CV 路线留接口不实现。
 
 ---
 
@@ -64,14 +68,13 @@
 - [ ] `core/pipeline.py`：把上面的串成一条流水线
 - [ ] Mock 夹具上跑通自动化测试 → **M2 完成标志**
 
-### M3 · 三路线看图（操作定义见 `pre/12-experiment-design.md`）
-- [ ] `services/vision.py`：统一接口 `describe(image, question, route) -> (answer, meta)`
+### M3 · 看图（**先只做路线 A**）
+> 完整三路线定义见 `pre/12-experiment-design.md`（**pre 已暂停，暂且不动**）。
+- [ ] `services/vision.py`：统一接口 `describe(image, question, route)` + 统一的 `meta`
 - [ ] 路线 A `direct`：图片直接进 v41f 的 prompt
-- [ ] 路线 B `delegated`：图片**不进**主模型；附属经 MCP 出文本结果 → v41f
-- [ ] 路线 C `hybrid`：附属出结构化产物 + 画框编号 → `[原图 + 产物]` 进 v41f
-- [ ] ⚠️ **"附属"选型未定**（通用视觉大模型 vs 专用 CV 模型）← **阻塞路线 B、C**
-- [ ] 图片下载与本地缓存
-- [ ] 三条路线写**同样的 meta**（route / model / tokens / latency / cost）→ **M3 完成标志**
+- [ ] 图片下载与本地缓存（QQ 图片链接会过期）
+- [ ] `delegated` / `hybrid`：**只在参数与 meta 里留好位置，不实现**
+- [ ] 三条路线写同样的 `meta`（route / model / tokens / latency / cost）→ **M3 完成标志**
 
 ### M4 · 对照实验（**关键路径**）
 - [ ] 造测试集：**≥100 张图，5 个难度层**（见 `pre/10` 第 5 节）

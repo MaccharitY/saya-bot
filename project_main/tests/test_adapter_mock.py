@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -20,10 +19,7 @@ from saya.config import Config, parse_dotenv  # noqa: E402
 
 
 def _collect(adapter: MockAdapter) -> list[IncomingMessage]:
-    async def run() -> list[IncomingMessage]:
-        return [message async for message in adapter.events()]
-
-    return asyncio.run(run())
+    return list(adapter.events())
 
 
 class ParseEventTest(unittest.TestCase):
@@ -96,17 +92,14 @@ class EchoSmokeTest(unittest.TestCase):
     def test_echo_round_trip(self):
         adapter = MockAdapter()
 
-        async def run() -> None:
-            async for message in adapter.events():
-                await adapter.send(
-                    OutgoingMessage(
-                        source=message.source,
-                        target_id=message.group_id or message.user_id,
-                        text=f"echo: {message.text}",
-                    )
+        for message in adapter.events():
+            adapter.send(
+                OutgoingMessage(
+                    source=message.source,
+                    target_id=message.group_id or message.user_id,
+                    text=f"echo: {message.text}",
                 )
-
-        asyncio.run(run())
+            )
         self.assertEqual(len(adapter.sent), 4)
         self.assertEqual(adapter.sent[0].target_id, 123456789)
         self.assertEqual(adapter.sent[0].text, "echo: 今天天气不错")
@@ -116,7 +109,7 @@ class ConfigTest(unittest.TestCase):
     def test_defaults_without_env(self):
         config = Config.from_env(dotenv_path=Path("不存在的文件.env"))
         self.assertEqual(config.adapter, "mock")
-        self.assertEqual(config.vision_route, "direct_mllm")
+        self.assertEqual(config.vision_route, "direct")
         self.assertEqual(config.trigger_mode, "mention")
 
     def test_dotenv_parsing(self):

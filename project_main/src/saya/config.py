@@ -49,6 +49,9 @@ class Config:
     llm_api_key: str
     vision_model: str
     vision_route: str
+    vision_enable: bool
+    temperature: float
+    vision_temperature: float
     trigger_mode: str
     trigger_keywords: tuple[str, ...]
     group_allowlist: tuple[int, ...]
@@ -71,8 +74,12 @@ class Config:
             llm_base_url=get("LLM_BASE_URL", "https://api.deepseek.com"),
             llm_model=get("LLM_MODEL", "deepseek-flash"),
             llm_api_key=get("LLM_API_KEY"),
-            vision_model=get("VISION_MODEL", "deepseek-vl"),
-            vision_route=get("VISION_ROUTE", "direct_mllm"),
+            vision_model=get("VISION_MODEL", "deepseek-flash"),
+            vision_route=get("VISION_ROUTE", "direct"),
+            vision_enable=get("VISION_ENABLE", "true").lower() in _TRUE,
+            temperature=float(get("TEMPERATURE", "0.8")),
+            # 看图任务要的是「事实描述」，温度压低以减少编造
+            vision_temperature=float(get("VISION_TEMPERATURE", "0.2")),
             trigger_mode=get("TRIGGER_MODE", "mention"),
             trigger_keywords=_split_csv(get("TRIGGER_KEYWORDS")),
             group_allowlist=_split_csv_int(get("GROUP_ALLOWLIST")),

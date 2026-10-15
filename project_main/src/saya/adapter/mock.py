@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import Iterator
 from pathlib import Path
 
 from saya.adapter.base import Adapter
@@ -34,11 +34,11 @@ class MockAdapter(Adapter):
                     events.append(json.loads(line))
         return events
 
-    async def events(self) -> AsyncIterator[IncomingMessage]:
+    def events(self) -> Iterator[IncomingMessage]:
         for raw in self.load_raw_events():
             message = parse_event(raw, self_id=self._self_id)
             if message is not None:
                 yield message
 
-    async def send(self, message: OutgoingMessage) -> None:
+    def send(self, message: OutgoingMessage) -> None:
         self.sent.append(message)
