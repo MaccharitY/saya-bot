@@ -41,6 +41,9 @@ from saya.services.cv_tools import CvToolsError, start_cv_tools  # noqa: E402
 from saya.services.llm import LLMClient, LLMError  # noqa: E402
 from saya.services.vision import ALL_ROUTES, Vision, VisionError  # noqa: E402
 
+# __file__ = project_main/experiment/run_experiment.py → parents[1] = project_main
+DEFAULT_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+
 
 def load_manifest(path: Path) -> list[dict]:
     text = path.read_text(encoding="utf-8").strip()
@@ -180,12 +183,60 @@ def summarize(records: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Config) -> int:
+    """只检查装配，不调模型。
+
+    **存在的意义**：正式跑要花钱，而"图片路径不对 / 附属起不来 / 配置写错"
+    这些错误完全可以在不花钱的情况下先发现。实测就是靠它先抓到了问题。
+    """
+    print("== 干跑：只检查，不调模型 ==")
+    print(f"  测试集 {len(items)} 条")
+    print(f"  会跑的路线 {routes}（每条都会把所有图过一遍）")
+    print(f"  模型 {config.llm_model} @ {config.llm_base_url}")
+
+    missing = [item for item in items if not (images_dir / item["file"]).is_file()]
+    print(f"  图片：{len(items) - len(missing)} 张找得到，{len(missing)} 张找不到")
+    for item in missing[:5]:
+        print(f"    ✗ {item['file']}")
+
+    by_tier: dict[str, int] = {}
+    for item in items:
+        by_tier[item.get("tier", "?")] = by_tier.get(item.get("tier", "?"), 0) + 1
+    print(f"  分层：{by_tier}")
+
+    if any(route in ("delegated", "hybrid") for route in routes):
+        print("\n  → 试着启动附属（专用 CV 模型）…")
+        if not config.cv_mcp_command.strip():
+            print("    ✗ 没配 SAYA_CV_MCP_COMMAND，delegated / hybrid 跑不了")
+            return 1
+        try:
+            tools = start_cv_tools(config.cv_mcp_command)
+        except CvToolsError as exc:
+            print(f"    ✗ 附属起不来：{exc}")
+            return 1
+        try:
+            print(f"    ✓ 附属就绪：{tools.server_info.get('name', '?')}")
+            print(f"      提供工具：{[t.name for t in tools.list_tools()]}")
+        finally:
+            tools.close()
+
+    total = len(items) * len(routes)
+    print(f"\n正式跑将调用模型 {total} 次。确认没问题就去掉 --dry-run。")
+    print("（注：路线 delegated / hybrid 每次调用还会额外走一遍本地 CV 工具）")
+    return 0 if not missing else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="三条视觉路线的对照实验")
     parser.add_argument("--manifest", required=True, help="测试集清单")
     parser.add_argument("--out", required=True, help="结果写到哪（jsonl）")
     parser.add_argument("--routes", nargs="+", default=list(ALL_ROUTES), choices=list(ALL_ROUTES))
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（冒烟用）")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只列一遍要跑什么、检查图片与配置，**不调模型**（不花钱）",
+    )
     parser.add_argument("--env-file", help=".env 路径")
     args = parser.parse_args(argv)
 
@@ -195,9 +246,15 @@ def main(argv: list[str] | None = None) -> int:
         items = items[: args.limit]
     images_dir = manifest_path.parent
 
-    config = Config.from_env(
-        dotenv_path=Path(args.env_file).resolve() if args.env_file else None
-    )
+    # ⚠️ 必须默认读 project_main/.env —— 传 None 的话 Config 只读环境变量、
+    # 完全不看 .env 文件，于是模型名/API key/附属命令全是默认值：
+    # 表现成"未配置 API key"，但其实配置就摆在文件里。干跑抓到的。
+    env_file = Path(args.env_file).resolve() if args.env_file else DEFAULT_ENV_FILE
+    config = Config.from_env(dotenv_path=env_file)
+
+    if args.dry_run:
+        return dry_run(items, images_dir, args.routes, config)
+
     client = LLMClient(
         base_url=config.llm_base_url,
         api_key=config.require_api_key(),
