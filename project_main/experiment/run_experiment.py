@@ -1,0 +1,262 @@
+"""对照实验执行器：同一批图片，三条路线各跑一遍，记录结果。
+
+设计要点（对应 `pre/12-experiment-design.md`）：
+- **配对设计**：同一张图、同一个问题，三条路线各问一次，结果一一对应
+- **大脑相同**：三条路线共用同一个模型（`Config.llm_model`），只变架构
+- **环境基线**：跑之前先记一次 DNS / 往返耗时，写进结果文件 ——
+  否则日后看到离谱的延迟，无法判断是架构差异还是环境噪声
+
+用法（在 WSL 里）：
+
+    python3 project_main/experiment/run.py \
+        --manifest pre/experiments/testset/manifest.json \
+        --out pre/experiments/results-baseline.jsonl \
+        --routes direct delegated hybrid
+
+manifest 格式（一行一条，或一个 JSON 数组）：
+
+    {"id": "count_dogs_03", "file": "images/count_dogs_03.jpg",
+     "tier": "counting", "question": "图里有几只狗？", "expect_keywords": ["3"]}
+
+`expect_keywords` 全部出现在回答里才算"答对"。**这是个简化判据**：
+它偏爱包含关键词的回答，不判语义。局限要写进报告的 methodology。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+# 让脚本能直接跑，不用先 pip install
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from saya.config import Config  # noqa: E402
+from saya.domain import ImageRef  # noqa: E402
+from saya.services.cv_tools import CvToolsError, start_cv_tools  # noqa: E402
+from saya.services.llm import LLMClient, LLMError  # noqa: E402
+from saya.services.vision import ALL_ROUTES, Vision, VisionError  # noqa: E402
+
+
+def load_manifest(path: Path) -> list[dict]:
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        raise SystemExit(f"manifest 是空的：{path}")
+
+    if text.lstrip().startswith("["):
+        items = json.loads(text)
+    else:
+        items = [json.loads(line) for line in text.splitlines() if line.strip()]
+
+    for item in items:
+        for field in ("id", "file", "question"):
+            if field not in item:
+                raise SystemExit(f"manifest 里的条目缺字段 {field}：{item}")
+    return items
+
+
+def environment_baseline(base_url: str) -> dict:
+    """记下跑实验时的网络基线 —— 没有它，日后的延迟数字无法解释。"""
+    import socket
+    import time as _time
+    from urllib.parse import urlsplit
+
+    host = urlsplit(base_url).hostname or ""
+    dns_ms = None
+    try:
+        started = _time.monotonic()
+        socket.getaddrinfo(host, 443)
+        dns_ms = round((_time.monotonic() - started) * 1000, 1)
+    except Exception:  # noqa: BLE001 - 基线记不到就不记，不该挡住实验
+        pass
+
+    return {"dns_ms": dns_ms, "host": host}
+
+
+def grade(answer: str, keywords: list[str]) -> bool | None:
+    """关键词判据：全部出现才算对。没有关键词就不判（返回 None）。"""
+    if not keywords:
+        return None
+    lowered = answer.lower()
+    return all(keyword.lower() in lowered for keyword in keywords)
+
+
+def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
+    image_path = (images_dir / item["file"]).resolve()
+    if not image_path.is_file():
+        return {
+            "id": item["id"],
+            "tier": item.get("tier", ""),
+            "route": vision.route,
+            "error": f"图片不存在：{image_path}",
+            "answer": "",
+            "correct": None,
+        }
+
+    image = ImageRef(url=str(image_path), local_path=str(image_path))
+    started = time.monotonic()
+    answer = ""
+    meta: dict = {}
+    error = ""
+
+    try:
+        result = vision.describe_many([image], item["question"])
+        answer = result.answer
+        meta = {
+            "model": result.model,
+            "tokens_in": result.tokens_in,
+            "tokens_out": result.tokens_out,
+            "latency_ms": result.latency_ms,
+            "cost": result.cost,
+        }
+    except (VisionError, LLMError, CvToolsError) as exc:
+        error = f"{type(exc).__name__}: {exc}"
+
+    record = {
+        "id": item["id"],
+        "tier": item.get("tier", ""),
+        "route": vision.route,
+        "question": item["question"],
+        "answer": answer,
+        "correct": grade(answer, item.get("expect_keywords") or []),
+        "error": error,
+        "wall_ms": int((time.monotonic() - started) * 1000),
+    }
+    record.update(meta)
+    return record
+
+
+def percentile(values: list[float], fraction: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, int(round(fraction * (len(ordered) - 1))))
+    return ordered[index]
+
+
+def summarize(records: list[dict]) -> str:
+    """按路线（以及路线 × 难度层）汇总。延迟一律给 P50 与 P95，不给平均值。"""
+    lines: list[str] = []
+    by_route: dict[str, list[dict]] = defaultdict(list)
+    for record in records:
+        by_route[record["route"]].append(record)
+
+    for route, rows in sorted(by_route.items()):
+        ok = [r for r in rows if not r.get("error")]
+        graded = [r for r in ok if r.get("correct") is not None]
+        correct = sum(1 for r in graded if r["correct"])
+        latencies = [r["latency_ms"] for r in ok if r.get("latency_ms")]
+        tokens = [r.get("tokens_in", 0) + r.get("tokens_out", 0) for r in ok]
+        cost = sum(r.get("cost", 0.0) for r in ok)
+
+        lines.append(f"\n■ 路线 {route}")
+        lines.append(f"  样本 {len(rows)}  失败 {len(rows) - len(ok)}")
+        if graded:
+            lines.append(f"  准确率 {correct}/{len(graded)} = {correct / len(graded):.0%}")
+        if latencies:
+            lines.append(
+                f"  延迟 P50 {percentile(latencies, 0.5):.0f} ms"
+                f"  P95 {percentile(latencies, 0.95):.0f} ms"
+                f"  （中位 {statistics.median(latencies):.0f} ms）"
+            )
+        if tokens:
+            lines.append(f"  token 平均 {statistics.mean(tokens):.0f}（in+out）")
+        if cost:
+            lines.append(f"  累计成本 {cost:.4f} 元")
+
+        tiers = sorted({r.get("tier", "") for r in rows if r.get("tier")})
+        for tier in tiers:
+            tier_rows = [r for r in rows if r.get("tier") == tier and not r.get("error")]
+            tier_graded = [r for r in tier_rows if r.get("correct") is not None]
+            if not tier_graded:
+                continue
+            tier_correct = sum(1 for r in tier_graded if r["correct"])
+            lines.append(f"    · {tier:<12} {tier_correct}/{len(tier_graded)}")
+
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="三条视觉路线的对照实验")
+    parser.add_argument("--manifest", required=True, help="测试集清单")
+    parser.add_argument("--out", required=True, help="结果写到哪（jsonl）")
+    parser.add_argument("--routes", nargs="+", default=list(ALL_ROUTES), choices=list(ALL_ROUTES))
+    parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（冒烟用）")
+    parser.add_argument("--env-file", help=".env 路径")
+    args = parser.parse_args(argv)
+
+    manifest_path = Path(args.manifest).resolve()
+    items = load_manifest(manifest_path)
+    if args.limit:
+        items = items[: args.limit]
+    images_dir = manifest_path.parent
+
+    config = Config.from_env(
+        dotenv_path=Path(args.env_file).resolve() if args.env_file else None
+    )
+    client = LLMClient(
+        base_url=config.llm_base_url,
+        api_key=config.require_api_key(),
+        model=config.llm_model,
+        price_in=config.price_in,
+        price_out=config.price_out,
+    )
+
+    tools = None
+    if any(route in ("delegated", "hybrid") for route in args.routes):
+        tools = start_cv_tools(config.cv_mcp_command)
+
+    baseline = environment_baseline(config.llm_base_url)
+    print(f"环境基线：DNS 解析 {baseline['dns_ms']} ms（{baseline['host']}）")
+    print(f"测试集 {len(items)} 条，路线 {args.routes}，模型 {config.llm_model}")
+
+    records: list[dict] = []
+    try:
+        for route in args.routes:
+            vision = Vision(
+                client,
+                cache_dir=Path(config.data_dir) / "images",
+                route=route,
+                temperature=config.vision_temperature,
+                tools=tools,
+            )
+            for index, item in enumerate(items, start=1):
+                record = run_one(vision, item, images_dir=images_dir)
+                record["experiment_tag"] = config.experiment_tag
+                records.append(record)
+                mark = "✓" if record.get("correct") else ("✗" if record.get("correct") is False else "·")
+                note = record.get("error", "")[:40]
+                print(
+                    f"  [{route:<9}] {index:>3}/{len(items)} {item['id']:<24} {mark}"
+                    f"  {record.get('latency_ms', 0):>6} ms  {note}"
+                )
+    finally:
+        if tools is not None:
+            tools.close()
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": "environment_baseline", **baseline}, ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(
+                {"kind": "run_meta", "model": config.llm_model, "routes": args.routes,
+                 "temperature": config.vision_temperature},
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    print(summarize(records))
+    print(f"\n结果已写入 {out_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
