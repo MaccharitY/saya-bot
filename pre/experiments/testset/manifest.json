@@ -1,0 +1,752 @@
+[
+  {
+    "id": "counting_000000000009",
+    "file": "images/000000000009.jpg",
+    "tier": "counting",
+    "question": "图里有多少个橙子？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "4"
+    ],
+    "note": "标注：{'碗': 3, '西兰花': 1, '橙子': 4}"
+  },
+  {
+    "id": "counting_000000000049",
+    "file": "images/000000000049.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "6"
+    ],
+    "note": "标注：{'马': 2, '人': 6, '盆栽': 1}"
+  },
+  {
+    "id": "counting_000000000061",
+    "file": "images/000000000061.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "3"
+    ],
+    "note": "标注：{'人': 3, '大象': 2}"
+  },
+  {
+    "id": "counting_000000000071",
+    "file": "images/000000000071.jpg",
+    "tier": "counting",
+    "question": "图里有多少个汽车？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "13"
+    ],
+    "note": "标注：{'汽车': 13, '火车': 1, '卡车': 2}"
+  },
+  {
+    "id": "counting_000000000074",
+    "file": "images/000000000074.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "6"
+    ],
+    "note": "标注：{'狗': 1, '自行车': 1, '人': 6}"
+  },
+  {
+    "id": "counting_000000000077",
+    "file": "images/000000000077.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "5"
+    ],
+    "note": "标注：{'人': 5, '滑板': 3}"
+  },
+  {
+    "id": "counting_000000000089",
+    "file": "images/000000000089.jpg",
+    "tier": "counting",
+    "question": "图里有多少个刀？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "5"
+    ],
+    "note": "标注：{'刀': 5, '烤箱': 1, '微波炉': 1, '书': 3}"
+  },
+  {
+    "id": "counting_000000000109",
+    "file": "images/000000000109.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "5"
+    ],
+    "note": "标注：{'狗': 1, '人': 5, '长椅': 2}"
+  },
+  {
+    "id": "counting_000000000110",
+    "file": "images/000000000110.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "10"
+    ],
+    "note": "标注：{'椅子': 4, '叉子': 1, '刀': 1, '披萨': 1, '餐桌': 3, '人': 10, '杯子': 4}"
+  },
+  {
+    "id": "counting_000000000113",
+    "file": "images/000000000113.jpg",
+    "tier": "counting",
+    "question": "图里有多少个杯子？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "10"
+    ],
+    "note": "标注：{'椅子': 2, '人': 3, '杯子': 10, '刀': 1, '蛋糕': 1, '餐桌': 1}"
+  },
+  {
+    "id": "counting_000000000127",
+    "file": "images/000000000127.jpg",
+    "tier": "counting",
+    "question": "图里有多少个长椅？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "4"
+    ],
+    "note": "标注：{'盆栽': 1, '餐桌': 2, '杯子': 1, '刀': 1, '勺子': 1, '蛋糕': 1, '书': 1, '长椅': 4, '雨伞': 3, '手提包': 1, '人': 1}"
+  },
+  {
+    "id": "counting_000000000143",
+    "file": "images/000000000143.jpg",
+    "tier": "counting",
+    "question": "图里有多少个鸟？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "8"
+    ],
+    "note": "标注：{'鸟': 8}"
+  },
+  {
+    "id": "counting_000000000144",
+    "file": "images/000000000144.jpg",
+    "tier": "counting",
+    "question": "图里有多少个长颈鹿？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "3"
+    ],
+    "note": "标注：{'长颈鹿': 3}"
+  },
+  {
+    "id": "counting_000000000149",
+    "file": "images/000000000149.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "12"
+    ],
+    "note": "标注：{'人': 12, '风筝': 6, '汽车': 4}"
+  },
+  {
+    "id": "counting_000000000154",
+    "file": "images/000000000154.jpg",
+    "tier": "counting",
+    "question": "图里有多少个斑马？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "3"
+    ],
+    "note": "标注：{'斑马': 3}"
+  },
+  {
+    "id": "counting_000000000164",
+    "file": "images/000000000164.jpg",
+    "tier": "counting",
+    "question": "图里有多少个瓶子？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "10"
+    ],
+    "note": "标注：{'瓶子': 10, '冰箱': 1, '椅子': 1, '酒杯': 9, '杯子': 10, '碗': 6, '微波炉': 1, '烤箱': 1, '餐桌': 1}"
+  },
+  {
+    "id": "counting_000000000192",
+    "file": "images/000000000192.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "4"
+    ],
+    "note": "标注：{'人': 4, '棒球棒': 1}"
+  },
+  {
+    "id": "counting_000000000196",
+    "file": "images/000000000196.jpg",
+    "tier": "counting",
+    "question": "图里有多少个碗？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "13"
+    ],
+    "note": "标注：{'勺子': 8, '胡萝卜': 12, '碗': 13, '西兰花': 7, '餐桌': 1, '叉子': 1}"
+  },
+  {
+    "id": "counting_000000000201",
+    "file": "images/000000000201.jpg",
+    "tier": "counting",
+    "question": "图里有多少个单板滑雪板？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "6"
+    ],
+    "note": "标注：{'单板滑雪板': 6, '人': 2}"
+  },
+  {
+    "id": "counting_000000000241",
+    "file": "images/000000000241.jpg",
+    "tier": "counting",
+    "question": "图里有多少个人？只回答一个阿拉伯数字。",
+    "expect_keywords": [
+      "5"
+    ],
+    "note": "标注：{'瓶子': 1, '沙发': 2, '人': 5, '杯子': 2, '遥控器': 1, '手提包': 1, '盆栽': 2}"
+  },
+  {
+    "id": "small_000000000061",
+    "file": "images/000000000061.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "大象"
+    ],
+    "note": "标注：{'人': 3, '大象': 2}"
+  },
+  {
+    "id": "small_000000000064",
+    "file": "images/000000000064.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "汽车"
+    ],
+    "note": "标注：{'汽车': 1, '卡车': 1, '停车标志': 1, '时钟': 1}"
+  },
+  {
+    "id": "small_000000000077",
+    "file": "images/000000000077.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 5, '滑板': 3}"
+  },
+  {
+    "id": "small_000000000094",
+    "file": "images/000000000094.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "卡车"
+    ],
+    "note": "标注：{'汽车': 1, '卡车': 1}"
+  },
+  {
+    "id": "small_000000000109",
+    "file": "images/000000000109.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "长椅"
+    ],
+    "note": "标注：{'狗': 1, '人': 5, '长椅': 2}"
+  },
+  {
+    "id": "small_000000000143",
+    "file": "images/000000000143.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "鸟"
+    ],
+    "note": "标注：{'鸟': 8}"
+  },
+  {
+    "id": "small_000000000149",
+    "file": "images/000000000149.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "风筝"
+    ],
+    "note": "标注：{'人': 12, '风筝': 6, '汽车': 4}"
+  },
+  {
+    "id": "small_000000000164",
+    "file": "images/000000000164.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "冰箱"
+    ],
+    "note": "标注：{'瓶子': 10, '冰箱': 1, '椅子': 1, '酒杯': 9, '杯子': 10, '碗': 6, '微波炉': 1, '烤箱': 1, '餐桌': 1}"
+  },
+  {
+    "id": "small_000000000192",
+    "file": "images/000000000192.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 4, '棒球棒': 1}"
+  },
+  {
+    "id": "small_000000000257",
+    "file": "images/000000000257.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "卡车"
+    ],
+    "note": "标注：{'红绿灯': 9, '背包': 2, '卡车': 5, '人': 13, '手提包': 4}"
+  },
+  {
+    "id": "small_000000000260",
+    "file": "images/000000000260.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "公交车"
+    ],
+    "note": "标注：{'公交车': 1, '人': 2, '汽车': 1, '行李箱': 3}"
+  },
+  {
+    "id": "small_000000000307",
+    "file": "images/000000000307.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "狗"
+    ],
+    "note": "标注：{'狗': 1, '汽车': 1, '飞盘': 1}"
+  },
+  {
+    "id": "small_000000000309",
+    "file": "images/000000000309.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "泰迪熊"
+    ],
+    "note": "标注：{'泰迪熊': 3, '狗': 1}"
+  },
+  {
+    "id": "small_000000000338",
+    "file": "images/000000000338.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "冰箱"
+    ],
+    "note": "标注：{'冰箱': 1, '时钟': 1, '人': 2, '烤箱': 1, '手提包': 1}"
+  },
+  {
+    "id": "small_000000000357",
+    "file": "images/000000000357.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'棒球棒': 1, '棒球手套': 3, '人': 13}"
+  },
+  {
+    "id": "small_000000000359",
+    "file": "images/000000000359.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "汽车"
+    ],
+    "note": "标注：{'红绿灯': 3, '汽车': 1}"
+  },
+  {
+    "id": "small_000000000360",
+    "file": "images/000000000360.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "单板滑雪板"
+    ],
+    "note": "标注：{'人': 2, '单板滑雪板': 1}"
+  },
+  {
+    "id": "small_000000000382",
+    "file": "images/000000000382.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 1, '滑雪板': 1, '背包': 1}"
+  },
+  {
+    "id": "small_000000000404",
+    "file": "images/000000000404.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "船"
+    ],
+    "note": "标注：{'船': 5}"
+  },
+  {
+    "id": "small_000000000419",
+    "file": "images/000000000419.jpg",
+    "tier": "small",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 2, '网球拍': 1, '球': 1, '汽车': 3}"
+  },
+  {
+    "id": "fine_000000000009",
+    "file": "images/000000000009.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "碗"
+    ],
+    "note": "标注：{'碗': 3, '西兰花': 1, '橙子': 4}"
+  },
+  {
+    "id": "fine_000000000025",
+    "file": "images/000000000025.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "长颈鹿"
+    ],
+    "note": "标注：{'长颈鹿': 2}"
+  },
+  {
+    "id": "fine_000000000030",
+    "file": "images/000000000030.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "盆栽"
+    ],
+    "note": "标注：{'盆栽': 1, '花瓶': 1}"
+  },
+  {
+    "id": "fine_000000000034",
+    "file": "images/000000000034.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "斑马"
+    ],
+    "note": "标注：{'斑马': 1}"
+  },
+  {
+    "id": "fine_000000000042",
+    "file": "images/000000000042.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "狗"
+    ],
+    "note": "标注：{'狗': 1}"
+  },
+  {
+    "id": "fine_000000000049",
+    "file": "images/000000000049.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "马"
+    ],
+    "note": "标注：{'马': 2, '人': 6, '盆栽': 1}"
+  },
+  {
+    "id": "fine_000000000064",
+    "file": "images/000000000064.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "汽车"
+    ],
+    "note": "标注：{'汽车': 1, '卡车': 1, '停车标志': 1, '时钟': 1}"
+  },
+  {
+    "id": "fine_000000000071",
+    "file": "images/000000000071.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "火车"
+    ],
+    "note": "标注：{'汽车': 13, '火车': 1, '卡车': 2}"
+  },
+  {
+    "id": "fine_000000000072",
+    "file": "images/000000000072.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "长颈鹿"
+    ],
+    "note": "标注：{'长颈鹿': 2}"
+  },
+  {
+    "id": "fine_000000000073",
+    "file": "images/000000000073.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "摩托车"
+    ],
+    "note": "标注：{'摩托车': 2}"
+  },
+  {
+    "id": "fine_000000000074",
+    "file": "images/000000000074.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "自行车"
+    ],
+    "note": "标注：{'狗': 1, '自行车': 1, '人': 6}"
+  },
+  {
+    "id": "fine_000000000077",
+    "file": "images/000000000077.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 5, '滑板': 3}"
+  },
+  {
+    "id": "fine_000000000078",
+    "file": "images/000000000078.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "时钟"
+    ],
+    "note": "标注：{'时钟': 1}"
+  },
+  {
+    "id": "fine_000000000081",
+    "file": "images/000000000081.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "飞机"
+    ],
+    "note": "标注：{'飞机': 1}"
+  },
+  {
+    "id": "fine_000000000086",
+    "file": "images/000000000086.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "摩托车"
+    ],
+    "note": "标注：{'人': 1, '摩托车': 1, '手提包': 1}"
+  },
+  {
+    "id": "fine_000000000089",
+    "file": "images/000000000089.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "烤箱"
+    ],
+    "note": "标注：{'刀': 5, '烤箱': 1, '微波炉': 1, '书': 3}"
+  },
+  {
+    "id": "fine_000000000092",
+    "file": "images/000000000092.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "蛋糕"
+    ],
+    "note": "标注：{'叉子': 1, '蛋糕': 1}"
+  },
+  {
+    "id": "fine_000000000094",
+    "file": "images/000000000094.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "卡车"
+    ],
+    "note": "标注：{'汽车': 1, '卡车': 1}"
+  },
+  {
+    "id": "fine_000000000109",
+    "file": "images/000000000109.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "长椅"
+    ],
+    "note": "标注：{'狗': 1, '人': 5, '长椅': 2}"
+  },
+  {
+    "id": "fine_000000000110",
+    "file": "images/000000000110.jpg",
+    "tier": "fine",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'椅子': 4, '叉子': 1, '刀': 1, '披萨': 1, '餐桌': 3, '人': 10, '杯子': 4}"
+  },
+  {
+    "id": "common_000000000036",
+    "file": "images/000000000036.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "雨伞"
+    ],
+    "note": "标注：{'雨伞': 1, '人': 1}"
+  },
+  {
+    "id": "common_000000000061",
+    "file": "images/000000000061.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "大象"
+    ],
+    "note": "标注：{'人': 3, '大象': 2}"
+  },
+  {
+    "id": "common_000000000143",
+    "file": "images/000000000143.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "鸟"
+    ],
+    "note": "标注：{'鸟': 8}"
+  },
+  {
+    "id": "common_000000000263",
+    "file": "images/000000000263.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "大象"
+    ],
+    "note": "标注：{'大象': 2}"
+  },
+  {
+    "id": "common_000000000283",
+    "file": "images/000000000283.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "餐桌"
+    ],
+    "note": "标注：{'瓶子': 1, '椅子': 2, '餐桌': 1, '酒杯': 1}"
+  },
+  {
+    "id": "common_000000000312",
+    "file": "images/000000000312.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "大象"
+    ],
+    "note": "标注：{'大象': 6}"
+  },
+  {
+    "id": "common_000000000315",
+    "file": "images/000000000315.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "雨伞"
+    ],
+    "note": "标注：{'雨伞': 13, '人': 13, '手提包': 3, '椅子': 9}"
+  },
+  {
+    "id": "common_000000000326",
+    "file": "images/000000000326.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 1, '酒杯': 1}"
+  },
+  {
+    "id": "common_000000000359",
+    "file": "images/000000000359.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "汽车"
+    ],
+    "note": "标注：{'红绿灯': 3, '汽车': 1}"
+  },
+  {
+    "id": "common_000000000436",
+    "file": "images/000000000436.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "人"
+    ],
+    "note": "标注：{'人': 1, '甜甜圈': 1}"
+  },
+  {
+    "id": "common_000000000438",
+    "file": "images/000000000438.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "甜甜圈"
+    ],
+    "note": "标注：{'甜甜圈': 13}"
+  },
+  {
+    "id": "common_000000000491",
+    "file": "images/000000000491.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "泰迪熊"
+    ],
+    "note": "标注：{'泰迪熊': 4}"
+  },
+  {
+    "id": "common_000000000520",
+    "file": "images/000000000520.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "鸟"
+    ],
+    "note": "标注：{'鸟': 8, '人': 3}"
+  },
+  {
+    "id": "common_000000000597",
+    "file": "images/000000000597.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "大象"
+    ],
+    "note": "标注：{'大象': 7}"
+  },
+  {
+    "id": "common_000000000605",
+    "file": "images/000000000605.jpg",
+    "tier": "common",
+    "question": "图里最主要的东西是什么？用一两个词回答。",
+    "expect_keywords": [
+      "餐桌"
+    ],
+    "note": "标注：{'餐桌': 1, '杯子': 2, '勺子': 1}"
+  }
+]
