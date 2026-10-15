@@ -14,6 +14,14 @@ from collections.abc import Iterator
 from saya.domain import IncomingMessage, OutgoingMessage
 
 
+class AdapterError(RuntimeError):
+    """接入层出错：连不上后端、发送被拒、端口被占等。
+
+    单独一个类型，是为了让流水线能把它和"模型调用失败"区分开，
+    在埋点里记成不同的原因。
+    """
+
+
 class Adapter(ABC):
     @abstractmethod
     def events(self) -> Iterator[IncomingMessage]:

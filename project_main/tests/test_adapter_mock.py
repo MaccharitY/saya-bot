@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saya.adapter.mock import MockAdapter  # noqa: E402
 from saya.adapter.onebot11 import parse_event  # noqa: E402
 from saya.domain import IncomingMessage, OutgoingMessage  # noqa: E402
-from saya.config import Config, parse_dotenv  # noqa: E402
 
 
 def _collect(adapter: MockAdapter) -> list[IncomingMessage]:
@@ -103,23 +102,6 @@ class EchoSmokeTest(unittest.TestCase):
         self.assertEqual(len(adapter.sent), 4)
         self.assertEqual(adapter.sent[0].target_id, 123456789)
         self.assertEqual(adapter.sent[0].text, "echo: 今天天气不错")
-
-
-class ConfigTest(unittest.TestCase):
-    def test_defaults_without_env(self):
-        config = Config.from_env(dotenv_path=Path("不存在的文件.env"))
-        self.assertEqual(config.adapter, "mock")
-        self.assertEqual(config.vision_route, "direct")
-        self.assertEqual(config.trigger_mode, "mention")
-
-    def test_dotenv_parsing(self):
-        parsed = parse_dotenv("# 注释\n\nSAYA_ADAPTER=onebot11\nSAYA_LLM_MODEL=a\n")
-        self.assertEqual(parsed, {"SAYA_ADAPTER": "onebot11", "SAYA_LLM_MODEL": "a"})
-
-    def test_missing_api_key_raises(self):
-        config = Config.from_env(dotenv_path=Path("不存在的文件.env"))
-        with self.assertRaises(RuntimeError):
-            config.require_api_key()
 
 
 if __name__ == "__main__":

@@ -82,6 +82,7 @@ class Pipeline:
 
     def stop(self) -> None:
         self._adapter.stop()
+        self._adapter.close()
 
     # ---- 单条消息 ----
 
@@ -122,6 +123,12 @@ class Pipeline:
             )
         )
         self._trigger.note_answered(message)
+        logger.info(
+            "已回复 %s %s：%s",
+            message.source,
+            message.group_id if message.source == "group" else message.user_id,
+            safe_text if len(safe_text) <= 60 else safe_text[:60] + "…",
+        )
 
         detail = dict(_EMPTY_META)
         detail.update(meta)
