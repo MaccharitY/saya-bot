@@ -1,0 +1,67 @@
+# saya_bot —— 项目入口
+
+> 本文件是本项目的**单一入口**。任何会话（包括未来的你）在动手前先读这里，再按下面的顺序读 `docs/`。
+> 上游继承：`D:\Claude\CLAUDE.md`（实验室总览）→ `D:\Claude\DeepSeek_api\CLAUDE.md`（本区后端 = DeepSeek，经 CC Switch 代理自 Anthropic 格式）。
+
+## 一句话定位
+
+QQ 群聊里以**个人账号**身份运行的对话机器人，核心模型 DeepSeek；同时是课程 presentation 的实验平台。
+
+## 当前状态（会过期，以 docs/02-roadmap.md 为准）
+
+- 阶段：**M0 地基**
+- 已有：需求基线、架构草案（待评审）、目录骨架、本地 git 仓库
+- 没有：任何可运行代码
+- 最近更新：2026-10-15
+
+## 硬约束
+
+| 约束 | 内容 |
+|---|---|
+| **截止** | 课程报告 + slides **2026-10-29**（Week 9 周四），报告 ~1000 词，结构固定为 background / methodology / results / conclusion，发给 TA `（TA 邮箱见本地原件）` |
+| **密钥红线** | API Key 只走环境变量 / 本地 `.env`（已 gitignore）。**代码、文档、提交历史、issue 里都不许出现。** 也不要读 `~/.cc-switch/` |
+| **伦理红线** | 不做绕过 QQ 风控、规避封号、批量养号等对抗性手段。个人账号接非官方协议**有封号风险**，知情接受，但不做对抗 |
+| **用户背景** | 项目所有者**不是专业开发者**。术语要解释；重大决策必须先对齐、后动手；不要替他做不可逆决定 |
+
+## 目录地图
+
+```
+saya_bot/
+├─ CLAUDE.md               ← 本文件
+├─ README.md               ← 人看的概览
+├─ .gitignore / .env.example
+├─ docs/                   ← 工程文档（都在这）
+│  ├─ 00-requirements-baseline.md   需求基线：做什么/不做什么/验收标准
+│  ├─ 01-architecture.md            架构与决策记录（草案）
+│  └─ 02-roadmap.md                 里程碑、任务、当前进度
+├─ project_main/           ← 机器人本体
+│  ├─ src/saya/            ← 源码（adapter 接入层 / core 内核 / services 能力 / obs 埋点）
+│  ├─ tests/
+│  └─ pyproject.toml
+└─ pre/                    ← 课程交付物
+   ├─ 00-course-requirements.md   课程要求（从截图提取）
+   ├─ requirement/                原始截图（不可再生，别删）
+   ├─ experiments/                对照实验数据
+   ├─ report/                     报告
+   └─ slides/                     演示稿
+```
+
+## 落盘规范（可继承性的关键，改这里之前先想清楚）
+
+1. **文档命名**：`NN-kebab-case.md`，两位数字前缀定阅读顺序。中文标题写在文件里，**文件名用 ASCII**——避免 Windows 控制台与 Git 的编码问题。
+2. **决策必须留痕**：任何"为什么这么做"的选择写成 ADR（架构决策记录），放在 `docs/01-architecture.md` 底部，格式见该文件。**不要只留在对话里**——对话不可靠，这是本项目的前提。
+3. **进度必须可查**：动手前更新 `docs/02-roadmap.md` 的任务状态，别只在脑子里。
+4. **不可再生的东西单独放**：原始截图、实验原始数据放进对应目录并**只增不改**。
+5. **提交信息**：`<类型>: <做了什么>`，类型用 `feat / fix / docs / refactor / test / chore / exp`（`exp` = 实验数据与脚本）。一次提交一件事。
+6. **不要硬编码**密钥、群号、QQ 号——走配置与环境变量。
+
+## 怎么继续
+
+1. 读 `docs/00-requirements-baseline.md` 搞清楚要交付什么、以及**明确不做什么**。
+2. 读 `docs/01-architecture.md`，注意标着 **【待确认】** 的条目——那些是**没拍板的**，别当既成事实。
+3. 读 `docs/02-roadmap.md` 找到当前里程碑和下一个任务。
+4. 需求侧有任何含糊，**问项目所有者**（他不是专业开发者，宁可问也别猜）。
+
+## 本区身份提醒
+
+本会话真实后端是 **DeepSeek**（经 CC Switch 代理），不是 Anthropic 的 Claude。身份与能力问题以 DeepSeek 对应模型的公开规格为准。

@@ -1,0 +1,47 @@
+# ---- 密钥：永不提交 ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+credentials.*
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# ---- 运行时数据：记忆库、日志、缓存 ----
+data/
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+project_main/data/
+project_main/logs/
+
+# ---- 下载的图片/媒体素材（体积大、可重下） ----
+project_main/media/
+pre/requirement/tmp/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+~$*
+
+# ---- 注意 ----
+# pre/requirement/*.jpg 是课程要求原始截图，不可再生，**必须提交**，不要加进忽略。
