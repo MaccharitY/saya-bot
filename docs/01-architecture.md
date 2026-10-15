@@ -122,12 +122,20 @@
 - **原决定**：M0-M4 在 `adapter/mock.py` 上开发；Mock 复刻 OneBot v11 标准事件格式；真后端 M5 才接。
 - **为何被取代**：项目所有者已备好 QQ 账号并要求"直接上真 QQ"。**但其中"Mock 必须回放真实 OneBot v11 事件格式"仍然有效**——Mock 降级为自动化测试夹具。
 
-### ADR-004 LLM 接入方式
-- **状态**：【待确认】
-- **选项**：(a) 直连 DeepSeek 官方 OpenAI 兼容端点；(b) 走本机 CC Switch 代理（`127.0.0.1:15721`，Anthropic 格式）。
-- **倾向**：**默认 (a) 直连**，但把 base_url / 协议做成可配置，两种都能切。
-- **理由**：机器人是独立进程，依赖本机代理会多一个启动前置条件，且代理是给"壳"用的、随时会变。(b) 的好处是复用已有配额和映射表。
-- **需要所有者决定**：用哪个 key、成本算谁的。
+### ADR-004 LLM 接入方式 —— **定案**
+- **状态**：**已定（2026-10-15）**：走 **DeepSeek 官方 API**
+- **决定**：
+  - 端点（OpenAI 兼容）：`https://api.deepseek.com`。官方**同时**提供 Anthropic 兼容端点 `https://api.deepseek.com/anthropic`，但我们用 **OpenAI 兼容** —— `tools` 参数用起来更直接。
+  - 模型名：**`deepseek-flash`**。
+    ⚠️ **不是**实验室文档里的 `deepseek-v4.1-flash` —— 那是**版本名**；官方**模型名**就叫 `deepseek-flash`。旧名 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` 仍可调用，但后台已由 DeepSeek-V4.1-Flash 承接。
+  - 该模型**原生支持图像理解**，且**完整支持 function calling**（OpenAI 标准 `tools` / `tool_choice`，另有 `strict` 模式保证输出符合 JSON Schema，Beta）。
+- **理由**：机器人是独立进程，直连官方没有中间依赖。本机 CC Switch 代理是给"壳"用的，配置随时会变。
+- **代价 / 注意**：
+  - ⚠️ **`deepseek-v4-pro` 不支持图像理解**（只支持文本）—— 别把任何槽切过去。
+  - 图片格式 JPEG/PNG/GIF/WebP，**按文件实际内容判断**，不看扩展名或 MIME 声明。
+  - base64 内联的图片数据计入 **48 MiB 请求体上限**。
+  - 密钥只放 `project_main/.env`，永不进仓库。
+- **来源**：DeepSeek 官方文档一手核实（2026-10-15，用 `tools/fetch.py` 抓取）
 
 ### ADR-005 视觉三路线开关（实验的核心机制）
 - **状态**：已定。**操作定义见 [../pre/12-experiment-design.md](../pre/12-experiment-design.md)**

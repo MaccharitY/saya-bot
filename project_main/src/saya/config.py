@@ -69,7 +69,7 @@ class Config:
         return cls(
             adapter=get("ADAPTER", "mock"),
             llm_base_url=get("LLM_BASE_URL", "https://api.deepseek.com"),
-            llm_model=get("LLM_MODEL", "deepseek-chat"),
+            llm_model=get("LLM_MODEL", "deepseek-flash"),
             llm_api_key=get("LLM_API_KEY"),
             vision_model=get("VISION_MODEL", "deepseek-vl"),
             vision_route=get("VISION_ROUTE", "direct_mllm"),

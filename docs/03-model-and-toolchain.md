@@ -152,10 +152,16 @@ def describe(
 - **`Qwen3-VL-Plus`**：已在百炼模型市场上架（已确认）。通义千问视觉系列是国内第一梯队。
 - 用途：路线 A 的主力，或当"**第二家模型**"做稳健性对照——**避免报告结论只对一个模型成立**。
 
-**③ DeepSeek 官方 —— 文本大脑**
-- 本项目既定核心，负责**文本对话与编排**。
-- ⚠️ **必须确认：DeepSeek 官方公开 API 有没有视觉模型。** 社区普遍在做"给纯文字 DeepSeek 装上识图眼睛"（配免费 GLM-4V），这暗示公开 API 可能只有文本。
-- **如果没有，就按上面分工**：DeepSeek 管文本、视觉交给视觉模型。这正好是路线 B。
+**③ DeepSeek 官方 —— 主模型（已一手核实，2026-10-15）**
+
+- **端点**：OpenAI 兼容 `https://api.deepseek.com` ｜ Anthropic 兼容 `https://api.deepseek.com/anthropic`
+- **模型名：`deepseek-flash`** —— ⚠️ **不是**实验室文档里的 `deepseek-v4.1-flash`，那是**版本名**。旧名 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` 仍可调用，但后台已是 V4.1-Flash。
+- ✅ **图像理解：支持**（描述图片、识别截图文字、分析图表）。⚠️ `deepseek-v4-pro` **不支持图像**，别切过去。
+- ✅ **Function Calling：完整支持**。OpenAI 标准 `tools` / `tool_choice`，另有 `strict` 模式（保证输出符合 JSON Schema，Beta）。
+- 图片格式 JPEG/PNG/GIF/WebP，**按文件实际内容判断**，不看扩展名；base64 内联计入 **48 MiB 请求体上限**。
+
+> **结论**：路线 A 可以直接做；路线 B 的"工具箱清单"也可以用官方 function calling 驱动。
+> 也就是说——**一个 key 就够开工了**。
 
 **④ 可选第三家：豆包 / 火山引擎 vision** —— 做第二条对照曲线，或某家额度不够时兜底。
 
