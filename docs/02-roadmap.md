@@ -64,11 +64,12 @@
 - [ ] `core/pipeline.py`：把上面的串成一条流水线
 - [ ] Mock 夹具上跑通自动化测试 → **M2 完成标志**
 
-### M3 · 三路线看图（**关键路径**）
+### M3 · 三路线看图（操作定义见 `pre/12-experiment-design.md`）
 - [ ] `services/vision.py`：统一接口 `describe(image, question, route) -> (answer, meta)`
-- [ ] 路线 A `direct_mllm`：多模态模型直接看图
-- [ ] 路线 B `mcp_tools`：本地专用 CV 模型 + 编排（function calling 与 MCP 两种实现，见 `docs/03` 第 3.2 节）
-- [ ] 路线 C `hybrid`：CV 出候选 + 画框编号 + MLLM 推理（SoM 一类）
+- [ ] 路线 A `direct`：图片直接进 v41f 的 prompt
+- [ ] 路线 B `delegated`：图片**不进**主模型；附属经 MCP 出文本结果 → v41f
+- [ ] 路线 C `hybrid`：附属出结构化产物 + 画框编号 → `[原图 + 产物]` 进 v41f
+- [ ] ⚠️ **"附属"选型未定**（通用视觉大模型 vs 专用 CV 模型）← **阻塞路线 B、C**
 - [ ] 图片下载与本地缓存
 - [ ] 三条路线写**同样的 meta**（route / model / tokens / latency / cost）→ **M3 完成标志**
 
@@ -117,3 +118,4 @@ cd project_main && python -m unittest discover -s tests -v
 | 4 | ~~真 QQ 后端~~ | — | ✅ 已定：**NapCat 直接上**（ADR-008） |
 | 5 | LLM 官方直连 vs 本机代理（ADR-004） | `llm.py` | 所有者去拿 key，目标见 `docs/03` 第 9 节 |
 | 6 | 记忆存储形式（ADR-006） | M6 | 可延后 |
+| 7 | **"附属"选型**：通用视觉大模型 vs 专用 CV 模型（`pre/12` 第 3 节） | 路线 B、C 的实现 | ⚠️ **未定** |
