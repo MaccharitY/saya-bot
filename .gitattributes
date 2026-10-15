@@ -1,6 +1,13 @@
 # 统一换行符：仓库内一律 LF，检出时按平台
 * text=auto
 
+# ⚠️ 这两种**必须钉死**，不能按平台来：
+#   .sh  在 Windows 上被检出成 CRLF 的话，bash 会报 "\r: command not found"，
+#        脚本在新机器上直接跑不起来（"clone 下来就能跑"这个承诺就没了）。
+#   .bat 反过来必须是 CRLF，某些 Windows 工具对 LF 的 .bat 处理有问题。
+*.sh  text eol=lf
+*.bat text eol=crlf
+
 # 二进制：不要做任何换行或 diff 处理
 *.jpg binary
 *.jpeg binary
