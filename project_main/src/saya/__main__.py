@@ -26,6 +26,7 @@ from saya.core.trigger import Trigger
 from saya.obs.trace import TraceWriter
 from saya.services.llm import LLMClient, LLMError, text_message
 from saya.services.net import install as install_dns_cache
+from saya.services.net import keep_warm
 from saya.services.vision import (
     IMPLEMENTED_ROUTES,
     ROUTE_DELEGATED,
@@ -87,21 +88,27 @@ def build_pipeline(config: Config) -> Pipeline:
     )
 
 
-def _prewarm_dns(host: str) -> None:
-    """后台预热 DNS。
+def _prewarm_dns(host: str, ttl_seconds: float) -> None:
+    """后台预热 + 定期刷新 DNS。
 
-    本机 WSL 的解析可能花 10 秒，而 DNS 缓存只让这个代价付一次 ——
-    那一次不该落在"用户刚发了第一条消息"的时刻，所以在启动时就先在后台解析掉。
-    失败了也不影响启动。
+    本机代理开着时解析一个域名可能要等 10 秒超时，而 DNS 缓存只让这个代价付一次 ——
+    那一次不该落在"用户刚发了第一条消息"的时刻。所以这里：
+      1. 启动时先在后台解析掉
+      2. 之后按 TTL 的 3/4 定期提前刷新，让缓存**永不过期**
+
+    两步都把慢解析挡在用户路径之外。失败了也不影响启动。
     """
 
-    def run() -> None:
+    def prewarm() -> None:
         try:
             socket.getaddrinfo(host, 443)
         except Exception as exc:  # noqa: BLE001 - 预热失败无所谓，真要用时还会重试
             logging.getLogger("saya").debug("DNS 预热失败（不影响启动）：%s", exc)
 
-    threading.Thread(target=run, name="saya-dns-prewarm", daemon=True).start()
+    threading.Thread(target=prewarm, name="saya-dns-prewarm", daemon=True).start()
+
+    interval = max(60.0, ttl_seconds * 0.75)
+    keep_warm(host, 443, interval)
 
 
 def run_check(config: Config) -> int:
@@ -203,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger("saya").debug("DNS 缓存已启用，TTL=%.0fs", config.dns_cache_ttl)
         host = urllib.parse.urlsplit(config.llm_base_url).hostname
         if host:
-            _prewarm_dns(host)
+            _prewarm_dns(host, config.dns_cache_ttl)
 
     if args.check:
         return run_check(config)

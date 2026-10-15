@@ -33,8 +33,12 @@ class DnsCache:
         self._lock = threading.Lock()
         self._entries: dict[tuple, tuple[float, list[Any]]] = {}
 
+    @staticmethod
+    def _key(host: str, port: Any, args: tuple, kwargs: dict) -> tuple:
+        return (host, port, args, tuple(sorted(kwargs.items())))
+
     def getaddrinfo(self, host: str, port: Any, *args: Any, **kwargs: Any) -> list[Any]:
-        key = (host, port, args, tuple(sorted(kwargs.items())))
+        key = self._key(host, port, args, kwargs)
         now = time.monotonic()
 
         with self._lock:
@@ -48,6 +52,16 @@ class DnsCache:
         with self._lock:
             self._entries[key] = (now, result)
         return result
+
+    def refresh(self, host: str, port: Any, *args: Any, **kwargs: Any) -> None:
+        """**强制**重新解析并更新缓存（绕过缓存去问真实解析器）。
+
+        与 getaddrinfo 的区别：即使缓存还新鲜也会真解析。
+        给 keep_warm 用。
+        """
+        result = self._resolver(host, port, *args, **kwargs)
+        with self._lock:
+            self._entries[self._key(host, port, args, kwargs)] = (time.monotonic(), result)
 
     def clear(self) -> None:
         with self._lock:
@@ -90,3 +104,31 @@ def clear() -> None:
     """
     if _installed_cache is not None:
         _installed_cache.clear()
+
+
+def keep_warm(
+    host: str, port: Any = 443, interval: float = 600.0
+) -> threading.Thread | None:
+    """后台定期**提前**刷新解析结果，让缓存永不过期。
+
+    为什么要这个：本机代理开着时，解析一个域名可能要等 10 秒超时。
+    如果只在"过期之后、下一条消息来时"才解析，那 10 秒就会砸在某条回复上。
+    定期在后台先解析掉，用户就永远碰不到它 —— **把代价从用户路径上挪开**。
+
+    interval 应当明显小于 TTL。没装缓存时返回 None。
+    """
+    cache = _installed_cache
+    if cache is None:
+        return None
+
+    def run() -> None:
+        while True:
+            time.sleep(interval)
+            try:
+                cache.refresh(host, port)
+            except Exception:  # noqa: BLE001 - 后台维护，失败就等下一轮
+                pass
+
+    thread = threading.Thread(target=run, name=f"saya-dns-warm:{host}", daemon=True)
+    thread.start()
+    return thread

@@ -96,6 +96,50 @@ class DnsCacheTest(unittest.TestCase):
         cache.getaddrinfo("b.example", 443)
         self.assertEqual(len(cache), 2)
 
+    def test_refresh_forces_resolution_even_when_fresh(self):
+        """refresh 要绕开缓存去真解析 —— 否则后台保活就成了空转。"""
+        cache, resolver = make_cache()
+        cache.getaddrinfo("a.example", 443)
+        cache.refresh("a.example", 443)
+        self.assertEqual(len(resolver.calls), 2)
+
+        cache.getaddrinfo("a.example", 443)
+        self.assertEqual(len(resolver.calls), 2, "刷新后缓存应是新鲜的")
+
+    def test_refresh_without_prior_entry(self):
+        cache, resolver = make_cache()
+        cache.refresh("new.example", 443)
+        self.assertEqual(len(resolver.calls), 1)
+        self.assertEqual(len(cache), 1)
+
+
+class KeepWarmTest(unittest.TestCase):
+    def test_returns_none_when_cache_not_installed(self):
+        import saya.services.net as net_module
+
+        original = net_module._installed_cache
+        self.addCleanup(lambda: setattr(net_module, "_installed_cache", original))
+        net_module._installed_cache = None
+
+        self.assertIsNone(net_module.keep_warm("a.example"))
+
+    def test_refreshes_periodically_in_background(self):
+        import time
+
+        import saya.services.net as net_module
+
+        cache, resolver = make_cache(ttl=1000.0)
+        original = net_module._installed_cache
+        self.addCleanup(lambda: setattr(net_module, "_installed_cache", original))
+        net_module._installed_cache = cache
+
+        thread = net_module.keep_warm("a.example", 443, interval=0.05)
+        self.assertIsNotNone(thread)
+        self.assertTrue(thread.daemon, "保活线程必须是守护线程，不能拖住进程退出")
+
+        time.sleep(0.3)
+        self.assertGreaterEqual(len(resolver.calls), 1, "后台应定期刷新")
+
 
 class InstallTest(unittest.TestCase):
     def test_install_is_idempotent_and_disableable(self):
