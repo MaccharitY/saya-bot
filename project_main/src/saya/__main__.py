@@ -135,8 +135,19 @@ def run_check(config: Config) -> int:
     print(f"  接入后端 : {config.adapter}")
     print(f"  模型     : {config.llm_model} @ {config.llm_base_url}")
     print(f"  看图路线 : {config.vision_route}（可选：{' / '.join(ALL_ROUTES)}）")
-    print(f"  触发模式 : {config.trigger_mode}")
     print(f"  温度     : 对话 {config.temperature} / 看图 {config.vision_temperature}")
+    print(f"  默认群策略: {config.group_default_policy}（每群可单独覆盖）")
+    if config.group_policies:
+        for group_id, policy in sorted(config.group_policies.items()):
+            print(f"    · {group_id} → {policy}")
+
+    allowed = sorted(
+        filter(None, [config.owner_id, *config.admin_ids, *config.friend_allowlist])
+    )
+    if allowed:
+        print(f"  可私聊它的人: {len(allowed)} 个（主人/管理/白名单），其余私聊一律不理")
+    else:
+        print("  ⚠️ 可私聊它的人: **一个都没配** —— 现在任何人私聊它都会被忽略")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
     print(f"  数据目录 : {config.data_dir}")
 

@@ -1,12 +1,22 @@
-"""触发判定：这条消息该不该回（FR-2）。
+"""触发判定：这条消息**该不该记**、**该不该回**。
 
 判定顺序 —— 先否决，再匹配：
-    去重（同一条消息不回两次，所有来源通用）→ 私聊直接回 →
-    群黑名单 → 群白名单 → 限流 → 触发模式
 
-去重必须排在私聊之前：OneBot 在连接闪断后会重投递，私聊同样会重复。
+    去重（所有来源通用）
+      → 私聊：不在白名单里直接不理（结构性防注入）
+      → 群：查该群的策略 → silent 直接结束
+      → 限流 → 策略匹配
 
-随机数与时钟都可注入，测试不依赖真实时间和真实随机。
+**感知与回复是两件事**（`TriggerDecision.observe` / `.respond`）：
+`mention` 策略的群里，机器人**记录所有消息**（供记忆与活跃度用），
+但**只在被 @ 时开口**。否则它只在被叫到时才"看见世界"，
+记忆与活跃度根本无从统计。
+
+私聊白名单（主人 / 管理 / 特别白名单）是**结构性**防注入：
+私聊是陌生人能直接对机器人下指令的地方，白名单把这块攻击面直接关掉。
+它比正则检测可靠得多 —— 正则会被绕过，白名单不会。
+
+时钟可注入，测试不依赖真实时间。
 """
 
 from __future__ import annotations
@@ -18,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from saya.config import Config
-from saya.domain import IncomingMessage
+from saya.domain import DEFAULT_GROUP_POLICY, IncomingMessage
 
 WINDOW_SECONDS = 60.0
 DEDUP_MEMORY = 256
@@ -26,8 +36,9 @@ DEDUP_MEMORY = 256
 
 @dataclass(frozen=True, slots=True)
 class TriggerDecision:
-    """respond 决定要不要回；reason 进埋点，用于事后调参。"""
+    """两个独立的开关。reason 进埋点，用于事后调参。"""
 
+    observe: bool
     respond: bool
     reason: str
 
@@ -47,41 +58,70 @@ class Trigger:
         self._answered: deque[str] = deque(maxlen=DEDUP_MEMORY)
         self._answered_set: set[str] = set()
 
-    def should_respond(self, message: IncomingMessage) -> TriggerDecision:
+    # ---- 判定 ----
+
+    def evaluate(self, message: IncomingMessage) -> TriggerDecision:
         if message.message_id is not None and message.message_id in self._answered_set:
-            return TriggerDecision(False, "duplicate")
+            return TriggerDecision(False, False, "duplicate")
 
         if message.source == "private":
-            return TriggerDecision(True, "private")
+            return self._judge_private(message)
 
+        return self._judge_group(message)
+
+    def _judge_private(self, message: IncomingMessage) -> TriggerDecision:
+        if not self.is_allowed_private(message.user_id):
+            # 不说话，但**也不记录**：陌生人的私聊内容没必要留
+            return TriggerDecision(False, False, "private_not_allowed")
+        return TriggerDecision(True, True, "private_allowed")
+
+    def _judge_group(self, message: IncomingMessage) -> TriggerDecision:
         group_id = message.group_id
         if group_id is None:
-            return TriggerDecision(False, "no_group_id")
+            return TriggerDecision(False, False, "no_group_id")
 
-        if group_id in self._config.group_denylist:
-            return TriggerDecision(False, "group_denied")
+        policy = self.group_policy(group_id)
+        if policy == "silent":
+            # 不记不回 —— "这个群当我没在"
+            return TriggerDecision(False, False, "group_silent")
 
-        allowlist = self._config.group_allowlist
-        if allowlist and group_id not in allowlist:
-            return TriggerDecision(False, "group_not_allowed")
-
+        # 到这儿就说明要记录（感知），回不回另说
         if self._rate_limited(group_id):
-            return TriggerDecision(False, "rate_limited")
+            return TriggerDecision(True, False, "rate_limited")
 
-        mode = self._config.trigger_mode
-        if mode == "mention":
-            matched = message.mentioned_self
-        elif mode == "keyword":
-            keywords = self._config.trigger_keywords
-            matched = any(word in message.text for word in keywords)
-        elif mode == "random":
-            matched = self._rng.random() < self._config.reply_probability
-        elif mode == "always":
-            matched = True
-        else:
-            raise ValueError(f"未知的触发模式：{mode}")
+        matched, tag = self._match(message, policy)
+        return TriggerDecision(True, matched, f"{'hit' if matched else 'skip'}:{tag}")
 
-        return TriggerDecision(matched, f"{'hit' if matched else 'skip'}:{mode}")
+    def _match(self, message: IncomingMessage, policy: str) -> tuple[bool, str]:
+        config = self._config
+        if policy == "mention":
+            return message.mentioned_self, "mention"
+        if policy == "keyword":
+            return any(word in message.text for word in config.trigger_keywords), "keyword"
+        if policy == "random":
+            return self._rng.random() < config.reply_probability, "random"
+        if policy == "always":
+            return True, "always"
+        if policy == "selective":
+            # ⚠️ 尚未实现。**降级成 mention 而不是静默** ——
+            # 静默会让人以为"它坏了"，降级至少还能用，且 reason 里写明了。
+            return message.mentioned_self, "selective→mention（未实现，已降级）"
+        raise ValueError(f"未知的群策略：{policy}")
+
+    # ---- 配置查询 ----
+
+    def group_policy(self, group_id: int) -> str:
+        return self._config.group_policies.get(group_id, self._config.group_default_policy)
+
+    def is_allowed_private(self, user_id: int) -> bool:
+        config = self._config
+        if config.owner_id is not None and user_id == config.owner_id:
+            return True
+        if user_id in config.admin_ids:
+            return True
+        return user_id in config.friend_allowlist
+
+    # ---- 状态 ----
 
     def note_answered(self, message: IncomingMessage) -> None:
         """记录"这条已经回了"。限流与去重都依赖它，回复成功后必须调用。"""
@@ -107,3 +147,6 @@ class Trigger:
         while history and now - history[0] > WINDOW_SECONDS:
             history.popleft()
         return len(history) >= limit
+
+
+DEFAULT_POLICY_FALLBACK = DEFAULT_GROUP_POLICY  # 便于测试与文档引用

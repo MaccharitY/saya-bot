@@ -75,28 +75,50 @@ class ConfigTest(unittest.TestCase):
         config = Config.from_env(dotenv_path=NO_DOTENV)
         self.assertEqual(config.adapter, "mock")
         self.assertEqual(config.vision_route, "direct")
-        self.assertEqual(config.trigger_mode, "mention")
+        self.assertEqual(config.group_default_policy, "mention")
+        self.assertEqual(config.group_policies, {})
         self.assertEqual(config.llm_model, "deepseek-flash")
         self.assertTrue(config.vision_enable)
         self.assertIsNone(config.self_id)
+        self.assertIsNone(config.owner_id, "没配主人 = 谁都不能私聊它")
 
     def test_values_from_file(self):
         path = write_env(
-            "SAYA_ADAPTER=onebot11_http\nSAYA_TRIGGER_MODE=keyword\n"
+            "SAYA_ADAPTER=onebot11_http\n"
+            "SAYA_GROUP_DEFAULT_POLICY=mention\n"
+            "SAYA_GROUP_POLICIES=123456789:mention,999:silent\n"
             "SAYA_TRIGGER_KEYWORDS=莎夜,在吗\n"
-            "SAYA_GROUP_ALLOWLIST=111,222\nSAYA_GROUP_DENYLIST=333\n"
+            "SAYA_OWNER_ID=1001\nSAYA_ADMIN_IDS=2001,2002\nSAYA_FRIEND_ALLOWLIST=3001\n"
             "SAYA_SELF_ID=99999\nSAYA_PRICE_IN=1.5\n",
             self.dir,
         )
         config = Config.from_env(dotenv_path=path)
 
         self.assertEqual(config.adapter, "onebot11_http")
-        self.assertEqual(config.trigger_mode, "keyword")
+        self.assertEqual(config.group_policies, {123456789: "mention", 999: "silent"})
         self.assertEqual(config.trigger_keywords, ("莎夜", "在吗"))
-        self.assertEqual(config.group_allowlist, (111, 222))
-        self.assertEqual(config.group_denylist, (333,))
+        self.assertEqual(config.owner_id, 1001)
+        self.assertEqual(config.admin_ids, (2001, 2002))
+        self.assertEqual(config.friend_allowlist, (3001,))
         self.assertEqual(config.self_id, 99999)
         self.assertEqual(config.price_in, 1.5)
+
+    def test_bad_group_policy_gives_clear_error(self):
+        path = write_env("SAYA_GROUP_POLICIES=123456789:乱写的\n", self.dir)
+        with self.assertRaises(ConfigError) as ctx:
+            Config.from_env(dotenv_path=path)
+        self.assertIn("SAYA_GROUP_POLICIES", str(ctx.exception))
+
+    def test_group_policy_without_colon_gives_clear_error(self):
+        path = write_env("SAYA_GROUP_POLICIES=123456789\n", self.dir)
+        with self.assertRaises(ConfigError) as ctx:
+            Config.from_env(dotenv_path=path)
+        self.assertIn("群号:策略", str(ctx.exception))
+
+    def test_non_numeric_group_id_gives_clear_error(self):
+        path = write_env("SAYA_GROUP_POLICIES=abc:mention\n", self.dir)
+        with self.assertRaises(ConfigError):
+            Config.from_env(dotenv_path=path)
 
     def test_real_environment_wins_over_file(self):
         import os
@@ -120,11 +142,11 @@ class ConfigTest(unittest.TestCase):
         for key, value in parsed.items():
             self.assertNotIn("#", value, f"{key} 的值里混进了注释：{value!r}")
 
-    def test_bad_int_in_group_list_gives_clear_error(self):
-        path = write_env("SAYA_GROUP_ALLOWLIST=111,abc\n", self.dir)
+    def test_bad_int_in_id_list_gives_clear_error(self):
+        path = write_env("SAYA_ADMIN_IDS=111,abc\n", self.dir)
         with self.assertRaises(ConfigError) as ctx:
             Config.from_env(dotenv_path=path)
-        self.assertIn("SAYA_GROUP_ALLOWLIST", str(ctx.exception))
+        self.assertIn("SAYA_ADMIN_IDS", str(ctx.exception))
         self.assertIn("abc", str(ctx.exception))
 
     def test_missing_api_key_raises_actionable_error(self):

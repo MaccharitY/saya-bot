@@ -63,8 +63,9 @@ def make_config(**overrides) -> Config:
     config = replace(
         config,
         llm_api_key="test-key",
-        trigger_mode="mention",
         rate_limit_per_group_per_min=99,
+        group_default_policy="mention",
+        owner_id=222,  # 私聊测试里那个人的 QQ 号
         **overrides,
     )
     return config

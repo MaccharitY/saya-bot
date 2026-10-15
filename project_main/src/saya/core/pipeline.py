@@ -65,11 +65,11 @@ class Pipeline:
     def run(self) -> None:
         """阻塞地跑，直到 `stop()` 被调用。"""
         logger.info(
-            "saya_bot 启动：adapter=%s 看图路线=%s 模型=%s 触发模式=%s",
+            "saya_bot 启动：adapter=%s 看图路线=%s 模型=%s 默认群策略=%s",
             self._config.adapter,
             self._config.vision_route,
             self._config.llm_model,
-            self._config.trigger_mode,
+            self._config.group_default_policy,
         )
         for message in self._adapter.events():
             try:
@@ -88,9 +88,17 @@ class Pipeline:
 
     def handle(self, message: IncomingMessage) -> bool:
         """返回是否真的回复了。"""
-        decision = self._trigger.should_respond(message)
+        decision = self._trigger.evaluate(message)
+        if not decision.observe:
+            # 连记都不记（陌生人的私聊 / silent 群）—— 不值得留痕
+            return False
+
         if not decision.respond:
-            self._trace.write(self._event("trigger", {"respond": False, "reason": decision.reason}, message))
+            self._trace.write(
+                self._event(
+                    "trigger", {"respond": False, "reason": decision.reason}, message
+                )
+            )
             return False
 
         check = guard.detect_injection(message.text)

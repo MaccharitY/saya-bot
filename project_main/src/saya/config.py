@@ -10,6 +10,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from saya.domain import DEFAULT_GROUP_POLICY, GROUP_POLICIES
+
 _TRUE = {"1", "true", "yes", "on"}
 
 
@@ -76,6 +78,32 @@ def _optional_int(raw: str) -> int | None:
     return int(raw) if raw.strip() else None
 
 
+def _parse_policy(raw: str, *, key: str) -> str:
+    policy = raw.strip() or DEFAULT_GROUP_POLICY
+    if policy not in GROUP_POLICIES:
+        raise ConfigError(
+            f"{key} 只能是 {' / '.join(GROUP_POLICIES)}，但读到了 {policy!r}"
+        )
+    return policy
+
+
+def _parse_group_policies(raw: str) -> dict[int, str]:
+    """解析 `123456789:mention,123456789:silent` 这种形式。"""
+    policies: dict[int, str] = {}
+    for part in _split_csv(raw):
+        group_id, separator, policy = part.partition(":")
+        if not separator:
+            raise ConfigError(
+                f"SAYA_GROUP_POLICIES 里 {part!r} 格式不对 —— 应形如「群号:策略」"
+            )
+        try:
+            key = int(group_id.strip())
+        except ValueError:
+            raise ConfigError(f"SAYA_GROUP_POLICIES 里 {group_id!r} 不是合法的群号") from None
+        policies[key] = _parse_policy(policy, key="SAYA_GROUP_POLICIES")
+    return policies
+
+
 @dataclass(frozen=True, slots=True)
 class Config:
     adapter: str
@@ -87,12 +115,16 @@ class Config:
     vision_enable: bool
     temperature: float
     vision_temperature: float
-    trigger_mode: str
     trigger_keywords: tuple[str, ...]
-    group_allowlist: tuple[int, ...]
-    group_denylist: tuple[int, ...]
     reply_probability: float
     rate_limit_per_group_per_min: int
+    # 谁能私聊它 —— **结构性防注入**：私聊是陌生人能直接对机器人下指令的地方
+    owner_id: int | None
+    admin_ids: tuple[int, ...]
+    friend_allowlist: tuple[int, ...]
+    # 每个群一个策略（含 quiet/mention/keyword/random/always/selective）
+    group_policies: dict[int, str]
+    group_default_policy: str
     trace_enabled: bool
     trace_path: str
     experiment_tag: str
@@ -126,12 +158,18 @@ class Config:
             temperature=float(get("TEMPERATURE", "0.8")),
             # 看图任务要的是「事实描述」，温度压低以减少编造
             vision_temperature=float(get("VISION_TEMPERATURE", "0.2")),
-            trigger_mode=get("TRIGGER_MODE", "mention"),
             trigger_keywords=_split_csv(get("TRIGGER_KEYWORDS")),
-            group_allowlist=_split_csv_int(get("GROUP_ALLOWLIST"), key="SAYA_GROUP_ALLOWLIST"),
-            group_denylist=_split_csv_int(get("GROUP_DENYLIST"), key="SAYA_GROUP_DENYLIST"),
             reply_probability=float(get("REPLY_PROBABILITY", "0.1")),
             rate_limit_per_group_per_min=int(get("RATE_LIMIT_PER_GROUP_PER_MIN", "5")),
+            owner_id=_optional_int(get("OWNER_ID")),
+            admin_ids=_split_csv_int(get("ADMIN_IDS"), key="SAYA_ADMIN_IDS"),
+            friend_allowlist=_split_csv_int(
+                get("FRIEND_ALLOWLIST"), key="SAYA_FRIEND_ALLOWLIST"
+            ),
+            group_policies=_parse_group_policies(get("GROUP_POLICIES")),
+            group_default_policy=_parse_policy(
+                get("GROUP_DEFAULT_POLICY"), key="SAYA_GROUP_DEFAULT_POLICY"
+            ),
             trace_enabled=get("TRACE_ENABLED", "true").lower() in _TRUE,
             trace_path=get("TRACE_PATH", "./logs/trace.jsonl"),
             experiment_tag=get("EXPERIMENT_TAG", "baseline"),

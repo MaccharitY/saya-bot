@@ -12,6 +12,26 @@ from typing import Any, Literal
 
 MessageSource = Literal["group", "private"]
 
+# 每个群的策略 —— **一整个机器人只有这一个"怎么对待这个群"的概念**
+# （原先还有一个全局 trigger_mode，两者是重复的，已合并到这里）。
+#
+#   silent    完全不处理：不记录、不记忆、不回复（"这个群当我没在"）
+#   mention   记录所有消息，但**只在被 @ 时回复**（最安全的默认）
+#   keyword   记录所有消息，命中关键词才回
+#   random    记录所有消息，按概率回
+#   always    记录所有消息，全回（**只适合调试，会很吵**）
+#   selective 记录所有消息，由策略决定何时插嘴（**尚未实现，会降级成 mention**）
+GroupPolicy = Literal["silent", "mention", "keyword", "random", "always", "selective"]
+GROUP_POLICIES: tuple[str, ...] = (
+    "silent",
+    "mention",
+    "keyword",
+    "random",
+    "always",
+    "selective",
+)
+DEFAULT_GROUP_POLICY: GroupPolicy = "mention"
+
 
 @dataclass(frozen=True, slots=True)
 class ImageRef:
