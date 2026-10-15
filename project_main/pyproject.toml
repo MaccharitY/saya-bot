@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saya-bot"
+version = "0.0.1"
+description = "QQ 群聊对话机器人（DeepSeek 核心）+ 多模态/工具编排路线对照实验平台"
+requires-python = ">=3.11"
+# M0/M1 刻意零依赖，只用标准库 —— 见 docs/02 路线图。
+dependencies = []
+
+[project.optional-dependencies]
+# 按需安装；不要一次全装，各阶段只装当前需要的。
+llm = ["openai>=1.40", "httpx>=0.27"]              # M2 起
+vision = ["pillow>=10"]                            # M3 起
+tools = ["mcp>=1.0", "ultralytics>=8.3", "paddleocr>=2.7"]  # M3 路线 B/C
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -5,7 +5,17 @@
 
 ## 现在到哪一步了
 
-**只有地基，没有代码。** 需求已基线化，架构是草案。下一步见 [docs/02-roadmap.md](docs/02-roadmap.md)。
+**M0 地基已完成，没有可用机器人。** 接入层骨架 + 13 个单元测试通过。下一步见 [docs/02-roadmap.md](docs/02-roadmap.md)。
+
+## 快速开始
+
+目前**零第三方依赖**（只用 Python 标准库），所以直接就能跑测试：
+
+```
+cd project_main && python -m unittest discover -s tests -v
+```
+
+配置从 `.env.example` 复制成 `.env` 再填；**`.env` 已被 gitignore，密钥永远不进仓库**。
 
 ## 接手先读（按顺序）
 

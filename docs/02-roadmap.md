@@ -30,14 +30,17 @@
 
 ## 1. 里程碑
 
-### M0 · 地基 ✅（收尾中）
+### M0 · 地基 ✅ 已完成
 - [x] 需求基线（`docs/00`）、架构与 ADR（`docs/01`）、路线图（`docs/02`）、模型与工具链（`docs/03`）
 - [x] git 仓库 + `.gitignore` + `.env.example` + `.gitattributes`
 - [x] 课程要求提取（`pre/00`）
 - [x] 选题调研 v1（`pre/10`）；**扩建中**（目标 12-15 篇）
-- [ ] `project_main/pyproject.toml` + 依赖
-- [ ] 配置加载（`.env` → 配置对象，**密钥零落盘**）
-- [ ] `adapter/base.py`：`Adapter` 接口 + 内部领域模型 `IncomingMessage`
+- [x] `project_main/pyproject.toml`（**零运行时依赖**，依赖按阶段列为 extras）
+- [x] 配置加载 `config.py`（`.env` → 配置对象，**密钥零落盘**）
+- [x] `adapter/base.py`：`Adapter` 接口 + `domain.py` 领域模型
+- [x] `adapter/onebot11.py`：事件解析（Mock 与真后端共用同一份）
+- [x] `adapter/mock.py`：回放夹具
+- [x] 夹具 + 13 个单元测试全过 → **M0 完成标志**
 
 ### M1 · 接入真 QQ（NapCat）← 因 ADR-008 从原 M5 前移
 - [ ] **备份 QQ 安装目录**，确认可回滚（NapCat 会给 QQ 打补丁，见 ADR-008）
@@ -86,11 +89,18 @@
 
 ## 2. 当前任务
 
-**下一步**（M0 收尾，不需要等任何决策）：
-1. `project_main/pyproject.toml` + 依赖（`openai` / `httpx` / `pillow` / `pydantic`）
-2. 配置加载模块（`.env` → 配置对象）
-3. `adapter/base.py`：`Adapter` 接口 + `IncomingMessage` 领域模型
-4. 然后进入 **M1：备份 QQ 目录 → 装 NapCat → 登录 → 打通 OneBot v11**
+**M0 已完成**（13 个单元测试通过）。下一步 **M1：接入真 QQ**：
+
+1. **备份 QQ 安装目录**（`D:\Program Files\Tencent\QQ`），确认可回滚
+2. **现查** NapCat 的当前推荐安装方式（版本迭代快，别照抄旧教程）
+3. 安装 NapCat → 登录 → 开通 OneBot v11 WebSocket
+4. `adapter/onebot11.py` 补 WebSocket 客户端（解析逻辑已就绪）
+5. 抓**真实事件样本**存 `tests/fixtures/`，替换/补充现在手写的夹具
+
+**运行测试**：
+```
+cd project_main && python -m unittest discover -s tests -v
+```
 
 ## 3. 阻塞 / 待确认
 
