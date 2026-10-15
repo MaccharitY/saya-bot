@@ -74,6 +74,7 @@
 
 | 论文 | 出处 | 一句话 |
 |---|---|---|
+| ⭐ **Set-of-Mark Prompting Unleashes Extraordinary Visual Grounding in GPT-4V** | arXiv 2310.11441（v2, 2023-11-06），Microsoft | **路线 C 的奠基作**。用**现成的交互式分割模型（SEEM / SAM）**把图切成不同粒度的区域，叠上标号（字母数字 / 掩码 / 框），再让 GPT-4V 对编号做指代与定位。**核心结果：GPT-4V + SoM 在零样本设定下，超过了 RefCOCOg 上全量微调的 SOTA 指代理解与分割模型。** 作者：Jianwei Yang, Hao Zhang, Feng Li, Xueyan Zou, Chunyuan Li, Jianfeng Gao。**【✅ 已打开原文核对：2026-10-15，用 tools/fetch.py 抓 arXiv 摘要页】** |
 | **SoM-LLaVA**（List Items One by One） | COLM 2024，arXiv 2404.16375 | 用 Set-of-Mark 作**数据源与训练范式**，把 SoM 从"推理期技巧"升级为"训练期能力"。SoM 谱系直接后继。**【出处已定位】** |
 | **Ferret / Ferret-v2** | ICLR 2024，arXiv 2310.07704 / 2404.07973，Apple | 混合区域输入（点/框/任意形状），任意粒度 grounding。**【出处已定位】** |
 | **Shikra** | arXiv 2306.15195，2023 | "指代对话"：坐标以自然数直接输入输出，无需额外词表。**【出处已定位】** |
@@ -188,7 +189,9 @@
 5. **开源 MCP CV server 的版本/commit** —— 引用时需自行补 commit hash 与访问日期
 6. **是否有权威综述** —— 本次未找到"vision tool orchestration survey"，只有零散系统论文。若需要可再扩大检索
 7. **SoM-LLaVA 作者全名** —— 未确认（只有 GitHub 账号 `zzxslp`）
-8. ⚠️ **本库全部条目均未经打开原文核对** —— 引用前必须自行核实
+8. ⚠️ **本库绝大部分条目未经打开原文核对** —— 引用前必须自行核实。
+   **例外（已核对）**：Set-of-Mark（arXiv 2310.11441），2026-10-15 用 `tools/fetch.py` 打开 arXiv 摘要页逐字核对过。
+   📌 **核对手段**：本机 WebFetch 工具坏了，但**网络是通的**——用 `python tools/fetch.py <url>` 抓页面（见 `tools/README.md`）。
 
 ---
 
