@@ -58,6 +58,9 @@
 | 社区实现：`mcp-yolo` / `yolo-mcp-server` / `ultralytics_mcp_server` | GitHub | 已有多个把 YOLO/Ultralytics 封装成 MCP 工具的**成熟公开实现**，证明"专用 CV 模型当工具、LLM 经 MCP 调用"工程上可行。**【仅搜索摘要】** |
 | OSWorld-MCP / "MCP-Based AI Agent for PC Control" | scite / IEEE 11722066 | 与视觉任务关系较弱，边缘来源。**【仅搜索摘要】** |
 
+**⚠️ 一条值得注意的工程实践佐证**：社区有项目（如 `deepseek-vision-pro`）做的就是"**给纯文字 DeepSeek 装上识图眼睛：本地代理 + 智谱 GLM-4V 免费视觉模型**"。这就是**路线 B 在真实中文生态里的落地形态**，可作为"该路线已被工程界采用"的旁证。
+引用时按**软件/工程来源**处理（仓库 + commit/访问日期），**不是论文**。
+
 **⚠️ MCP 的引用规范（报告里必须这样做）**
 
 1. MCP **不是学术文献**，不能当论文引用，**切勿编造会议名或 arXiv 号**。
