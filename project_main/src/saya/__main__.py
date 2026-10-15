@@ -20,6 +20,7 @@ from saya.adapter.base import Adapter, AdapterError
 from saya.adapter.mock import MockAdapter
 from saya.adapter.onebot11_http import OneBot11HttpAdapter
 from saya.config import Config
+from saya.core.memory import Memory
 from saya.core.persona import DEFAULT_PERSONA
 from saya.core.pipeline import Pipeline
 from saya.core.trigger import Trigger
@@ -39,6 +40,7 @@ from saya.services.vision import (
 
 # __file__ = project_main/src/saya/__main__.py → parents[2] = project_main
 DEFAULT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+EXAMPLE_ENV_FILE = DEFAULT_ENV_FILE.parent.parent / ".env.example"
 
 ADAPTER_CHOICES = ("mock", "onebot11_http")
 
@@ -91,6 +93,13 @@ def build_pipeline(config: Config) -> Pipeline:
         temperature=config.vision_temperature,
         tools=tools,
     )
+    memory = None
+    if config.memory_enabled:
+        memory = Memory(Path(config.data_dir) / "memory.db")
+        logging.getLogger("saya").info(
+            "记忆已启用：%s（%s）", memory._path, memory.stats()
+        )
+
     return Pipeline(
         config=config,
         adapter=build_adapter(config),
@@ -99,6 +108,7 @@ def build_pipeline(config: Config) -> Pipeline:
         persona=DEFAULT_PERSONA,
         trigger=Trigger(config),
         trace=TraceWriter(config.trace_path, enabled=config.trace_enabled),
+        memory=memory,
     )
 
 
@@ -125,7 +135,24 @@ def _prewarm_dns(host: str, ttl_seconds: float) -> None:
     keep_warm(host, 443, interval)
 
 
-def run_check(config: Config) -> int:
+def missing_env_keys(env_file: Path, example_file: Path) -> list[str]:
+    """看看 `.env` 里缺了哪些 `.env.example` 已经有的键。
+
+    **为什么需要**：示例文件加了新键，别人早先复制出去的 `.env` 不会跟着长。
+    缺键时程序会安静地用默认值，配了却没生效最气人 ——
+    实测遇到过：`SAYA_SELF_ID` 是后来加的，用户的 .env 里压根没有这行。
+    """
+    if not env_file.is_file() or not example_file.is_file():
+        return []
+
+    from saya.config import parse_dotenv
+
+    have = set(parse_dotenv(env_file.read_text(encoding="utf-8")))
+    want = set(parse_dotenv(example_file.read_text(encoding="utf-8")))
+    return sorted(want - have)
+
+
+def run_check(config: Config, env_file: Path | None = None) -> int:
     """自检：不连 QQ、不发消息。返回 0 表示可以启动。
 
     **一次把所有问题都报出来**，而不是碰到第一个就退出 ——
@@ -152,6 +179,12 @@ def run_check(config: Config) -> int:
     print(f"  数据目录 : {config.data_dir}")
 
     problems: list[str] = []
+
+    # 提醒 .env 里缺的键（有默认值，不算问题，但配了没生效最气人）
+    missing = missing_env_keys(env_file or DEFAULT_ENV_FILE, EXAMPLE_ENV_FILE)
+    if missing:
+        print(f"\n  提示：你的 .env 里没有这些键（会走默认值）：{', '.join(missing)}")
+        print("        要改它们的话，照 .env.example 补上。")
 
     known_routes = IMPLEMENTED_ROUTES + (ROUTE_DELEGATED, ROUTE_HYBRID)
     if config.vision_route not in known_routes:
@@ -257,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
             _prewarm_dns(host, config.dns_cache_ttl)
 
     if args.check:
-        return run_check(config)
+        return run_check(config, env_file)
 
     try:
         pipeline = build_pipeline(config)

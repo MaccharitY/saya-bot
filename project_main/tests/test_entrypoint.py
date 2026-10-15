@@ -10,7 +10,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from saya.__main__ import ADAPTER_CHOICES, build_adapter, build_llm, run_check  # noqa: E402
+from saya.__main__ import (  # noqa: E402
+    ADAPTER_CHOICES,
+    build_adapter,
+    build_llm,
+    missing_env_keys,
+    run_check,
+)
 from saya.adapter.base import AdapterError  # noqa: E402
 from saya.adapter.mock import MockAdapter  # noqa: E402
 from saya.adapter.onebot11_http import OneBot11HttpAdapter  # noqa: E402
@@ -154,6 +160,33 @@ class RouteValidationTest(unittest.TestCase):
         # 仍然因为没 key 而失败，但**不该**报路线问题
         self.assertEqual(code, 1)
         self.assertNotIn("不认识", buffer.getvalue())
+
+
+class MissingEnvKeysTest(unittest.TestCase):
+    """示例文件加了新键，早先复制出去的 .env 不会跟着长 —— 得能提醒。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+
+    def _pair(self, env_text: str, example_text: str) -> tuple[Path, Path]:
+        env = self.dir / ".env"
+        example = self.dir / ".env.example"
+        env.write_text(env_text, encoding="utf-8")
+        example.write_text(example_text, encoding="utf-8")
+        return env, example
+
+    def test_reports_keys_only_in_example(self):
+        env, example = self._pair("A=1\n", "A=1\nB=2\nC=3\n")
+        self.assertEqual(missing_env_keys(env, example), ["B", "C"])
+
+    def test_nothing_missing(self):
+        env, example = self._pair("A=1\nB=2\n", "A=1\nB=2\n")
+        self.assertEqual(missing_env_keys(env, example), [])
+
+    def test_missing_files_are_tolerated(self):
+        self.assertEqual(missing_env_keys(Path("nope.env"), Path("nope.example")), [])
 
 
 class TracePathTest(unittest.TestCase):

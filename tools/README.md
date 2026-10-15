@@ -11,6 +11,22 @@
 
 ## 清单
 
+### `start_saya.bat` —— 一键启动（Windows 双击）
+
+你平时就用这个。它会转去调 WSL 里的 `start_saya.sh`。
+
+### `start_saya.sh` —— 一键启动（WSL 侧）
+
+```bash
+bash tools/start_saya.sh          # 起 NapCat → 自检 → 起机器人
+bash tools/start_saya.sh --check  # 只自检
+```
+
+顺序是刻意的：**先确保 QQ 侧活着、再自检、最后才启动** ——
+省得开了半天才发现配置有问题。自检不过就**不会启动**。
+
+QQ 号从 `project_main/.env` 的 `SAYA_SELF_ID` 读，不写死在脚本里。
+
 ### `fetch.py` —— 抓网页转文本
 
 **为什么需要**：本机的 WebFetch 工具坏了——它要联网校验"域名是否可安全抓取"，那一步失败，

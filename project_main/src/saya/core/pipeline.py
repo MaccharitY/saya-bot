@@ -16,11 +16,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from saya.adapter.base import Adapter
 from saya.config import Config
 from saya.core import guard
+from saya.core.context import build_history
+from saya.core.memory import Memory
 from saya.core.persona import Persona
 from saya.core.trigger import Trigger
 from saya.domain import IncomingMessage, OutgoingMessage
@@ -51,6 +54,7 @@ class Pipeline:
         persona: Persona,
         trigger: Trigger,
         trace: TraceWriter,
+        memory: Memory | None = None,
     ) -> None:
         self._config = config
         self._adapter = adapter
@@ -59,6 +63,7 @@ class Pipeline:
         self._persona = persona
         self._trigger = trigger
         self._trace = trace
+        self._memory = memory
 
     # ---- 主循环 ----
 
@@ -83,6 +88,8 @@ class Pipeline:
     def stop(self) -> None:
         self._adapter.stop()
         self._adapter.close()
+        if self._memory is not None:
+            self._memory.close()
 
     # ---- 单条消息 ----
 
@@ -99,7 +106,12 @@ class Pipeline:
                     "trigger", {"respond": False, "reason": decision.reason}, message
                 )
             )
+            # 虽然不回，但**要记**：记忆与活跃度靠的就是这些没被回的消息
+            self._remember(message)
             return False
+
+        # 记在生成之前：这样它自己这次也能看到上下文
+        self._remember(message)
 
         check = guard.detect_injection(message.text)
         if check.suspicious:
@@ -131,6 +143,7 @@ class Pipeline:
             )
         )
         self._trigger.note_answered(message)
+        self._remember_reply(message, safe_text)
         logger.info(
             "已回复 %s %s：%s",
             message.source,
@@ -145,6 +158,53 @@ class Pipeline:
         self._trace.write(self._event("reply", detail, message))
         return True
 
+    # ---- 记忆 ----
+
+    def _remember(self, message: IncomingMessage) -> None:
+        """把这条消息记进记忆。**跟"回不回"无关** —— 没被回的消息同样是记忆的来源。"""
+        if self._memory is None:
+            return
+        try:
+            self._memory.remember(message)
+        except Exception:  # noqa: BLE001 - 记忆坏了不该让机器人不回话
+            logger.exception("写记忆失败，跳过这一条")
+
+    def _remember_reply(self, message: IncomingMessage, reply: str) -> None:
+        """把自己的回复也记下来 —— 否则它下次会重复说过的话。
+        用**它自己的名字**记，注入时能区分"谁说的"。"""
+        if self._memory is None or message.source != "group" or message.group_id is None:
+            return
+        try:
+            self._memory.record(
+                group_id=message.group_id,
+                qq=self._config.self_id or 0,
+                name=self._persona.name,
+                text=reply,
+                at=datetime.now(),
+                from_bot=True,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("写回复进记忆失败")
+
+    def _user_content(self, message: IncomingMessage, text: str) -> str:
+        """拼出给模型看的用户内容：**记忆在前，本条消息在后**。
+
+        两块都过 guard 的包裹 —— 记忆是群友说过的话，同属不可信输入。
+        """
+        body = guard.wrap_message(message.sender_name, message.user_id, text)
+        if self._memory is None:
+            return body
+
+        history = build_history(
+            self._memory,
+            message,
+            bot_qq=self._config.self_id,
+            bot_name=self._persona.name,
+        )
+        if not history:
+            return body
+        return f"{guard.wrap_history(history)}\n\n{body}"
+
     # ---- 生成 ----
 
     def _generate(self, message: IncomingMessage, system_prompt: str) -> tuple[str, dict[str, Any]]:
@@ -154,10 +214,7 @@ class Pipeline:
         result = self._llm.chat(
             [
                 text_message("system", system_prompt),
-                text_message(
-                    "user",
-                    guard.wrap_message(message.sender_name, message.user_id, message.text),
-                ),
+                text_message("user", self._user_content(message, message.text)),
             ],
             temperature=self._config.temperature,
         )
@@ -175,8 +232,7 @@ class Pipeline:
         self, message: IncomingMessage, system_prompt: str
     ) -> tuple[str, dict[str, Any]]:
         # 群里常出现「只发图不说话」，给个兜底问题
-        raw_text = message.text.strip() or "看看这张图"
-        question = guard.wrap_message(message.sender_name, message.user_id, raw_text)
+        question = self._user_content(message, message.text.strip() or "看看这张图")
         result = self._vision.describe_many(
             list(message.images),
             question,
