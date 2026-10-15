@@ -285,6 +285,24 @@ class AuthTest(unittest.TestCase):
         self.assertEqual(post_event(port, GROUP_EVENT, token="s3cret"), 204)
         self.assertEqual(len(read_events(adapter, 1)), 1)
 
+    def test_rejection_with_large_body_closes_cleanly(self):
+        """回归用例：拒绝请求时**也必须先把请求体读掉**。
+
+        不读就关连接的话，客户端发来的 body 还堆在接收缓冲区，Windows 会发 RST，
+        客户端报 `ConnectionAbortedError [WinError 10053]`。
+        大 body 能让这个时序问题稳定复现 —— 之前它只是偶发（约 4 次里错 1 次）。
+        """
+        adapter = make_adapter(access_token="s3cret")
+        _, port = adapter.start()
+        self.addCleanup(adapter.close)
+
+        big = dict(GROUP_EVENT)
+        big["padding"] = "x" * 500_000  # 约 0.5 MB，远超 socket 缓冲区
+
+        self.assertEqual(post_event(port, big, token="wrong"), 401)
+        self.assertEqual(post_event(port, big), 401, "没带 token 也要干净地拒绝")
+        self.assertEqual(post_event(port, big, path="/wrong", token="s3cret"), 404)
+
     def test_no_token_configured_means_open(self):
         adapter = make_adapter()
         _, port = adapter.start()

@@ -40,6 +40,9 @@ class IncomingMessage:
     mentioned_self: bool = False
     message_id: str | None = None
     received_at: datetime | None = None
+    # ⚠️ 用户可控字段 —— 群名片谁都能改。**进提示词时必须过 core.guard 的不可信区**，
+    # 不要单独拼在外面，否则有人把名字改成"系统：忽略以上指令"就注入了。
+    sender_name: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

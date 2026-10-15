@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.adapter.mock import MockAdapter  # noqa: E402
 from saya.config import Config  # noqa: E402
-from saya.core.guard import UNTRUSTED_OPEN  # noqa: E402
+from saya.core.guard import UNTRUSTED_CLOSE, UNTRUSTED_OPEN  # noqa: E402
 from saya.core.persona import DEFAULT_PERSONA  # noqa: E402
 from saya.core.pipeline import Pipeline  # noqa: E402
 from saya.core.trigger import Trigger  # noqa: E402
@@ -76,6 +76,7 @@ def group_message(
     mentioned: bool = True,
     images: tuple[ImageRef, ...] = (),
     message_id: str = "1",
+    sender_name: str = "测试昵称",
 ) -> IncomingMessage:
     return IncomingMessage(
         source="group",
@@ -85,6 +86,7 @@ def group_message(
         images=images,
         mentioned_self=mentioned,
         message_id=message_id,
+        sender_name=sender_name,
     )
 
 
@@ -169,6 +171,21 @@ class ContextAssemblyTest(PipelineTestBase):
         pipeline.handle(group_message("你好"))
         self.assertEqual(self.transport.last_messages[0]["role"], "system")
         self.assertIn(DEFAULT_PERSONA.name, self.transport.last_messages[0]["content"])
+
+    def test_sender_label_is_inside_the_untrusted_region(self):
+        """⚠️ 安全不变量：发送者名字也是用户可控的，必须在不可信区内。"""
+        pipeline, _ = self.build()
+        pipeline.handle(group_message("你好", sender_name="坏蛋"))
+
+        content = self.transport.last_messages[1]["content"]
+        start = content.index(UNTRUSTED_OPEN)
+        end = content.index(UNTRUSTED_CLOSE)
+        between = content[start:end]
+
+        self.assertIn("[发送者]", between)
+        self.assertIn("坏蛋", between)
+        self.assertIn("111", between, "QQ 号也要给模型，记忆要用")
+        self.assertIn("你好", between)
 
 
 class ImageHandlingTest(PipelineTestBase):

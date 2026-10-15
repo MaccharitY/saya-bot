@@ -146,7 +146,10 @@ class Pipeline:
         result = self._llm.chat(
             [
                 text_message("system", system_prompt),
-                text_message("user", guard.wrap_untrusted(message.text)),
+                text_message(
+                    "user",
+                    guard.wrap_message(message.sender_name, message.user_id, message.text),
+                ),
             ],
             temperature=self._config.temperature,
         )
@@ -164,7 +167,8 @@ class Pipeline:
         self, message: IncomingMessage, system_prompt: str
     ) -> tuple[str, dict[str, Any]]:
         # 群里常出现「只发图不说话」，给个兜底问题
-        question = guard.wrap_untrusted(message.text.strip() or "看看这张图")
+        raw_text = message.text.strip() or "看看这张图"
+        question = guard.wrap_message(message.sender_name, message.user_id, raw_text)
         result = self._vision.describe_many(
             list(message.images),
             question,

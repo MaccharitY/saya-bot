@@ -239,6 +239,13 @@ def _make_handler(adapter: OneBot11HttpAdapter) -> type[BaseHTTPRequestHandler]:
         server_version = "saya-bot"
 
         def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler 约定的名字
+            # ⚠️ **先读请求体，再决定回什么** —— 哪怕是要拒绝它。
+            # 不读就关连接的话，客户端发来的 body 还堆在接收缓冲区里，
+            # Windows 会因此发 RST 而不是 FIN，客户端那边报
+            # `ConnectionAbortedError [WinError 10053]`。
+            # 这是 HTTP 服务端的基本卫生；偶发正是因为它取决于 TCP 时序。
+            body = _read_body(self)
+
             if self.path.split("?")[0].rstrip("/") != adapter._event_path.rstrip("/"):
                 self._reply(404, b'{"error":"not here"}')
                 return
@@ -246,7 +253,6 @@ def _make_handler(adapter: OneBot11HttpAdapter) -> type[BaseHTTPRequestHandler]:
                 self._reply(401, b'{"error":"unauthorised"}')
                 return
 
-            body = _read_body(self)
             adapter._deliver_event(body, headers=self.headers)
             self._reply(204)
 

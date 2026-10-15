@@ -45,6 +45,33 @@ class ParseEventTest(unittest.TestCase):
         assert message is not None
         self.assertEqual(message.text, "纯字符串形式")
 
+    def test_sender_name_is_sanitised(self):
+        """昵称是用户可控的：带换行会破坏提示词排版，超长会白烧 token。"""
+        raw = {
+            "post_type": "message",
+            "message_type": "group",
+            "group_id": 1,
+            "user_id": 2,
+            "message": [],
+            "sender": {"nickname": "坏\n名\n字" + "长" * 100},
+        }
+        message = parse_event(raw)
+        assert message is not None
+        self.assertNotIn("\n", message.sender_name)
+        self.assertLessEqual(len(message.sender_name), 32)
+
+    def test_missing_sender_is_tolerated(self):
+        raw = {
+            "post_type": "message",
+            "message_type": "group",
+            "group_id": 1,
+            "user_id": 2,
+            "message": [],
+        }
+        message = parse_event(raw)
+        assert message is not None
+        self.assertEqual(message.sender_name, "")
+
 
 class MockAdapterTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -83,6 +110,15 @@ class MockAdapterTest(unittest.TestCase):
         self.assertFalse(fourth.mentioned_self)
         self.assertIn("[@all]", fourth.text)
         self.assertIn("[表情]", fourth.text)
+
+    def test_sender_name_prefers_group_card(self):
+        """群里大家认的是名片，不是昵称。"""
+        second = self.messages[1]
+        self.assertEqual(second.sender_name, "乙")
+
+    def test_sender_name_falls_back_to_nickname(self):
+        first = self.messages[0]
+        self.assertEqual(first.sender_name, "群友甲")
 
 
 class EchoSmokeTest(unittest.TestCase):

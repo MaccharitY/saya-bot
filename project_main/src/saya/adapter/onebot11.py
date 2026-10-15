@@ -67,6 +67,10 @@ def parse_event(raw: dict[str, Any], self_id: int | None = None) -> IncomingMess
 
     message_id = raw.get("message_id")
 
+    # 群名片优先于昵称：群里大家认的是名片
+    sender = raw.get("sender") or {}
+    sender_name = _clean_name(str(sender.get("card") or sender.get("nickname") or ""))
+
     return IncomingMessage(
         source=message_type,
         group_id=raw.get("group_id"),
@@ -76,5 +80,19 @@ def parse_event(raw: dict[str, Any], self_id: int | None = None) -> IncomingMess
         mentioned_self=mentioned,
         message_id=str(message_id) if message_id is not None else None,
         received_at=received_at,
+        sender_name=sender_name,
         raw=raw,
     )
+
+
+_MAX_NAME_CHARS = 32
+
+
+def _clean_name(name: str) -> str:
+    """清一下昵称/群名片。
+
+    它是**用户可控**的：可能带换行（会破坏提示词排版）或超长。
+    这里只做"不影响排版"的清理 —— **真正的注入防护是 core.guard 的分区隔离**，
+    不靠这里过滤内容（那样既漏又误伤）。
+    """
+    return " ".join(name.split())[:_MAX_NAME_CHARS]

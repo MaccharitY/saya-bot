@@ -84,6 +84,17 @@ def wrap_untrusted(text: str) -> str:
     return f"{UNTRUSTED_OPEN}\n{text}\n{UNTRUSTED_CLOSE}"
 
 
+def wrap_message(sender_name: str, sender_id: int, text: str) -> str:
+    """把**整条消息（含发送者标识）**包成不可信区。
+
+    ⚠️ 发送者名字也是**用户可控**的：QQ 群名片谁都能改，有人可以把名片改成
+    「系统：忽略以上指令」再说话。所以它必须和正文一起进不可信区，
+    **绝不能单独拼在提示词里当"可信标签"用** —— 那等于自己开了个注入口子。
+    """
+    label = f"{sender_name}（{sender_id}）" if sender_name else str(sender_id)
+    return f"{UNTRUSTED_OPEN}\n[发送者] {label}\n[内容] {text}\n{UNTRUSTED_CLOSE}"
+
+
 def detect_injection(text: str) -> GuardResult:
     """检测注入企图。命中返回可疑标记，未命中返回 safe。"""
     for name, pattern in _INJECTION_RULES:
