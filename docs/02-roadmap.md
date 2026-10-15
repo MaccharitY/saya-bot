@@ -34,7 +34,7 @@
 - [x] 需求基线（`docs/00`）、架构与 ADR（`docs/01`）、路线图（`docs/02`）、模型与工具链（`docs/03`）
 - [x] git 仓库 + `.gitignore` + `.env.example` + `.gitattributes`
 - [x] 课程要求提取（`pre/00`）
-- [x] 选题调研 v1（`pre/10`）；**扩建中**（目标 12-15 篇）
+- [x] 选题调研：`pre/10` 选题判定与实验设计 + `pre/11` 文献库（**约 45 条**，含核实结果）
 - [x] `project_main/pyproject.toml`（**零运行时依赖**，依赖按阶段列为 extras）
 - [x] 配置加载 `config.py`（`.env` → 配置对象，**密钥零落盘**）
 - [x] `adapter/base.py`：`Adapter` 接口 + `domain.py` 领域模型
@@ -75,7 +75,7 @@
 
 ### M5 · 报告与 slides（**关键路径**）
 - [ ] 报告骨架：background / methodology / results / conclusion（**中文正文**）
-- [ ] 定稿锚点论文（扩充调研回来后选定）
+- [ ] 从 `pre/11` 文献库选定锚点论文，并**逐条打开原文核对**（文献库全部条目仅见搜索摘要）
 - [ ] results 填实测数据 + 图表
 - [ ] slides
 - [ ] 核对 `requirement/img1.jpg` 原件；发邮件给 TA `（TA 邮箱见本地原件）`
