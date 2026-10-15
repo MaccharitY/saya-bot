@@ -28,3 +28,24 @@ python tools/fetch.py https://example.com --raw --out page.html
 HTML 转纯文本、链接提取。遇到 PDF 会明确报错而不是输出乱码。
 
 可 import：`from tools.fetch import fetch, html_to_text, extract_links`
+
+### 抓取经验（2026-10-15 实测）
+
+**能抓**：arXiv、CVF Open Access（`openaccess.thecvf.com`）、**OpenAlex API**、`modelcontextprotocol.io`、
+GitHub、DeepSeek 官方文档（`api-docs.deepseek.com`）
+
+**抓不到**（反爬或本机问题，**不代表目标条目有问题**）：IEEE Xplore（返回空响应）、
+Semantic Scholar 网页、Semantic Scholar API（持续 429）、DBLP（本机 SSL 证书链问题）
+
+> 💡 **查论文的会议归属与作者**：**arXiv 页本身常常不写会议名**（Comments 栏可能只写 "Technical Report"）。
+> 用 OpenAlex 更靠得住：
+>
+> ```bash
+> python tools/fetch.py "https://api.openalex.org/works/doi:10.1109/bigdata66926.2025.11402578" --max-chars 0
+> ```
+>
+> ⚠️ **OpenAlex 返回的是 JSON，必须加 `--max-chars 0`**，否则 JSON 被截断后无法解析。
+> 也可按标题搜索：`https://api.openalex.org/works?search=<标题>`
+>
+> 输出里 `title` / `publication_year` / `primary_location.source.display_name`（发表处）/ `authorships`（作者）
+> 就是写参考文献要的字段。

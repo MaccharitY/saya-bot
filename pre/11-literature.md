@@ -2,12 +2,14 @@
 
 > 状态：**v1（2026-10-15）**，由自动化检索产出，约 40 篇/条目。
 > ⚠️ **引用纪律（务必先读）**
-> 1. 本机 **WebFetch 被网络策略拦截**，检索全程**只能看搜索摘要**，**没有任何一条经过打开原文逐字核对**。
-> 2. 可信度只有两档：
->    - **【出处已定位】** —— 搜索直接返回了该论文/规范的官方页面（CVF Open Access / arXiv / HuggingFace Papers / 官方 GitHub / 出版社），标题与编号一致，**元数据可信，但正文数字未核对**。
+> 1. 条目来源：首轮**只能看搜索摘要**（当时以为网络被拦，实为 **WebFetch 工具本身坏了**，见下）。第二轮已用直连工具**联网核实了 19 条**，其余仍未核对。
+> 2. 可信度分三档：
+>    - **【✅已联网核实】** —— 已用 `tools/fetch.py` 直连官方页面核对过元数据（标题 / 作者 / 会议 / 编号）。
+>    - **【出处已定位】** —— 搜索返回了官方页面，标题与编号一致，**元数据可信，但正文数字未核对**。
 >    - **【仅搜索摘要】** —— 只看到二手来源（博客、聚合站），**谨慎**。
-> 3. **写进报告前，被引用的每一条都必须自己打开原文核对。**
-> 4. 路线标签：**A** = 多模态大模型本体直接看图；**B** = 专用 CV 模型 + LLM 编排；**C** = 混合（检测器出候选 + MLLM 语义推理）。
+> 3. **写进报告前，每一条被引用的都必须自己打开原文核对。**
+> 4. **核对手段**：`python tools/fetch.py <url>`（本机 WebFetch 坏了，但**网络是通的**，见 `../tools/README.md`）。**查会议归属用 OpenAlex API** —— 这是核实过程中最有用的发现。
+> 5. 路线标签：**A** = 多模态大模型本体直接看图；**B** = 专用 CV 模型 + LLM 编排；**C** = 混合（检测器出候选 + MLLM 语义推理）。
 
 ---
 
@@ -52,7 +54,7 @@
 
 | 条目 | 出处 | 说明 |
 |---|---|---|
-| **M3-Bench** | arXiv 2511.17729，2025 | 自称"**首个在 Model Context Protocol 下评测多模态工具使用的基准**"。这是 MCP + 视觉目前能找到的**最正式的可引用学术来源**。**【出处已定位】** |
+| **M³-Bench**（读作 M-cubed，**不是 M3**） | arXiv 2511.17729，2025，Yang Zhou 等 9 人（含 Dimitris N. Metaxas） | 摘要原文确有 "the first benchmark for evaluating multimodal tool use under the Model Context Protocol"。MCP + 视觉目前能找到的**最正式的可引用学术来源**。**【✅已联网核实】** ⚠️ "first" 是**论文的自我声明**，无法独立验证——引用时别把"首个"当既成事实 |
 | **MCP 规范 2025-11-25** | 官方 changelog / PR #1887 | **确认为正式版**。**【出处已定位】** |
 | **MCP 规范 2026-07-28** | 官方 release tag | **确实已发布**，是"无状态核心"大改版。**【出处已定位】** |
 | 社区实现：`mcp-yolo` / `yolo-mcp-server` / `ultralytics_mcp_server` | GitHub | 已有多个把 YOLO/Ultralytics 封装成 MCP 工具的**成熟公开实现**，证明"专用 CV 模型当工具、LLM 经 MCP 调用"工程上可行。**【仅搜索摘要】** |
@@ -144,7 +146,7 @@
 
 | 来源 | 出处 | 说明 |
 |---|---|---|
-| ⭐ **Do MLLMs Compete with Specialized Object Detection Models? A Quantitative Benchmark** | **IEEE Xplore 11402578**，作者 Dunton & Govindarajulu | **直接对比两者的定量基准**，正是最想要的。**但具体数字未能核实**。**【出处已定位】／内容【仅搜索摘要】** |
+| ⭐ **Do Multimodal Large Language Models Compete with Specialized Object Detection Models? A Quantitative Benchmark** | **2025 IEEE International Conference on Big Data (BigData)**，DOI `10.1109/bigdata66926.2025.11402578` | 直接对比两者的定量基准。**✅书目已核实**：作者 **Andrew Dunton, Priya Govindarajulu, Mohammad Masum**（均 San Jose State University）——文献库原先漏了第三作者。⚠️ **IEEE 与 Semantic Scholar 反爬抓不到，摘要读不了 → "核心结论"仍未核验**，写进报告前必须自己拿到摘要 |
 | **RAR: Retrieving And Ranking Augmented MLLMs** | arXiv 2403.13805，2024 | 在 **LVIS（大量长尾类别）** 上用检索增强放大 MLLM 识别能力 → MLLM 的语义知识对罕见类别有独特价值，**但需外部检索辅助**。**【出处已定位】** |
 | **Unlocking Object Detection in Vision-Language Models** | IEEE Access 2026，DOI 10.1109/ACCESS.2026.3675517 | VLM 可**免任务特定训练**做类别提示式检测，体现开放词表灵活性。**【出处已定位】** |
 | **WeDetect** | CVPR 2026 | 开放词表检测专用模型的新进展。**【出处已定位】** |
@@ -160,12 +162,35 @@
 
 | 待核项 | 结论 |
 |---|---|
-| "Do MLLMs Compete…"（IEEE 2025） | ✅ **真实存在**：IEEE Xplore 文档号 11402578，作者 Dunton & Govindarajulu。⚠️ **具体会议名与年份未确认** → 报告写成"IEEE（编号 11402578），2025/2026，具体会议待核" |
+| "Do MLLMs Compete…" | ✅ 真实存在。**第二轮已查清**：会议 = **2025 IEEE International Conference on Big Data (BigData)**，DOI `10.1109/bigdata66926.2025.11402578`，作者**三人**：Andrew Dunton, Priya Govindarajulu, **Mohammad Masum**（文献库原先漏了第三位） |
 | COUNTS 的 arXiv 编号 | ✅ **= 2504.10158**（CVPR 2025） |
 | "Counting to Four is still a Chore for VLMs" | ✅ **完全真实**：**CVPRW 2026**（MMFM5 workshop），arXiv 2604.10039，作者 Lê Đình Anh Duy |
 | 流传的 "GPT-4o Vision 检测精度仅 0.02" | ⚠️ **疑似失真转述，不要引用**。溯源到 AIMultiple 商业博客及其中文转载；页面因 WebFetch 被拦截无法打开。**旁证**：arXiv 2510.11302 给的是"**YOLO 与 GPT-4 相差 19.9 个百分点**"，与 0.02 **完全不同量级**。该数字很可能是某个 precision 取值或被中文转载误读 |
 | MCP 规范版本 2025-11-25 | ✅ 正式版（官方 changelog + 合并 PR #1887） |
 | MCP 规范版本 2026-07-28 | ✅ **确实已发布**（官方 release tag 存在），是"无状态核心"大改版 |
+
+### 7.1 第二轮：18 条联网逐条核实（2026-10-15）
+
+**结论：18 条全部真实存在；17 条与文献库一致；1 条有实质出入（已修正）。**
+
+手段：`tools/fetch.py` 直连 + **OpenAlex API** 查会议录归属，与 IEEE DOI 交叉验证。
+
+**有出入 / 需要记住的**：
+
+| 项 | 修正 |
+|---|---|
+| **IEEE 11402578** | 会议与年份查明：**2025 IEEE International Conference on Big Data (BigData)**，DOI `10.1109/bigdata66926.2025.11402578`。作者**三人**，文献库漏了第三作者 **Mohammad Masum**。⚠️ IEEE 与 Semantic Scholar 反爬（返回空响应），**摘要读不到 → "核心结论"仍未核验** |
+| **M3-Bench** | 正确写法 **M³-Bench**（M-cubed）。"首个 MCP 多模态工具基准"是**论文自我声明**，无法独立验证 |
+| **COUNTS / POPE** | 正式题名要用全称：**M**ultimodal **L**arge **L**anguage **M**odels（非 "MLLMs"）、**L**arge **V**ision-**L**anguage **M**odels（非 "LVLMs"）。缩写不算错，但严格引用要写全 |
+| **Counting to Four** | CVF 正式页：**CVPRW 2026 MMFM5 workshop, pp. 7377-7385**；署名顺序 **Duy Le Dinh Anh, Patrick Irawan, Tuan Van Vo**（arXiv 页作 "Patrick **Amadeus** Irawan"，引用时需统一） |
+| **CC-OCR** | 编号补上：**arXiv 2412.02210**，DOI `10.1109/iccv51701.2025.02019`。⚠️ **已有 V2**（arXiv 2605.03903, 2026）—— 引用时别混淆 |
+
+**方法学提示（重要）**：
+
+- **多条 arXiv 页本身不标会议归属**（Comments 只写 "Technical Report" 之类）——会议信息必须另行核实才能写进报告。
+- 👉 **报告里的参考文献建议直接引会议正式页**（CVF Open Access / 会议录 DOI），而不是 arXiv 页。
+- **可抓**：arXiv、CVF Open Access、**OpenAlex API**、modelcontextprotocol.io、GitHub
+- **抓不到（反爬，不代表条目有问题）**：IEEE Xplore、Semantic Scholar 网页；Semantic Scholar API 持续 429；DBLP 因本机 SSL 证书链问题失败
 
 ---
 
@@ -207,9 +232,8 @@
 5. **开源 MCP CV server 的版本/commit** —— 引用时需自行补 commit hash 与访问日期
 6. **是否有权威综述** —— 本次未找到"vision tool orchestration survey"，只有零散系统论文。若需要可再扩大检索
 7. **SoM-LLaVA 作者全名** —— 未确认（只有 GitHub 账号 `zzxslp`）
-8. ⚠️ **本库绝大部分条目未经打开原文核对** —— 引用前必须自行核实。
-   **例外（已核对）**：Set-of-Mark（arXiv 2310.11441），2026-10-15 用 `tools/fetch.py` 打开 arXiv 摘要页逐字核对过。
-   📌 **核对手段**：本机 WebFetch 工具坏了，但**网络是通的**——用 `python tools/fetch.py <url>` 抓页面（见 `tools/README.md`）。
+8. ⚠️ 本库约 45 条，**已联网核实 19 条**（set-of-Mark + §7.1 的 18 条）；**其余仍未核对**，引用前必须自行核实。
+   📌 **核对手段**：本机 WebFetch 工具坏了，但**网络是通的**——`python tools/fetch.py <url>`；**查会议归属用 OpenAlex API**（本次核实最有用的发现）。
 
 ---
 
