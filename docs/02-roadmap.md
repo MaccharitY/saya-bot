@@ -50,14 +50,18 @@
 - [x] `adapter/mock.py`：回放夹具
 - [x] 夹具 + 13 个单元测试全过 → **M0 完成标志**
 
-### M1 · 接入真 QQ（NapCat）← 因 ADR-008 从原 M5 前移
-- [ ] **备份 QQ 安装目录**，确认可回滚（NapCat 会给 QQ 打补丁，见 ADR-008）
-- [ ] 查当前推荐安装方式（版本迭代快，**装之前现查**，别照抄旧教程）
-- [ ] 安装 NapCat，用 QQ 账号登录（⚠️ 封号风险）
-- [ ] 开通 OneBot v11 WebSocket，最小脚本验证能收到群消息
-- [ ] `adapter/onebot11.py`：真实事件 → 内部 `IncomingMessage`
-- [ ] **抓一份真实事件样本**存 `project_main/tests/fixtures/`，供 Mock 夹具复用
-- [ ] 能往指定群发一条文本 → **M1 完成标志**
+### M1 · 接入真 QQ（NapCat）✅ **已完成**（2026-10-15 22:58）
+> ⚠️ 实际走的**不是** WebSocket，而是 **OneBot v11 的 HTTP 模式**（标准库没有 WS 客户端）。
+> NapCat 装在 **WSL Ubuntu 26.04** 里，机器人**也跑在 WSL 里**，两边都走 `127.0.0.1`。
+> 部署细节与踩过的坑见 [`../docs/04-napcat-deployment.md`](../docs/04-napcat-deployment.md)。
+- [x] 安装 NapCat（官方安装器 NapCat-Installer，装到 `~/Napcat`）
+- [x] QQ 账号登录（扫码）
+- [x] 配好两个适配器：HTTP 服务端 `:3000` + HTTP 上报 → `http://127.0.0.1:8080/onebot`
+- [x] `adapter/onebot11_http.py`：真实事件 → 内部 `IncomingMessage`
+- [x] `adapter/onebot11.py` 解析层复用于 Mock 夹具
+- [x] **端到端成功：群里 @ 它，它回了** → **M1 完成标志**
+- [ ] 抓一份**真实事件样本**存 `tests/fixtures/`（现在夹具还是手写的）
+- [ ] ⚠️ **待查**：首条回复花了 **12.2 秒**，比 `--check` 的 0.7 秒慢太多 —— 要搞清原因（冷启动？WSL 网络？），这直接影响报告里的延迟指标
 
 ### M2 · 内核最小闭环（进行中）
 - [x] `core/trigger.py`：@提及 / 关键词 / 概率 / 全回 + 限流 + 去重

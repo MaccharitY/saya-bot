@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import sys
 import threading
 import unittest
@@ -191,6 +192,76 @@ class EventDeliveryTest(unittest.TestCase):
         self.addCleanup(adapter.close)
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5.0) as response:
             self.assertEqual(response.status, 200)
+
+
+def post_chunked(port: int, payload: dict, *, path: str = "/onebot", pieces: int = 2) -> None:
+    """用 chunked 传输发一个请求 —— 模拟 NapCat（Node）的上报方式。
+
+    urllib 不会发 chunked，所以这里手写 HTTP 报文走裸 socket。
+    """
+    body = json.dumps(payload).encode("utf-8")
+    head = (
+        f"POST {path} HTTP/1.1\r\n"
+        f"Host: 127.0.0.1:{port}\r\n"
+        "Content-Type: application/json\r\n"
+        "Transfer-Encoding: chunked\r\n"
+        "\r\n"
+    ).encode()
+
+    step = max(1, len(body) // pieces)
+    framed = b""
+    for start in range(0, len(body), step):
+        part = body[start : start + step]
+        framed += f"{len(part):X}\r\n".encode() + part + b"\r\n"
+    framed += b"0\r\n\r\n"
+
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+        sock.sendall(head + framed)
+        sock.recv(512)
+
+
+class ChunkedBodyTest(unittest.TestCase):
+    """NapCat 的上报用 chunked 传输；不支持的话会静默丢消息。
+
+    这条是回归测试：曾经因为只按 Content-Length 读，body 恒为空，
+    日志里只有"收到 0 字节"，表现成"机器人没反应"。
+    """
+
+    def test_chunked_event_is_parsed(self):
+        adapter = make_adapter()
+        _, port = adapter.start()
+        self.addCleanup(adapter.close)
+
+        post_chunked(port, GROUP_EVENT)
+        collected = read_events(adapter, 1)
+
+        self.assertEqual(len(collected), 1, "chunked 上报必须能被解析")
+        self.assertEqual(collected[0].group_id, 123456789)
+
+    def test_chunked_with_one_piece(self):
+        adapter = make_adapter()
+        _, port = adapter.start()
+        self.addCleanup(adapter.close)
+
+        post_chunked(port, GROUP_EVENT, pieces=1)
+        self.assertEqual(len(read_events(adapter, 1)), 1)
+
+    def test_chunked_with_many_pieces(self):
+        adapter = make_adapter()
+        _, port = adapter.start()
+        self.addCleanup(adapter.close)
+
+        post_chunked(port, GROUP_EVENT, pieces=7)
+        self.assertEqual(len(read_events(adapter, 1)), 1)
+
+    def test_content_length_still_works(self):
+        """别为了修 chunked 把普通请求弄坏了。"""
+        adapter = make_adapter()
+        _, port = adapter.start()
+        self.addCleanup(adapter.close)
+
+        self.assertEqual(post_event(port, GROUP_EVENT), 204)
+        self.assertEqual(len(read_events(adapter, 1)), 1)
 
 
 class AuthTest(unittest.TestCase):

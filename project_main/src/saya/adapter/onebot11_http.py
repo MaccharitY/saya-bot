@@ -34,6 +34,7 @@ logger = logging.getLogger("saya.adapter.onebot11_http")
 
 DEFAULT_EVENT_PATH = "/onebot"
 _QUEUE_POLL_SECONDS = 0.5
+_MAX_BODY_BYTES = 8 * 1024 * 1024  # 群消息事件不会太大；留个上限防内存被灌爆
 
 Poster = Callable[[str, dict[str, Any], float], dict[str, Any]]
 
@@ -145,11 +146,17 @@ class OneBot11HttpAdapter(Adapter):
                 f"{action} 被后端拒绝：retcode={retcode} {response.get('message', '')}"
             )
 
-    def _deliver_event(self, body: bytes) -> None:
+    def _deliver_event(self, body: bytes, *, headers: Any = None) -> None:
         try:
             raw = json.loads(body)
         except json.JSONDecodeError:
-            logger.warning("收到不是 JSON 的请求体，丢弃（%d 字节）", len(body))
+            hint = ""
+            if headers is not None:
+                hint = (
+                    f"（Content-Length={headers.get('Content-Length')!r}, "
+                    f"Transfer-Encoding={headers.get('Transfer-Encoding')!r}）"
+                )
+            logger.warning("收到不是 JSON 的请求体，丢弃（%d 字节）%s", len(body), hint)
             return
         if not isinstance(raw, dict):
             logger.warning("事件 JSON 顶层不是对象，丢弃")
@@ -184,6 +191,49 @@ def _urllib_post(url: str, params: dict[str, Any], timeout: float) -> dict[str, 
     return result if isinstance(result, dict) else {}
 
 
+def _read_body(handler: BaseHTTPRequestHandler) -> bytes:
+    """读请求体，**同时支持 Content-Length 与 chunked**。
+
+    ⚠️ 这个坑我们真踩过：NapCat 的上报用 `Transfer-Encoding: chunked`（Node 的
+    http 客户端流式发送时就是这样），而 `BaseHTTPRequestHandler` **不会**自动解码
+    chunked —— 只按 Content-Length 读会拿到空 body，日志里只有一句"收到 0 字节"，
+    消息全部静默丢失，看起来像"机器人没反应"。
+    """
+    encoding = (handler.headers.get("Transfer-Encoding") or "").lower()
+    if "chunked" in encoding:
+        return _read_chunked(handler)
+
+    length = int(handler.headers.get("Content-Length") or 0)
+    if length <= 0:
+        return b""
+    return handler.rfile.read(min(length, _MAX_BODY_BYTES))
+
+
+def _read_chunked(handler: BaseHTTPRequestHandler) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        size_line = handler.rfile.readline(128)
+        if not size_line:
+            break
+        # 块长度后面可能有 ";扩展"，切掉
+        try:
+            size = int(size_line.split(b";")[0].strip() or b"0", 16)
+        except ValueError:
+            break
+        if size <= 0:
+            handler.rfile.readline()  # 结尾那个 CRLF
+            break
+
+        chunks.append(handler.rfile.read(size))
+        handler.rfile.read(2)  # 每块末尾的 CRLF
+        total += size
+        if total > _MAX_BODY_BYTES:
+            logger.warning("上报体超过 %d 字节上限，截断", _MAX_BODY_BYTES)
+            break
+    return b"".join(chunks)
+
+
 def _make_handler(adapter: OneBot11HttpAdapter) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = "saya-bot"
@@ -196,9 +246,8 @@ def _make_handler(adapter: OneBot11HttpAdapter) -> type[BaseHTTPRequestHandler]:
                 self._reply(401, b'{"error":"unauthorised"}')
                 return
 
-            length = int(self.headers.get("Content-Length") or 0)
-            body = self.rfile.read(length) if length > 0 else b""
-            adapter._deliver_event(body)
+            body = _read_body(self)
+            adapter._deliver_event(body, headers=self.headers)
             self._reply(204)
 
         def do_GET(self) -> None:  # noqa: N802
