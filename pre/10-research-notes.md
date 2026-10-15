@@ -67,7 +67,9 @@
 - **两条 pipeline**：
   - (A) `direct_mllm`：DeepSeek 多模态直接看图作答
   - (B) `mcp_tools`：MLLM 先路由 → 调 YOLO / GroundingDINO / OCR → 结构化结果回灌给 MLLM 汇总
-- **控制**：固定 prompt 与温度；**配对设计**（同图同问）；报 mean ± std，做配对显著性检验
+- **控制**：
+  - 固定 prompt 与温度；**配对设计**（同图同问）；报 mean ± std，做配对显著性检验
+  - ⭐ **三条路线的"大脑"必须是同一个模型** —— 否则测出来的是"模型差异 + 架构差异"的混合物，结论不成立（详见 [../docs/03-model-and-toolchain.md](../docs/03-model-and-toolchain.md) 第 10.2 节）
 - **指标**：分类 top-1 ／ 检测 mAP@0.5 ／ 计数 MAE ｜ 延迟 P50 & P95 ｜ 单次成本 ｜ 幻觉率与拒答率 ｜ 可解释性（能否给 bbox/置信度）｜ 实现复杂度
 
 > 这个规模足以撑起 1000 词的 results 一节。
