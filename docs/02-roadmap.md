@@ -31,8 +31,9 @@
 - [x] 需求基线（`docs/00`）
 - [x] 架构草案（`docs/01`）
 - [x] 路线图（`docs/02`）
-- [x] git 仓库 + `.gitignore` + `.env.example`
+- [x] git 仓库 + `.gitignore` + `.env.example` + `.gitattributes`
 - [x] 课程要求提取（`pre/00`）
+- [x] 选题调研：锚点论文候选 + 量化证据 + 实验设计（`pre/10`）
 - [ ] 目录骨架 + `project_main/pyproject.toml`
 - [ ] 配置加载（读 `.env` / 环境变量，**绝不硬编码**）
 - [ ] `adapter/base.py` 定义 `Adapter` 接口 + 内部领域模型 `IncomingMessage`
@@ -87,6 +88,6 @@
 |---|---|---|---|
 | 1 | **talk 具体日期** | 影响排期优先级；可能就在本周 | 项目所有者 |
 | 2 | 小组分工（talk 2-5 人） | 谁做什么 | 项目所有者 |
-| 3 | 锚点论文 | 报告的 background / methodology 立不住 | 调研中 |
+| 3 | 锚点论文与**选题措辞**（两条路线 vs 三条路线） | 报告的 background / methodology 立不住 | 调研已完成（`pre/10-research-notes.md`），**待项目所有者选定** |
 | 4 | LLM 用官方直连还是本机代理（ADR-004） | M1 的 `llm.py` | 项目所有者 |
 | 5 | 记忆存储形式（ADR-006） | M5 | 可延后 |

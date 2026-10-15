@@ -1,0 +1,21 @@
+# 统一换行符：仓库内一律 LF，检出时按平台
+* text=auto
+
+# 二进制：不要做任何换行或 diff 处理
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.zip binary
+
+# 锁文件 / 生成物：不参与 diff 统计
+package-lock.json linguist-generated=true
+uv.lock linguist-generated=true
+
+# 文档按文本处理（本仓库文档以中文为主）
+*.md text
