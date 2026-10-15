@@ -4,9 +4,17 @@
 
     存储（便宜，SQLite）          注入（贵，进提示词）
     ─────────────────────        ──────────────────────────
-    每群 50 条原始消息      →     最近 10 条
-    每群 20 个话题概述      →     当前话题那一条
+    每个会话 50 条原始消息  →     最近 10 条
+    每个会话 20 个话题概述  →     当前话题那一条
     成员清单（QQ 号当索引） →     只查**正在说话的那个人**的详情
+
+**"会话"既包括群，也包括私聊**：
+
+    g:<群号>      群聊
+    p:<对方QQ>    私聊
+
+⚠️ 之前只记群消息，结果私聊里它**记不住上一条**（实测："你上一条我没看着"）——
+而"跟某个人聊过之后记住他"恰恰是记忆最该管的事。现已按会话统一。
 
 **为什么用 QQ 号当索引**：清单里只放 QQ 号与显示名（很便宜），
 摘要、活跃度这些贵的字段**按需查**。不认识的成员一个 token 都不占。
@@ -30,12 +38,21 @@ from pathlib import Path
 from saya.domain import IncomingMessage
 
 # 默认上限。**都可配置** —— 这些数字是拍的起点，真实使用后再调。
-DEFAULT_MESSAGES_PER_GROUP = 50  # 每群精确保留多少条
-DEFAULT_TOPICS_PER_GROUP = 20  # 每群保留多少个话题概述
+DEFAULT_MESSAGES_PER_SESSION = 50  # 每个会话精确保留多少条
+DEFAULT_TOPICS_PER_SESSION = 20  # 每个会话保留多少个话题概述
 DEFAULT_MEMBERS_KEPT = 300  # 成员榜保留多少个
 DEFAULT_MEMBERS_WITH_NOTE = 100  # 前多少名保留摘要
 DEFAULT_RECENT_INJECT = 10  # 注入提示词时带最近几条
 DEFAULT_TOPIC_GAP_MINUTES = 30  # 隔多久算新话题
+
+
+def session_key(message: IncomingMessage) -> str | None:
+    """会话标识。群与私聊各成一路，互不串。"""
+    if message.source == "group" and message.group_id is not None:
+        return f"g:{message.group_id}"
+    if message.source == "private":
+        return f"p:{message.user_id}"
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +82,7 @@ class TopicInfo:
     last_at: datetime
 
 
-_SCHEMA = """
+_SCHEMA_TABLES = """
 CREATE TABLE IF NOT EXISTS members (
     qq         INTEGER PRIMARY KEY,
     name       TEXT    NOT NULL DEFAULT '',
@@ -77,17 +94,16 @@ CREATE TABLE IF NOT EXISTS members (
 
 CREATE TABLE IF NOT EXISTS topics (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    group_id   INTEGER NOT NULL,
+    session    TEXT    NOT NULL,
     title      TEXT    NOT NULL DEFAULT '',
     summary    TEXT    NOT NULL DEFAULT '',
     started_at TEXT    NOT NULL,
     last_at    TEXT    NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_topics_group ON topics(group_id, last_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    group_id INTEGER NOT NULL,
+    session  TEXT    NOT NULL,
     qq       INTEGER NOT NULL,
     name     TEXT    NOT NULL DEFAULT '',
     text     TEXT    NOT NULL,
@@ -95,13 +111,19 @@ CREATE TABLE IF NOT EXISTS messages (
     topic_id INTEGER,
     from_bot INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id, id DESC);
 
 CREATE TABLE IF NOT EXISTS topic_speakers (
     topic_id INTEGER NOT NULL,
     qq       INTEGER NOT NULL,
     PRIMARY KEY (topic_id, qq)
 );
+"""
+
+# ⚠️ 索引**必须等迁移跑完再建** —— 老库的 messages 表还没有 session 列，
+# 先建索引会直接报 "no such column: session"。实测撞过。
+_SCHEMA_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_topics_session ON topics(session, last_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session, id DESC);
 CREATE INDEX IF NOT EXISTS idx_speakers_qq ON topic_speakers(qq);
 """
 
@@ -111,16 +133,16 @@ class Memory:
         self,
         path: Path | str,
         *,
-        messages_per_group: int = DEFAULT_MESSAGES_PER_GROUP,
-        topics_per_group: int = DEFAULT_TOPICS_PER_GROUP,
+        messages_per_session: int = DEFAULT_MESSAGES_PER_SESSION,
+        topics_per_session: int = DEFAULT_TOPICS_PER_SESSION,
         members_kept: int = DEFAULT_MEMBERS_KEPT,
         members_with_note: int = DEFAULT_MEMBERS_WITH_NOTE,
         recent_inject: int = DEFAULT_RECENT_INJECT,
         topic_gap_minutes: int = DEFAULT_TOPIC_GAP_MINUTES,
     ) -> None:
         self._path = Path(path)
-        self._messages_per_group = messages_per_group
-        self._topics_per_group = topics_per_group
+        self._messages_per_session = messages_per_session
+        self._topics_per_session = topics_per_session
         self._members_kept = members_kept
         self._members_with_note = members_with_note
         self._recent_inject = recent_inject
@@ -130,8 +152,54 @@ class Memory:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(self._path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
-        self._db.executescript(_SCHEMA)
+        self._db.executescript(_SCHEMA_TABLES)
+        self._migrate()
+        self._db.executescript(_SCHEMA_INDEXES)
         self._db.commit()
+
+    def _migrate(self) -> None:
+        """把老库（只有 group_id）升到新结构（session）。
+
+        老库里的行全是群消息，所以 `g:<group_id>` 就是它们的 session。
+        **数据不丢** —— 迁移比"删库重来"诚实。
+        """
+        for table in ("messages", "topics"):
+            columns = {
+                row["name"] for row in self._db.execute(f"PRAGMA table_info({table})")
+            }
+            if "session" in columns or "group_id" not in columns:
+                continue
+            self._db.execute(f"ALTER TABLE {table} ADD COLUMN session TEXT")
+            self._db.execute(
+                f"UPDATE {table} SET session = 'g:' || group_id WHERE session IS NULL"
+            )
+
+        self._drop_legacy_group_id()
+
+    def _drop_legacy_group_id(self) -> None:
+        """把老列 group_id 彻底除掉。
+
+        ⚠️ **必须除，不能留着**：它带 `NOT NULL`，而新代码不再写它 ——
+        留着的话**每次插入都会违反非空约束，整个记忆库从此写不进任何东西**。
+
+        这个坑只有拿**真·老库**升级才会撞到（全新建的库完全正常），
+        所以配了专门的回归测试 `test_old_database_migrates_and_keeps_writing`。
+        """
+        for table in ("messages", "topics"):
+            columns = {
+                row["name"] for row in self._db.execute(f"PRAGMA table_info({table})")
+            }
+            if "session" not in columns or "group_id" not in columns:
+                continue
+
+            # 先删掉建在它上面的索引 —— 有索引时 DROP COLUMN 会失败。
+            # PRAGMA 里 origin='c' 才是我们自己 CREATE INDEX 建的，
+            # 'pk'/'u' 是主键/唯一约束自动生成的，不能动。
+            for index in self._db.execute(f"PRAGMA index_list({table})").fetchall():
+                if index["origin"] == "c":
+                    self._db.execute(f"DROP INDEX IF EXISTS {index['name']}")
+
+            self._db.execute(f"ALTER TABLE {table} DROP COLUMN group_id")
 
     def close(self) -> None:
         with self._lock:
@@ -140,11 +208,16 @@ class Memory:
     # ---- 写入 ----
 
     def remember(self, message: IncomingMessage) -> None:
-        """记录一条群消息：归入话题、更新成员、算活跃度、按上限裁剪。"""
-        if message.source != "group" or message.group_id is None:
+        """记录一条消息：**群与私聊都记**。
+
+        私聊里记不住上一条，正是之前那个"你上一条我没看着"的成因 ——
+        而"跟某个人聊过之后记住他"恰恰是记忆最该管的事。
+        """
+        session = session_key(message)
+        if session is None:
             return
         self.record(
-            group_id=message.group_id,
+            session=session,
             qq=message.user_id,
             name=message.sender_name,
             text=message.text,
@@ -154,7 +227,7 @@ class Memory:
     def record(
         self,
         *,
-        group_id: int,
+        session: str,
         qq: int,
         name: str,
         text: str,
@@ -163,11 +236,11 @@ class Memory:
     ) -> None:
         stamp = at.isoformat(timespec="seconds")
         with self._lock:
-            topic_id = self._current_topic_id(group_id, at)
+            topic_id = self._current_topic_id(session, at)
             self._db.execute(
-                "INSERT INTO messages (group_id, qq, name, text, at, topic_id, from_bot)"
+                "INSERT INTO messages (session, qq, name, text, at, topic_id, from_bot)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (group_id, qq, name, text, stamp, topic_id, int(from_bot)),
+                (session, qq, name, text, stamp, topic_id, int(from_bot)),
             )
 
             if not from_bot:
@@ -182,27 +255,28 @@ class Memory:
                         "UPDATE members SET activity = activity + 1 WHERE qq = ?", (qq,)
                     )
 
-            self._prune(group_id)
+            self._prune(session)
             self._db.commit()
 
-    def _current_topic_id(self, group_id: int, at: datetime) -> int:
+    def _current_topic_id(self, session: str, at: datetime) -> int:
         """没有开着的（或离上一条太久的）话题就新开一个。"""
         row = self._db.execute(
-            "SELECT id, last_at FROM topics WHERE group_id = ? ORDER BY last_at DESC LIMIT 1",
-            (group_id,),
+            "SELECT id, last_at FROM topics WHERE session = ? ORDER BY last_at DESC LIMIT 1",
+            (session,),
         ).fetchone()
 
         if row is not None:
             last_at = datetime.fromisoformat(row["last_at"])
             if at - last_at <= self._topic_gap:
                 self._db.execute(
-                    "UPDATE topics SET last_at = ? WHERE id = ?", (at.isoformat(timespec="seconds"), row["id"])
+                    "UPDATE topics SET last_at = ? WHERE id = ?",
+                    (at.isoformat(timespec="seconds"), row["id"]),
                 )
                 return int(row["id"])
 
         cursor = self._db.execute(
-            "INSERT INTO topics (group_id, started_at, last_at) VALUES (?, ?, ?)",
-            (group_id, at.isoformat(timespec="seconds"), at.isoformat(timespec="seconds")),
+            "INSERT INTO topics (session, started_at, last_at) VALUES (?, ?, ?)",
+            (session, at.isoformat(timespec="seconds"), at.isoformat(timespec="seconds")),
         )
         return int(cursor.lastrowid or 0)
 
@@ -217,24 +291,24 @@ class Memory:
             (qq, name, stamp, stamp),
         )
 
-    def _prune(self, group_id: int) -> None:
+    def _prune(self, session: str) -> None:
         """存新删旧。上限都在上面几个 DEFAULT_* 里。"""
         self._db.execute(
             """
-            DELETE FROM messages WHERE group_id = ? AND id NOT IN (
-                SELECT id FROM messages WHERE group_id = ? ORDER BY id DESC LIMIT ?
+            DELETE FROM messages WHERE session = ? AND id NOT IN (
+                SELECT id FROM messages WHERE session = ? ORDER BY id DESC LIMIT ?
             )
             """,
-            (group_id, group_id, self._messages_per_group),
+            (session, session, self._messages_per_session),
         )
 
         stale = self._db.execute(
             """
-            SELECT id FROM topics WHERE group_id = ? AND id NOT IN (
-                SELECT id FROM topics WHERE group_id = ? ORDER BY last_at DESC LIMIT ?
+            SELECT id FROM topics WHERE session = ? AND id NOT IN (
+                SELECT id FROM topics WHERE session = ? ORDER BY last_at DESC LIMIT ?
             )
             """,
-            (group_id, group_id, self._topics_per_group),
+            (session, session, self._topics_per_session),
         ).fetchall()
         for row in stale:
             self._db.execute("DELETE FROM topic_speakers WHERE topic_id = ?", (row["id"],))
@@ -274,12 +348,12 @@ class Memory:
 
     # ---- 读取（注入用）----
 
-    def recent(self, group_id: int, limit: int | None = None) -> list[RecentMessage]:
+    def recent(self, session: str, limit: int | None = None) -> list[RecentMessage]:
         limit = limit or self._recent_inject
         rows = self._db.execute(
             "SELECT qq, name, text, at, from_bot FROM messages"
-            " WHERE group_id = ? ORDER BY id DESC LIMIT ?",
-            (group_id, limit),
+            " WHERE session = ? ORDER BY id DESC LIMIT ?",
+            (session, limit),
         ).fetchall()
         return [
             RecentMessage(
@@ -304,10 +378,10 @@ class Memory:
             last_seen=datetime.fromisoformat(row["last_seen"]),
         )
 
-    def current_topic(self, group_id: int) -> TopicInfo | None:
+    def current_topic(self, session: str) -> TopicInfo | None:
         row = self._db.execute(
-            "SELECT * FROM topics WHERE group_id = ? ORDER BY last_at DESC LIMIT 1",
-            (group_id,),
+            "SELECT * FROM topics WHERE session = ? ORDER BY last_at DESC LIMIT 1",
+            (session,),
         ).fetchone()
         if row is None:
             return None

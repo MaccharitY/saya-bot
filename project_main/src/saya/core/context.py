@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from saya.core.memory import Memory
+from saya.core.memory import Memory, session_key
 from saya.domain import IncomingMessage
 
 MAX_CHARS = 1500  # 整块硬上限，超了就砍（token 是真金白银）
@@ -43,10 +43,14 @@ def build_history(
     now = now or datetime.now()
     sections: list[str] = []
 
-    if message.source == "group" and message.group_id is not None:
+    session = session_key(message)
+    if session is not None:
         sections.extend(
-            _group_sections(memory, message, now=now, bot_qq=bot_qq, bot_name=bot_name)
+            _recent_section(memory, session, message, now=now, bot_qq=bot_qq, bot_name=bot_name)
         )
+        topic = memory.current_topic(session)
+        if topic is not None:
+            sections.append(_topic_section(topic))
 
     speaker = _speaker_section(memory, message, now=now)
     if speaker:
@@ -58,36 +62,36 @@ def build_history(
     return block
 
 
-def _group_sections(
+def _recent_section(
     memory: Memory,
+    session: str,
     message: IncomingMessage,
     *,
     now: datetime,
     bot_qq: int | None,
     bot_name: str,
 ) -> list[str]:
-    assert message.group_id is not None
-    sections: list[str] = []
+    recent = memory.recent(session)
+    if not recent:
+        return []
 
-    recent = memory.recent(message.group_id)
-    if recent:
-        lines = ["【群里最近说过的话】"]
-        for item in recent:
-            who = bot_name if (bot_qq is not None and item.qq == bot_qq) else item.name or str(item.qq)
-            text = item.text.replace("\n", " ")[:80]
-            lines.append(f"{who}：{text}")
-        sections.append("\n".join(lines))
+    # 群聊与私聊的措辞分开 —— 让模型知道自己在什么场合说话
+    title = "【群里最近说过的话】" if message.source == "group" else "【你们之前聊过】"
+    lines = [title]
+    for item in recent:
+        who = bot_name if (bot_qq is not None and item.qq == bot_qq) else item.name or str(item.qq)
+        text = item.text.replace("\n", " ")[:80]
+        lines.append(f"{who}：{text}")
+    return ["\n".join(lines)]
 
-    topic = memory.current_topic(message.group_id)
-    if topic is not None:
-        started = topic.started_at.strftime("%m-%d %H:%M")
-        head = topic.title or "（没起名）"
-        parts = [f"【当前话题】{head}（从 {started} 开始）"]
-        if topic.summary:
-            parts.append(f"话题概述：{topic.summary}")
-        sections.append("\n".join(parts))
 
-    return sections
+def _topic_section(topic) -> str:
+    started = topic.started_at.strftime("%m-%d %H:%M")
+    head = topic.title or "（没起名）"
+    parts = [f"【当前话题】{head}（从 {started} 开始）"]
+    if topic.summary:
+        parts.append(f"话题概述：{topic.summary}")
+    return "\n".join(parts)
 
 
 def _speaker_section(memory: Memory, message: IncomingMessage, *, now: datetime) -> str:

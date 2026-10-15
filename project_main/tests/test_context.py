@@ -34,7 +34,7 @@ class ContextTestCase(unittest.TestCase):
     def say(self, *, qq: int = 111, name: str = "甲", text: str = "你好",
             at: datetime = T0, group_id: int = 1, from_bot: bool = False) -> None:
         self.memory.record(
-            group_id=group_id, qq=qq, name=name, text=text, at=at, from_bot=from_bot
+            session=f"g:{group_id}", qq=qq, name=name, text=text, at=at, from_bot=from_bot
         )
 
     def build(self, message: IncomingMessage, *, now: datetime | None = None) -> str:
@@ -81,7 +81,7 @@ class BuildHistoryTest(ContextTestCase):
 
     def test_current_topic_is_included(self):
         self.say()
-        topic = self.memory.current_topic(1)
+        topic = self.memory.current_topic("g:1")
         self.memory.set_topic_summary(topic.id, "午饭", "大家在挑店")
 
         text = self.build(group_message())
@@ -101,6 +101,25 @@ class BuildHistoryTest(ContextTestCase):
 
         text = self.build(private)
         self.assertNotIn("群里最近说过的话", text, "私聊时不该把群聊记录倒进来")
+
+    def test_private_history_is_included(self):
+        """⚠️ 回归用例：私聊曾经完全没有上下文，它只能答"你上一条我没看着"。"""
+        self.memory.remember(
+            IncomingMessage(source="private", user_id=222, sender_name="甲", text="昨天说的那件事")
+        )
+        private = IncomingMessage(source="private", user_id=222, sender_name="甲", text="那个怎么样了")
+
+        text = self.build(private)
+        self.assertIn("你们之前聊过", text)
+        self.assertIn("昨天说的那件事", text)
+
+    def test_one_persons_dm_is_not_visible_in_anothers(self):
+        self.memory.remember(
+            IncomingMessage(source="private", user_id=222, sender_name="甲", text="甲的悄悄话")
+        )
+        other = IncomingMessage(source="private", user_id=333, sender_name="乙", text="在吗")
+
+        self.assertNotIn("甲的悄悄话", self.build(other), "别人的私聊不该被倒进来")
 
     def test_block_is_capped(self):
         for index in range(40):

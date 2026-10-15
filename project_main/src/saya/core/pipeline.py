@@ -23,7 +23,7 @@ from saya.adapter.base import Adapter
 from saya.config import Config
 from saya.core import guard
 from saya.core.context import build_history
-from saya.core.memory import Memory
+from saya.core.memory import Memory, session_key
 from saya.core.persona import Persona
 from saya.core.trigger import Trigger
 from saya.domain import IncomingMessage, OutgoingMessage
@@ -171,12 +171,15 @@ class Pipeline:
 
     def _remember_reply(self, message: IncomingMessage, reply: str) -> None:
         """把自己的回复也记下来 —— 否则它下次会重复说过的话。
-        用**它自己的名字**记，注入时能区分"谁说的"。"""
-        if self._memory is None or message.source != "group" or message.group_id is None:
+        用**它自己的名字**记，注入时能区分"谁说的"。私聊同样要记。"""
+        if self._memory is None:
+            return
+        session = session_key(message)
+        if session is None:
             return
         try:
             self._memory.record(
-                group_id=message.group_id,
+                session=session,
                 qq=self._config.self_id or 0,
                 name=self._persona.name,
                 text=reply,
