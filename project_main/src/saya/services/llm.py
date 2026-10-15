@@ -19,6 +19,8 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from saya.services import net
+
 JSON = dict[str, Any]
 Transport = Callable[[str, dict[str, str], JSON, float], JSON]
 
@@ -129,6 +131,9 @@ def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
         raise LLMError(f"模型返回 HTTP {exc.code}：{detail}") from exc
     except urllib.error.URLError as exc:
+        # 连不上时清一次 DNS 缓存：万一缓存里的 IP 已失效（CDN 轮换），
+        # 清掉让下次重新解析，比一直撞同一个死 IP 好
+        net.clear()
         raise LLMError(f"连不上模型端点（{url}）：{exc.reason}") from exc
 
     try:

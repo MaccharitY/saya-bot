@@ -105,6 +105,7 @@ class Config:
     self_id: int | None
     price_in: float
     price_out: float
+    dns_cache_ttl: float
 
     @classmethod
     def from_env(cls, dotenv_path: Path | None = None) -> Config:
@@ -142,6 +143,7 @@ class Config:
             self_id=_optional_int(get("SELF_ID")),
             price_in=float(get("PRICE_IN", "0")),
             price_out=float(get("PRICE_OUT", "0")),
+            dns_cache_ttl=float(get("DNS_CACHE_TTL", "300")),
         )
 
     def require_api_key(self) -> str:

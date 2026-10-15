@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import socket
 import sys
+import threading
+import urllib.parse
 from pathlib import Path
 
 from saya.adapter.base import Adapter, AdapterError
@@ -22,6 +25,7 @@ from saya.core.pipeline import Pipeline
 from saya.core.trigger import Trigger
 from saya.obs.trace import TraceWriter
 from saya.services.llm import LLMClient, LLMError, text_message
+from saya.services.net import install as install_dns_cache
 from saya.services.vision import (
     IMPLEMENTED_ROUTES,
     ROUTE_DELEGATED,
@@ -81,6 +85,23 @@ def build_pipeline(config: Config) -> Pipeline:
         trigger=Trigger(config),
         trace=TraceWriter(config.trace_path, enabled=config.trace_enabled),
     )
+
+
+def _prewarm_dns(host: str) -> None:
+    """后台预热 DNS。
+
+    本机 WSL 的解析可能花 10 秒，而 DNS 缓存只让这个代价付一次 ——
+    那一次不该落在"用户刚发了第一条消息"的时刻，所以在启动时就先在后台解析掉。
+    失败了也不影响启动。
+    """
+
+    def run() -> None:
+        try:
+            socket.getaddrinfo(host, 443)
+        except Exception as exc:  # noqa: BLE001 - 预热失败无所谓，真要用时还会重试
+            logging.getLogger("saya").debug("DNS 预热失败（不影响启动）：%s", exc)
+
+    threading.Thread(target=run, name="saya-dns-prewarm", daemon=True).start()
 
 
 def run_check(config: Config) -> int:
@@ -174,6 +195,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"提示：没找到 {env_file}，将只用环境变量与默认值。{hint}")
 
     config = Config.from_env(dotenv_path=env_file)
+
+    # 尽早装上 DNS 缓存：本机 WSL 的解析会随机花 10 秒（见 services/net.py），
+    # 而每条消息都要新建连接。装在建任何客户端之前，才盖得住全部调用。
+    cached = install_dns_cache(config.dns_cache_ttl)
+    if cached is not None:
+        logging.getLogger("saya").debug("DNS 缓存已启用，TTL=%.0fs", config.dns_cache_ttl)
+        host = urllib.parse.urlsplit(config.llm_base_url).hostname
+        if host:
+            _prewarm_dns(host)
 
     if args.check:
         return run_check(config)
