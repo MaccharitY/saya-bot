@@ -25,10 +25,13 @@ from saya.core.pipeline import Pipeline
 from saya.core.trigger import Trigger
 from saya.obs.trace import TraceWriter
 from saya.services.llm import LLMClient, LLMError, text_message
+from saya.services.cv_tools import CvToolsError, start_cv_tools
 from saya.services.net import install as install_dns_cache
 from saya.services.net import keep_warm
 from saya.services.vision import (
+    ALL_ROUTES,
     IMPLEMENTED_ROUTES,
+    NEEDS_TOOLS,
     ROUTE_DELEGATED,
     ROUTE_HYBRID,
     Vision,
@@ -71,11 +74,22 @@ def build_llm(config: Config) -> LLMClient:
 
 def build_pipeline(config: Config) -> Pipeline:
     client = build_llm(config)
+
+    tools = None
+    if config.vision_route in NEEDS_TOOLS:
+        tools = start_cv_tools(config.cv_mcp_command)
+        logging.getLogger("saya").info(
+            "附属已就绪：%s（工具 %d 个）",
+            tools.server_info.get("name", "?"),
+            len(tools.list_tools()),
+        )
+
     vision = Vision(
         client,
         cache_dir=Path(config.data_dir) / "images",
         route=config.vision_route,
         temperature=config.vision_temperature,
+        tools=tools,
     )
     return Pipeline(
         config=config,
@@ -120,7 +134,7 @@ def run_check(config: Config) -> int:
     print("== saya_bot 自检 ==")
     print(f"  接入后端 : {config.adapter}")
     print(f"  模型     : {config.llm_model} @ {config.llm_base_url}")
-    print(f"  看图路线 : {config.vision_route}（已实现的只有 direct）")
+    print(f"  看图路线 : {config.vision_route}（可选：{' / '.join(ALL_ROUTES)}）")
     print(f"  触发模式 : {config.trigger_mode}")
     print(f"  温度     : 对话 {config.temperature} / 看图 {config.vision_temperature}")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
@@ -140,6 +154,25 @@ def run_check(config: Config) -> int:
             f"看图路线 {config.vision_route!r} 尚未实现（它需要 MCP / 专用 CV 模型）。"
             f"现在请先用 {' 或 '.join(IMPLEMENTED_ROUTES)}。"
         )
+
+    if config.vision_route in NEEDS_TOOLS:
+        if not config.cv_mcp_command.strip():
+            problems.append(
+                f"看图路线 {config.vision_route!r} 需要附属（专用 CV 模型），"
+                f"但没配置 SAYA_CV_MCP_COMMAND。照 .env.example 填上 cv_mcp/server.py 的路径。"
+            )
+        else:
+            print("\n→ 试着启动附属（专用 CV 模型）…")
+            try:
+                tools = start_cv_tools(config.cv_mcp_command)
+            except CvToolsError as exc:
+                problems.append(f"附属启动失败：{exc}")
+            else:
+                try:
+                    names = [tool.name for tool in tools.list_tools()]
+                    print(f"✓ 附属就绪：{tools.server_info.get('name', '?')}，提供工具 {names}")
+                finally:
+                    tools.close()
 
     if config.adapter.startswith("onebot11"):
         print("\n→ 试着占用事件端口…")

@@ -133,9 +133,11 @@ class RouteValidationTest(unittest.TestCase):
         self.assertIn("direct", output)
         self.assertIn("已改名", output)
 
-    def test_unimplemented_route_is_reported(self):
+    def test_route_needing_tools_reports_missing_command(self):
+        """delegated / hybrid 已实现，但需要配套的附属 —— 没配要明确说缺哪个配置项。"""
         output = self._check(vision_route="delegated")
-        self.assertIn("尚未实现", output)
+        self.assertIn("SAYA_CV_MCP_COMMAND", output)
+        self.assertIn("附属", output)
 
     def test_unknown_route_lists_valid_values(self):
         output = self._check(vision_route="乱写")

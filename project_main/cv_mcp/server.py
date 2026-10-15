@@ -161,5 +161,65 @@ def read_text(image_path: str) -> str:
     return "\n".join([header, *lines])
 
 
+@mcp.tool()
+def annotate_objects(image_path: str, output_path: str) -> str:
+    """检测目标、**在图上画出编号方框**并另存为新图片，返回编号说明。
+
+    这是路线 C（混合）的"结构化产物"：附属负责**定位与编号**，
+    主模型负责**语义推理**。做法与 Set-of-Mark（arXiv 2310.11441）一致 ——
+    先用现成模型出候选，再把带标记的图交给多模态模型。
+
+    Args:
+        image_path: 输入图片路径
+        output_path: 标注后图片保存到哪里（建议 .png）
+
+    Returns:
+        编号说明（第几号框是什么），供主模型对照图片使用。
+    """
+    path = _check(image_path)
+    if path is None:
+        return f"错误：文件不存在 {image_path}"
+
+    from PIL import Image, ImageDraw
+
+    started = time.monotonic()
+    try:
+        results = _get_yolo().predict(str(path), verbose=False)
+    except Exception as exc:  # noqa: BLE001
+        return f"检测失败：{type(exc).__name__}: {exc}"
+
+    boxes = results[0].boxes if results else None
+    if boxes is None or len(boxes) == 0:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        Image.open(path).save(out)
+        return f"没有检测到目标，已原样另存到 {out}"
+
+    names = results[0].names
+    with Image.open(path) as raw:
+        canvas = raw.convert("RGB")
+    draw = ImageDraw.Draw(canvas)
+
+    lines: list[str] = []
+    for index, box in enumerate(boxes, start=1):
+        label = names[int(box.cls.item())]
+        x1, y1, x2, y2 = (round(v) for v in box.xyxy[0].tolist())
+        # 画框 + 左上角编号，编号用白底黑字保证可读
+        draw.rectangle((x1, y1, x2, y2), outline=(255, 0, 0), width=3)
+        tag = str(index)
+        draw.rectangle((x1, y1 - 22, x1 + 20 + 10 * len(tag), y1), fill=(255, 255, 255))
+        draw.text((x1 + 5, y1 - 20), tag, fill=(0, 0, 0))
+        lines.append(f"  {index}: {label}")
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out)
+    elapsed = int((time.monotonic() - started) * 1000)
+
+    return "\n".join(
+        [f"已在图上标出 {len(lines)} 个目标并保存到 {out}（耗时 {elapsed} ms）：", *lines]
+    )
+
+
 if __name__ == "__main__":
     mcp.run()

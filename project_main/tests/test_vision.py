@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import sys
 import tempfile
 import unittest
@@ -14,8 +15,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.domain import ImageRef  # noqa: E402
+from saya.services.cv_tools import CvToolsError  # noqa: E402
 from saya.services.llm import LLMClient  # noqa: E402
 from saya.services.vision import (  # noqa: E402
+    NEEDS_TOOLS,
     ROUTE_DELEGATED,
     ROUTE_DIRECT,
     ROUTE_HYBRID,
@@ -184,15 +187,16 @@ class VisionTest(unittest.TestCase):
         with self.assertRaises(VisionError):
             self._vision().describe(ImageRef(url="http://x/a.jpg", local_path="不存在.png"), "hi")
 
-    def test_unimplemented_routes_say_so_clearly(self):
-        """路线 B/C 没实现，但报错要说清楚"是没实现"，而不是莫名其妙地失败。"""
+    def test_routes_needing_tools_say_so_when_unconfigured(self):
+        """路线 B/C 需要附属；没配时要明确说是缺什么，而不是莫名其妙地失败。"""
         vision = self._vision()
         image = ImageRef(url="http://x/a.jpg", local_path=str(self.image_path))
-        for route in (ROUTE_DELEGATED, ROUTE_HYBRID):
+        for route in NEEDS_TOOLS:
             with self.subTest(route=route):
                 with self.assertRaises(VisionError) as ctx:
                     vision.describe(image, "hi", route=route)
-                self.assertIn("尚未实现", str(ctx.exception))
+                self.assertIn("附属", str(ctx.exception))
+                self.assertIn("SAYA_CV_MCP_COMMAND", str(ctx.exception))
 
     def test_multiple_images_all_included(self):
         vision = self._vision()
@@ -221,6 +225,148 @@ class VisionTest(unittest.TestCase):
             route=ROUTE_DIRECT,
         )
         self.assertEqual(result.route, ROUTE_DIRECT)
+
+
+class FakeCvTools:
+    """假的附属。记录调用，可配置输出、可让它失败、可不写标注图。"""
+
+    def __init__(
+        self,
+        *,
+        detect: str = "检测到 2 个目标（1 类），耗时 30 ms：\n  猫 ×2",
+        ocr: str = "识别到 1 行文字（耗时 20 ms）：\n你好",
+        annotate: str = "已在图上标出 2 个目标：\n  1: 猫\n  2: 猫",
+        fail: str = "",
+        write_annotated: bool = True,
+    ) -> None:
+        self._detect = detect
+        self._ocr = ocr
+        self._annotate = annotate
+        self._fail = fail
+        self._write_annotated = write_annotated
+        self.calls: list[str] = []
+
+    def _maybe_fail(self, tool: str) -> None:
+        self.calls.append(tool)
+        if self._fail == tool:
+            raise CvToolsError(f"{tool} 炸了")
+
+    def detect(self, image_path, *, detail: str = "count") -> str:
+        self._maybe_fail("detect")
+        return self._detect
+
+    def ocr(self, image_path) -> str:
+        self._maybe_fail("ocr")
+        return self._ocr
+
+    def annotate(self, image_path, output_path) -> str:
+        self._maybe_fail("annotate")
+        if self._write_annotated:
+            from pathlib import Path as _Path
+
+            target = _Path(output_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(PNG_1PX)
+        return self._annotate
+
+
+class DelegatedRouteTest(unittest.TestCase):
+    """路线 B：图片**完全不进主模型**，只进附属产出的文字。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.image = self.dir / "cat.png"
+        self.image.write_bytes(PNG_1PX)
+        self.image_ref = ImageRef(url="http://x/cat.png", local_path=str(self.image))
+
+    def _vision(self, tools) -> tuple[Vision, FakeTransport]:
+        transport = FakeTransport(text="图里有两只猫")
+        client = LLMClient(
+            base_url="https://api.deepseek.com",
+            api_key="k",
+            model="deepseek-flash",
+            transport=transport,
+        )
+        return Vision(client, cache_dir=self.dir / "cache", route=ROUTE_DELEGATED, tools=tools), transport
+
+    def test_image_never_reaches_the_model(self):
+        vision, transport = self._vision(FakeCvTools())
+        result = vision.describe(self.image_ref, "图里有几只猫")
+
+        self.assertEqual(result.route, ROUTE_DELEGATED)
+        content = transport.calls[0]["messages"][-1]["content"]
+        self.assertIsInstance(content, str, "路线 B 里 content 必须是纯文本，不能有图片块")
+        self.assertNotIn("image_url", json.dumps(transport.calls[0], ensure_ascii=False))
+
+    def test_evidence_is_in_the_prompt(self):
+        vision, transport = self._vision(FakeCvTools())
+        vision.describe(self.image_ref, "图里有几只猫")
+
+        content = transport.calls[0]["messages"][-1]["content"]
+        self.assertIn("猫 ×2", content)
+        self.assertIn("你好", content)
+        self.assertIn("你并没有直接看到这张图", content, "必须告诉模型它没看到图，防止脑补")
+
+    def test_tool_failure_is_stated_not_hidden(self):
+        """附属挂了要在证据里写明 —— 和"没检测到"完全是两回事。"""
+        vision, transport = self._vision(FakeCvTools(fail="detect"))
+        vision.describe(self.image_ref, "图里有几只猫")
+
+        content = transport.calls[0]["messages"][-1]["content"]
+        self.assertIn("调用失败", content)
+
+
+class HybridRouteTest(unittest.TestCase):
+    """路线 C：附属出带编号的标注图，主模型看图 + 编号说明做推理。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.image = self.dir / "cat.png"
+        self.image.write_bytes(PNG_1PX)
+        self.image_ref = ImageRef(url="http://x/cat.png", local_path=str(self.image))
+
+    def _vision(self, tools) -> tuple[Vision, FakeTransport]:
+        transport = FakeTransport(text="两只猫")
+        client = LLMClient(
+            base_url="https://api.deepseek.com", api_key="k", model="m", transport=transport
+        )
+        return Vision(client, cache_dir=self.dir / "cache", route=ROUTE_HYBRID, tools=tools), transport
+
+    def test_annotated_image_and_legend_are_sent(self):
+        tools = FakeCvTools()
+        vision, transport = self._vision(tools)
+        result = vision.describe(self.image_ref, "图里有什么")
+
+        self.assertEqual(result.route, ROUTE_HYBRID)
+        content = transport.calls[0]["messages"][-1]["content"]
+        kinds = [block["type"] for block in content]
+        self.assertIn("image_url", kinds, "路线 C 必须把图交给主模型")
+        self.assertIn("text", kinds)
+        legend = content[-1]
+        self.assertIn("编号", legend["text"])
+        self.assertIn("1: 猫", legend["text"])
+        self.assertEqual(tools.calls, ["annotate"], "路线 C 只该调标注，不该调 detect/ocr")
+
+    def test_falls_back_to_original_when_annotation_fails(self):
+        vision, transport = self._vision(FakeCvTools(fail="annotate"))
+        result = vision.describe(self.image_ref, "图里有什么")
+
+        self.assertEqual(result.route, ROUTE_HYBRID)
+        content = transport.calls[0]["messages"][-1]["content"]
+        self.assertIn("image_url", [b["type"] for b in content], "标注失败也要把原图给模型")
+        self.assertIn("标注失败", content[-1]["text"])
+
+    def test_falls_back_when_annotation_writes_no_file(self):
+        """附属没写出文件（比如没检测到目标）—— 不能把不存在的路径发给模型。"""
+        vision, transport = self._vision(FakeCvTools(write_annotated=False))
+        vision.describe(self.image_ref, "图里有什么")
+
+        url = transport.calls[0]["messages"][-1]["content"][1]["image_url"]["url"]
+        self.assertTrue(url.startswith("data:image/"), "退回应是原图的 data URL")
 
 
 if __name__ == "__main__":

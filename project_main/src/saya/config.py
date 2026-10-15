@@ -106,6 +106,7 @@ class Config:
     price_in: float
     price_out: float
     dns_cache_ttl: float
+    cv_mcp_command: str
 
     @classmethod
     def from_env(cls, dotenv_path: Path | None = None) -> Config:
@@ -144,6 +145,7 @@ class Config:
             price_in=float(get("PRICE_IN", "0")),
             price_out=float(get("PRICE_OUT", "0")),
             dns_cache_ttl=float(get("DNS_CACHE_TTL", "1800")),
+            cv_mcp_command=get("CV_MCP_COMMAND"),
         )
 
     def require_api_key(self) -> str:
