@@ -63,14 +63,14 @@
 - [ ] 抓一份**真实事件样本**存 `tests/fixtures/`（现在夹具还是手写的）
 - [ ] ⚠️ **待查**：首条回复花了 **12.2 秒**，比 `--check` 的 0.7 秒慢太多 —— 要搞清原因（冷启动？WSL 网络？），这直接影响报告里的延迟指标
 
-### M2 · 内核最小闭环（进行中）
+### M2 · 内核最小闭环 ✅ **已完成**
 - [x] `core/trigger.py`：@提及 / 关键词 / 概率 / 全回 + 限流 + 去重
 - [x] `obs/trace.py`：JSONL 埋点 + 读回
 - [x] `core/guard.py`：分区隔离（`wrap_untrusted` 是唯一入口）、注入检测、输出过滤
 - [x] `core/persona.py`：人格提示词（可配置，安全声明与人格绑在一起）
-- [ ] `services/llm.py`：文本对话 + function calling（OpenAI 兼容；ADR-004 已定）
-- [ ] `core/pipeline.py`：把上面的串成一条流水线
-- [ ] Mock 夹具上跑通自动化测试 → **M2 完成标志**
+- [x] `services/llm.py`：文本对话 + **function calling 管道**（路线 B / MCP 的地基）
+- [x] `core/pipeline.py`：触发 → 组装 → 护栏 → 生成 → 过滤 → 发送 → 埋点
+- [x] 自动化测试跑通（178 个，零第三方依赖）→ **M2 完成标志**
 
 ### M3 · 看图（**先只做路线 A**）✅ **路线 A 已完成**（2026-10-15 23:41）
 > 完整三路线定义见 `pre/12-experiment-design.md`（**pre 已暂停，暂且不动**）。
