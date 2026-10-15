@@ -33,6 +33,14 @@ def load_env(dotenv_path: Path | None = None) -> dict[str, str]:
     return env
 
 
+def _split_csv(raw: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _split_csv_int(raw: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in _split_csv(raw))
+
+
 @dataclass(frozen=True, slots=True)
 class Config:
     adapter: str
@@ -42,6 +50,9 @@ class Config:
     vision_model: str
     vision_route: str
     trigger_mode: str
+    trigger_keywords: tuple[str, ...]
+    group_allowlist: tuple[int, ...]
+    group_denylist: tuple[int, ...]
     reply_probability: float
     rate_limit_per_group_per_min: int
     trace_enabled: bool
@@ -63,6 +74,9 @@ class Config:
             vision_model=get("VISION_MODEL", "deepseek-vl"),
             vision_route=get("VISION_ROUTE", "direct_mllm"),
             trigger_mode=get("TRIGGER_MODE", "mention"),
+            trigger_keywords=_split_csv(get("TRIGGER_KEYWORDS")),
+            group_allowlist=_split_csv_int(get("GROUP_ALLOWLIST")),
+            group_denylist=_split_csv_int(get("GROUP_DENYLIST")),
             reply_probability=float(get("REPLY_PROBABILITY", "0.1")),
             rate_limit_per_group_per_min=int(get("RATE_LIMIT_PER_GROUP_PER_MIN", "5")),
             trace_enabled=get("TRACE_ENABLED", "true").lower() in _TRUE,

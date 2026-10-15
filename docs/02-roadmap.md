@@ -51,12 +51,13 @@
 - [ ] **抓一份真实事件样本**存 `project_main/tests/fixtures/`，供 Mock 夹具复用
 - [ ] 能往指定群发一条文本 → **M1 完成标志**
 
-### M2 · 内核最小闭环
-- [ ] `core/trigger.py`：@提及 / 关键词 / 概率 / 全回 + 限流 + 不重复回复
+### M2 · 内核最小闭环（进行中）
+- [x] `core/trigger.py`：@提及 / 关键词 / 概率 / 全回 + 限流 + 去重（14 个测试）
+- [x] `obs/trace.py`：JSONL 埋点 + 读回（6 个测试）
 - [ ] `core/guard.py`：分区隔离系统提示与用户输入；基础越狱检测
-- [ ] `services/llm.py`：文本对话（OpenAI 兼容，见 `docs/03`）
 - [ ] `core/persona.py`：人格提示词（可配置）
-- [ ] `obs/trace.py`：JSONL 埋点
+- [ ] `services/llm.py`：文本对话（OpenAI 兼容，见 `docs/03`）← **卡在 ADR-004 未定**
+- [ ] `core/pipeline.py`：把上面的串成一条流水线
 - [ ] Mock 夹具上跑通自动化测试 → **M2 完成标志**
 
 ### M3 · 三路线看图（**关键路径**）
