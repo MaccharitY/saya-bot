@@ -32,11 +32,12 @@ def group_message(
     mentioned: bool = False,
     message_id: str | None = "1",
     group_id: int = GROUP,
+    user_id: int = 111,
 ) -> IncomingMessage:
     return IncomingMessage(
         source="group",
         group_id=group_id,
-        user_id=111,
+        user_id=user_id,
         text=text,
         mentioned_self=mentioned,
         message_id=message_id,
@@ -120,8 +121,13 @@ class GroupPolicyTest(unittest.TestCase):
         self.assertEqual(loud.reason, "hit:mention")
 
     def test_keyword_policy(self):
+        # 关掉跟随 —— 这条只测"关键词本身"，跟随见 KeywordFollowTest
         trigger = Trigger(
-            base_config(group_policies={GROUP: "keyword"}, trigger_keywords=("咲弥", "在吗"))
+            base_config(
+                group_policies={GROUP: "keyword"},
+                trigger_keywords=("咲弥", "在吗"),
+                keyword_followup=0,
+            )
         )
         self.assertTrue(trigger.evaluate(group_message("咲弥今天怎么样")).respond)
         self.assertFalse(trigger.evaluate(group_message("今天天气不错", message_id="2")).respond)
@@ -157,6 +163,89 @@ class GroupPolicyTest(unittest.TestCase):
             base_config(group_policies={999: "silent"}, group_default_policy="mention")
         )
         self.assertTrue(trigger.evaluate(group_message(mentioned=True)).respond)
+
+
+class KeywordFollowTest(unittest.TestCase):
+    """关键词命中后**跟随这个人接下来的几条**（2026-10-16 所有者提的）。
+
+    为什么：叫人只用叫一次。说了「咲弥 这个怎么弄」之后，紧接着的
+    「那这个呢」「还是不行」不该再要求他每条都带上名字。
+    """
+
+    def make(self, clock=None, **overrides):
+        options = {
+            "group_policies": {GROUP: "keyword"},
+            "trigger_keywords": ("咲弥",),
+            "keyword_followup": 5,
+            "keyword_followup_seconds": 600.0,
+        }
+        options.update(overrides)
+        return Trigger(base_config(**options), clock=clock or FakeClock())
+
+    def test_follows_the_next_messages_without_the_keyword(self):
+        trigger = self.make()
+        self.assertTrue(trigger.evaluate(group_message("咲弥 这个怎么弄")).respond)
+        for index in range(5):
+            decision = trigger.evaluate(
+                group_message("那这个呢", message_id=f"f{index}")
+            )
+            self.assertTrue(decision.respond, f"第 {index + 1} 条应该跟随")
+            self.assertEqual(decision.reason, "hit:keyword-follow")
+
+    def test_window_runs_out(self):
+        trigger = self.make()
+        trigger.evaluate(group_message("咲弥 这个怎么弄"))
+        for index in range(5):
+            trigger.evaluate(group_message("继续", message_id=f"f{index}"))
+        after = trigger.evaluate(group_message("还在吗", message_id="after"))
+        self.assertFalse(after.respond, "五条之后就该重新叫它了")
+
+    def test_only_the_person_who_called_it(self):
+        """⚠️ 窗口挂在 (群号, 用户) 上 —— 别人说话既不消耗它，也蹭不到。"""
+        trigger = self.make()
+        trigger.evaluate(group_message("咲弥 在吗"))
+
+        other = trigger.evaluate(group_message("我也说一句", message_id="o1", user_id=999))
+        self.assertFalse(other.respond, "别人不该被跟随")
+        self.assertEqual(other.reason, "skip:keyword")
+
+        still = trigger.evaluate(group_message("那这个呢", message_id="f1", user_id=111))
+        self.assertTrue(still.respond, "别人说话不该消耗他的窗口")
+
+    def test_expires_after_the_time_window(self):
+        """⚠️ 光计数不够：早上叫过它，晚上回来说五句话不该被它接话。"""
+        clock = FakeClock()
+        trigger = self.make(clock=clock)
+        trigger.evaluate(group_message("咲弥 在吗"))
+
+        clock.now += 601
+        late = trigger.evaluate(group_message("今天天气不错", message_id="late"))
+        self.assertFalse(late.respond, "超时了就不该再跟随")
+
+    def test_hitting_the_keyword_again_resets_the_window(self):
+        clock = FakeClock()
+        trigger = self.make(clock=clock)
+        trigger.evaluate(group_message("咲弥 在吗"))
+        clock.now += 300
+        trigger.evaluate(group_message("继续", message_id="f1"))
+        trigger.evaluate(group_message("咲弥 还有", message_id="f2"))  # 又叫了一次
+        clock.now += 500
+
+        again = trigger.evaluate(group_message("接着问", message_id="f3"))
+        self.assertTrue(again.respond, "重新叫过之后窗口应该从头算")
+
+    def test_zero_turns_it_off(self):
+        trigger = self.make(keyword_followup=0)
+        trigger.evaluate(group_message("咲弥 在吗"))
+        self.assertFalse(trigger.evaluate(group_message("那这个呢", message_id="f1")).respond)
+
+    def test_mention_policy_is_unaffected(self):
+        """mention 群里每次 @ 都会回，不需要跟随 —— 别把窗口开到那边去。"""
+        trigger = self.make(group_policies={GROUP: "mention"})
+        trigger.evaluate(group_message("咲弥 在吗", mentioned=True))
+        self.assertFalse(
+            trigger.evaluate(group_message("那这个呢", message_id="f1")).respond
+        )
 
 
 class RateLimitTest(unittest.TestCase):

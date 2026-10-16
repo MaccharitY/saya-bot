@@ -59,6 +59,8 @@ class Trigger:
         self._recent: dict[int, deque[float]] = {}
         self._answered: deque[str] = deque(maxlen=DEDUP_MEMORY)
         self._answered_set: set[str] = set()
+        # 关键词命中后的"跟随窗口"：(群号, 用户) → (还剩几条, 最后一次活动时刻)
+        self._following: dict[tuple[int, int], tuple[int, float]] = {}
 
     def reconfigure(self, config: Config) -> None:
         """换配置（群策略 / 关键词 / 概率 / 限流都从这里读）。
@@ -108,7 +110,13 @@ class Trigger:
         if policy == "mention":
             return message.mentioned_self, "mention"
         if policy == "keyword":
-            return any(word in message.text for word in config.trigger_keywords), "keyword"
+            if any(word in message.text for word in config.trigger_keywords):
+                self._open_follow_window(message)
+                return True, "keyword"
+            # 关键词没中，但可能是**刚才叫过它的人在接着说话**
+            if self._within_follow_window(message):
+                return True, "keyword-follow"
+            return False, "keyword"
         if policy == "random":
             return self._rng.random() < config.reply_probability, "random"
         if policy == "always":
@@ -118,6 +126,44 @@ class Trigger:
             # 静默会让人以为"它坏了"，降级至少还能用，且 reason 里写明了。
             return message.mentioned_self, "selective→mention（未实现，已降级）"
         raise ValueError(f"未知的群策略：{policy}")
+
+    # ---- 关键词的"跟随窗口" ----
+    #
+    # 为什么需要：叫人只用叫一次。说了「saya 这个怎么弄」之后，紧接着的
+    # 「那这个呢」「还是不行」不该再要求他每条都带上名字。
+    #
+    # ⚠️ **按人记、按会话隔离**：窗口挂在 (群号, 用户) 上，
+    # 所以群里别人说话不会消耗它，也不会蹭到别人的窗口。
+    # ⚠️ **只有 keyword 策略用得上**：mention 每次 @ 都会回，
+    # random / always 本来就会回，都不需要这个。
+
+    def _open_follow_window(self, message: IncomingMessage) -> None:
+        count = self._config.keyword_followup
+        if count > 0 and message.group_id is not None:
+            self._following[(message.group_id, message.user_id)] = (count, self._clock())
+
+    def _within_follow_window(self, message: IncomingMessage) -> bool:
+        if message.group_id is None:
+            return False
+        limit = self._config.keyword_followup
+        seconds = self._config.keyword_followup_seconds
+        if limit <= 0 or seconds <= 0:
+            return False
+
+        key = (message.group_id, message.user_id)
+        state = self._following.get(key)
+        if state is None:
+            return False
+
+        remaining, last_seen = state
+        now = self._clock()
+        # ⚠️ 超时也要清 —— 早上叫过它，晚上回来随口说五句话不该被它接话。
+        if remaining <= 0 or now - last_seen > seconds:
+            del self._following[key]
+            return False
+
+        self._following[key] = (remaining - 1, now)
+        return True
 
     # ---- 配置查询 ----
 

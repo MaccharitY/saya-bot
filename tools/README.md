@@ -132,6 +132,38 @@ python tools/config.py rate 3                     # 每群每分钟最多回几�
 写前先备份、写盘时检查**有没有被 git 忽略**（`--env 别的名字` 能绕开
 `.gitignore` 的 `.env` / `.env.*`，这条不是假想，见 ADR-022）。
 
+### `panel.py` —— **常驻控制台**：启停机器人 + 改设置
+
+**为什么需要它**：以前每动一下都要另开一个终端（启动一个、改设置一个、看日志又一个），
+而改设置那个还是**离线**的（改完得重启才生效）。前后端分离之后（ADR-022）
+命令语义已经和前端无关了，所以可以有一个**开着就不关**的控制台把这些收进来。
+
+⚠️ **在 WSL 里跑**（它要调 `tools/start_saya.sh`，那是个 bash 脚本）。
+
+```bash
+python3 tools/panel.py
+```
+
+```
+  start            启动机器人（日志就在这一屏）
+  end              停掉它            ← 要确认
+  restart          重启（用现在这份代码）← 要确认
+  status           在跑吗、跑了多久
+  quit             退出控制台（机器人继续跑）
+  show / group / admin / friend / keyword / prob / rate / help
+```
+
+**改设置的两种走法**（自动选）：
+
+- 机器人**在跑** → 命令直接送进它的 stdin，**当场生效**（走 `core/console.py`）
+- 机器人**没在跑** → 直接写 `.env`，下次启动生效
+
+**为什么 `end` 要发 SIGINT 而不是 SIGTERM**：机器人接住了 `KeyboardInterrupt`，
+会走 `finally` 里的 `pipeline.stop()`（关接入、落记忆）。SIGTERM 会跳过清理。
+
+⚠️ **这个脚本不能叫 `saya.py`** —— 会和 `src/saya/` 这个包同名，
+`from saya import ...` 会导到包而不是它。实测撞过一次。
+
 ### `fetch.py` —— 抓网页转文本
 
 **为什么需要**：本机的 WebFetch 工具坏了——它要联网校验"域名是否可安全抓取"，那一步失败，

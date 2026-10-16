@@ -136,6 +136,12 @@ class Config:
     # ⚠️ 开着思考模式时 **temperature 会被服务端无视** —— 见 llm.py 的说明
     reasoning_effort: str
     trigger_keywords: tuple[str, ...]
+    # 关键词命中后"跟随"这个人接下来几条 —— 叫人只用叫一次，
+    # 紧接着的「那这个呢」不该再要求他带上名字。0 = 关。
+    keyword_followup: int
+    # 跟随窗口的时限（秒）。⚠️ 不只是计数：早上叫过它、晚上回来说五句话
+    # 不该被它接话。0 = 不限时（只要没说完那几条就一直在窗口里）。
+    keyword_followup_seconds: float
     reply_probability: float
     rate_limit_per_group_per_min: int
     # 谁能私聊它 —— **结构性防注入**：私聊是陌生人能直接对机器人下指令的地方
@@ -193,6 +199,8 @@ class Config:
             vision_temperature=float(get("VISION_TEMPERATURE", "0.2")),
             reasoning_effort=get("REASONING_EFFORT", "high").strip().lower(),
             trigger_keywords=_split_csv(get("TRIGGER_KEYWORDS")),
+            keyword_followup=int(get("KEYWORD_FOLLOWUP", "5")),
+            keyword_followup_seconds=float(get("KEYWORD_FOLLOWUP_SECONDS", "600")),
             reply_probability=float(get("REPLY_PROBABILITY", "0.1")),
             rate_limit_per_group_per_min=int(get("RATE_LIMIT_PER_GROUP_PER_MIN", "5")),
             owner_id=_optional_int(get("OWNER_ID")),
