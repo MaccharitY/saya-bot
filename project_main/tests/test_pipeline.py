@@ -24,6 +24,7 @@ from saya.core.notebook import Notebook  # noqa: E402
 from saya.core.persona import DEFAULT_PERSONA  # noqa: E402
 from saya.core.pipeline import Pipeline  # noqa: E402
 from saya.core.roles import AUDIENCE_CLOSE, AUDIENCE_OPEN  # noqa: E402
+from saya.core.tools import Tool, ToolBox, object_schema  # noqa: E402
 from saya.core.trigger import Trigger  # noqa: E402
 from saya.domain import ImageRef, IncomingMessage  # noqa: E402
 from saya.obs.trace import TraceWriter  # noqa: E402
@@ -113,7 +114,9 @@ class PipelineTestBase(unittest.TestCase):
         self.trace_path = self.dir / "trace.jsonl"
         self.config = make_config()
 
-    def build(self, *, transport=None, config=None, notebook=None) -> tuple[Pipeline, TraceWriter]:
+    def build(
+        self, *, transport=None, config=None, notebook=None, tools=None
+    ) -> tuple[Pipeline, TraceWriter]:
         transport = transport or self.transport
         config = config or self.config
         trace = TraceWriter(self.trace_path)
@@ -138,6 +141,7 @@ class PipelineTestBase(unittest.TestCase):
             trigger=Trigger(config),
             trace=trace,
             notebook=notebook,
+            tools=tools,
         )
         return pipeline, trace
 
@@ -438,6 +442,98 @@ class NotebookPipelineTest(PipelineTestBase):
         """没开长期记忆时，流水线照跑。"""
         pipeline, _ = self.build()
         self.assertTrue(pipeline.handle(group_message("你好", user_id=222)))
+
+
+class KnowledgeToolTest(PipelineTestBase):
+    """知识源工具的接线。
+
+    机制本身在 test_tools.py 里测；这里只回答一个问题：
+    **流水线到底有没有把工具箱递进去、用没用、记没记账。**
+    """
+
+    def scripted(self, responses: list[dict]):
+        """按脚本依次返回响应的假 transport。"""
+        class Scripted:
+            def __init__(self) -> None:
+                self.responses = list(responses)
+                self.calls: list[dict] = []
+
+            def __call__(self, url, headers, payload, timeout):
+                self.calls.append(payload)
+                return self.responses.pop(0)
+
+        return Scripted()
+
+    def known_answer(self) -> ToolBox:
+        return ToolBox(
+            [
+                Tool(
+                    name="arcaea_lookup",
+                    description="查 Arcaea",
+                    parameters=object_schema({"query": {"type": "string"}}),
+                    handler=lambda args: "咲弥是 Arcaea 的角色。",
+                )
+            ]
+        )
+
+    def test_tool_is_offered_to_the_model(self):
+        pipeline, _ = self.build(tools=self.known_answer())
+        pipeline.handle(group_message("咲弥是谁"))
+
+        self.assertIn("tools", self.transport.calls[-1])
+        self.assertEqual(
+            self.transport.calls[-1]["tools"][0]["function"]["name"], "arcaea_lookup"
+        )
+
+    def test_no_tools_means_no_tool_specs_are_sent(self):
+        """没开知识源时不该多带那份说明 —— 那是每条消息都要付的 token。"""
+        pipeline, _ = self.build()
+        pipeline.handle(group_message("你好"))
+
+        self.assertNotIn("tools", self.transport.calls[-1])
+
+    def test_tool_result_reaches_the_reply_and_the_trace(self):
+        transport = self.scripted(
+            [
+                {
+                    "model": "deepseek-flash",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "c1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "arcaea_lookup",
+                                            "arguments": '{"query": "咲弥"}',
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 10},
+                },
+                {
+                    "model": "deepseek-flash",
+                    "choices": [{"message": {"role": "assistant", "content": "是 Arcaea 的角色"}}],
+                    "usage": {"prompt_tokens": 300, "completion_tokens": 20},
+                },
+            ]
+        )
+        pipeline, trace = self.build(transport=transport, tools=self.known_answer())
+        pipeline.handle(group_message("咲弥是谁"))
+
+        self.assertEqual(len(transport.calls), 2)
+        self.assertIn("咲弥是 Arcaea 的角色。", transport.calls[1]["messages"][-1]["content"])
+
+        detail = self.events(trace)[0]["detail"]
+        self.assertEqual(detail["tools_used"], "arcaea_lookup")
+        self.assertEqual(detail["tool_rounds"], 1)
+        self.assertEqual(detail["tokens_in"], 400, "两轮的 token 要加起来")
 
 
 if __name__ == "__main__":
