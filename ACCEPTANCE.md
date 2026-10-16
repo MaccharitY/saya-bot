@@ -16,13 +16,30 @@
 |---|---|---|
 | **D1** 成本三档价 | `python run.py --check` | 多出一行 `计价 : 输入 2.0 / 命中 0.04 / 输出 8.0 元每百万 token` |
 | **D2** 缓存记账 | 真实调一次后看 `project_main/logs/trace.jsonl` | reply 事件里出现 `cache_hit_tokens` / `cache_miss_tokens` / `reasoning_tokens` |
-| **D3** 控制台不崩 | `python run.py --check > log.txt` 然后 `echo $LASTEXITCODE` | **0** —— v0.1.0 会 `UnicodeEncodeError` 直接崩 |
+| **D3** 控制台不崩 | `python run.py --check > log.txt` 然后看退出码 | **0** —— v0.1.0 会 `UnicodeEncodeError` 直接崩 |
 | **D4** 设置工具 | `python tools/config.py show` | 列出群策略 / 主人 / 管理员 / 白名单 / 触发参数 |
 | **D5** 改设置不毁文件 | 先 `cp` 一份 `.env` 副本再 `python tools/config.py --env <副本> admin add 12345` | **只有那一行变**，注释与其余行原样；生成 `.env.bak` |
 | **D6** 实验就绪 | WSL 里跑 `--dry-run`（命令见 `pre/13` 第 8 节） | `105 条`、`315 次调用`、附属 `saya-cv` 就绪 |
 
+### ✅ 验收结果（2026-10-16，本会话逐条跑过）
+
+| 项 | 结果 |
+|---|---|
+| **D1** | ✅ 实测打印 `计价 : 输入 2.0 / 命中 0.04 / 输出 8.0 元每百万 token` |
+| **D2** | ⏳ **待重启** —— 见下方说明 |
+| **D3** | ✅ `--check > log.txt` 退出码 **0**（v0.1.0 在这里必崩） |
+| **D4** | ✅ 实测列出「没列出的群 mention / 主人 / 管理员 [0/3] / 白名单 [0/15] / keyword 词 / random 概率 / 每分钟上限」 |
+| **D5** | ✅ 在**合成 `.env`**（无真 key）上跑了一串改动：只有目标行变化，`# 管理，最多 3 个` 等注释全部保留，`.env.bak` 生成 |
+| **D6** | ✅ 干跑输出 `105 条` / `315 次调用` / `附属就绪：saya-cv`（4 个工具） |
+
+> ⚠️ **D2 现在必然查不到，这不是 bug。**
+> 机器人**是在这次改动之前启动的**，进程里跑的还是旧代码 ——
+> 埋点里那三个字段要**重启之后**才会有。
+> 重启：`bash tools/start_saya.sh --restart`（Windows 双击 `tools/start_saya.bat`）
+> 然后随便聊一句，再看 `logs/trace.jsonl` 最后一条 reply 的 `detail`。
+
 > ⚠️ D5 别拿真的 `.env` 试 —— 副本名（如 `_test.env`）**不匹配 `.gitignore` 的
-> `.env` / `.env.*`**，里面有 API key。工具现在会在写盘时告警，但最好一开始就别建。
+> `.env` / `.env.*`**，而里面有 API key。工具现在会在写盘时告警，但最好一开始就别建。
 
 ---
 
