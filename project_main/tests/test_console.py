@@ -143,6 +143,24 @@ class ConsoleTextFromHelpersTest(unittest.TestCase):
         banner = self._banner(self._config(reasoning_effort="none"))
         self.assertEqual(unencodable(banner), [], f"横幅里有 GBK 编不出的字符：{banner!r}")
 
+    def test_policy_help_is_encodable(self):
+        """⚠️ 又是一条"函数返回、最后被打印"的路（见 ADR-021）。
+
+        `POLICY_HELP` 在 `manage.py` 里，静态扫描只看 `print(...)` 的字面量，
+        够不着它 —— 实测在真机上就打印成了 `?? 尚未实现`。
+        **凡是会流到控制台的字符串，加进这一类测试里。**
+        """
+        sys.path.insert(0, str(PROJECT_MAIN / "src"))
+        try:
+            from saya.manage import POLICY_HELP, USAGE, policy_list
+        finally:
+            sys.path.pop(0)
+
+        for name, text in POLICY_HELP.items():
+            self.assertEqual(unencodable(text), [], f"POLICY_HELP[{name!r}] 编不出：{text!r}")
+        for label, text in (("policy_list", policy_list()), ("USAGE", USAGE)):
+            self.assertEqual(unencodable(text), [], f"{label} 里有编不出的字符")
+
 
 class GuardTest(unittest.TestCase):
     """兜底本身：只改 errors，不改 encoding。"""

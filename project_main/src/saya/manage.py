@@ -30,7 +30,7 @@ POLICY_HELP = {
     "keyword": "记录所有消息，命中关键词才回",
     "random": "记录所有消息，按概率回",
     "always": "全回（只适合调试，会很吵）",
-    "selective": "选择性插嘴 —— ⚠️ 尚未实现，会降级成 mention",
+    "selective": "选择性插嘴 —— [!] 尚未实现，会降级成 mention",
 }
 
 
