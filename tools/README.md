@@ -27,6 +27,26 @@ bash tools/start_saya.sh --check  # 只自检
 
 QQ 号从 `project_main/.env` 的 `SAYA_SELF_ID` 读，不写死在脚本里。
 
+### `fetch_arcaea_corpus.py` —— 把剧情原件切成可检索的语料库
+
+**为什么需要**：机器人查 Arcaea 设定时，得能在几十万字剧情里**按词找到那一段**。
+原始素材是几个大文本（项目所有者提供的 `stories/`），得切成"一章一文件"才好检索。
+
+```bash
+python tools/fetch_arcaea_corpus.py                       # 从 stories/ 切到 persona/corpus/
+python tools/fetch_arcaea_corpus.py --outdir <目录>        # 换个输出位置
+python tools/fetch_arcaea_corpus.py --only 18             # 只处理某些章节
+python tools/fetch_arcaea_corpus.py --force               # 覆盖已有文件
+```
+
+产出 `persona/corpus/`：`NN-ch<标记>.txt` ×179 ＋ `index.json`（给程序查）＋ `INDEX.md`（给人看）。
+脚本会顺手做三件事：跳过 B 站文章开头重复的「目录」标记群、剥掉页脚杂质
+（`cvXXXXXXX` / 分享 / 标签串）、给关键章节写摘要。
+
+⚠️ **`stories/` 是只读的** —— 那是所有者提供的原件，脚本只读不改。
+⚠️ 名字里的 "fetch" 是历史遗留：它**现在不联网**，只做本地切分
+（原先要抓的 `wiki.arcaea.cn` 已因反爬放弃，见 `docs/01-architecture.md` ADR-012）。
+
 ### `notes.py` —— 查看与删除长期记忆
 
 **为什么需要**：长期记忆（主人/管理员让机器人记住的事）是唯一一份"自己攒下来、
