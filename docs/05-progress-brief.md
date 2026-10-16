@@ -911,4 +911,26 @@ WSL 里真跑过两轮（用**假启动脚本 + 另一个端口**，没碰所有
 - **扫隐私的退出码不能被管道吞掉** —— 它是"能不能推"的判据
 - **改内容要在 `git add` 之前**；改完要**从暂存区再验一遍**（`git show :文件`）
 
+### 19.6 ⚠️ 紧接着又一个：`start_saya.sh` 被写成了 CRLF
+
+所有者双击控制台、确认接管，然后机器人**没起来**：
+
+```
+start_saya.sh: line 17: set: pipefail: invalid option name
+start_saya.sh: line 32: syntax error near unexpected token `$'in\r''
+```
+
+**是我弄的**：改这个脚本里两个字符串时用了
+`Path.read_text()` / `write_text()` —— 它们在 Windows 上**默认做换行转换**
+（读时 CRLF→LF，写时 LF→`os.linesep`），整个脚本就变成 CRLF 了。
+
+⚠️ **同一个坑第二次咬了**：上一次是改 `.env`（见 `saya/envfile.py` 里的注释）。
+**凡是用 Python 改文件，读写都要 `newline=""`，或者干脆按字节处理。**
+
+`.gitattributes` 里 `*.sh text eol=lf` 写得是对的，但**它管的是 git 的进出** ——
+绕过 git 直接写文件就漏过去了。所以只能**查工作区的真实字节**：
+`test_launchers.py` 新增 `ShFileTest`，`*.sh` 出现 CRLF 就失败。
+
+测试 **603 个全过**。
+
 测试 **601 个全过**。
