@@ -11,19 +11,34 @@
 
 ## 清单
 
-### `start_saya.bat` —— 一键启动（Windows 双击）
+### `start_saya.bat` —— 一键启动 / **重启**（Windows 双击）
 
-你平时就用这个。它会转去调 WSL 里的 `start_saya.sh`。
+你平时就用这个。它会转去调 WSL 里的 `start_saya.sh`，并传 `--restart`。
 
-### `start_saya.sh` —— 一键启动（WSL 侧）
+⚠️ **这个文件里一个非 ASCII 字符都不能有。** cmd.exe 解析含中文的 UTF-8 `.bat` 时
+会**从行中间断开**，把后半句当命令去执行（实测报过
+`'…双击就没用了。）' is not recognized as an internal or external command`）。
+中文提示一律由 WSL 那边的脚本输出 —— 那里是 UTF-8 的正常环境。
+行尾也必须是 CRLF。
+
+### `start_saya.sh` —— 启动 / 重启（WSL 侧）
 
 ```bash
-bash tools/start_saya.sh          # 起 NapCat → 自检 → 起机器人
-bash tools/start_saya.sh --check  # 只自检
+bash tools/start_saya.sh            # 确保它在跑（已在跑就提示一句，不动它）
+bash tools/start_saya.sh --restart  # **重启**：停掉旧的，用现在这份代码起
+bash tools/start_saya.sh --check    # 只自检（不碰 NapCat、不启动、不杀进程）
 ```
 
-顺序是刻意的：**先确保 QQ 侧活着、再自检、最后才启动** ——
-省得开了半天才发现配置有问题。自检不过就**不会启动**。
+顺序是刻意的：**先看有没有在跑 → 再自检 → 最后才碰 QQ**。
+
+⚠️ **「已经在跑」以前是没人管的**：脚本直接跑到自检，而自检发现端口被占、
+判定失败、拒绝启动 —— 于是这个"一键启动"按钮**没法重启一个正在跑的机器人**，
+还甩给用户一句"自检没过，先把它修好"。现在分三种情况处理：
+无参数时提示并退出 0；`--restart` 时停掉旧的（先 `kill`，不理就 `kill -9`）；
+`--check` 时只报告。
+
+**认哪个进程是它，用端口认**（`ss -tlnpH "sport = :<端口>"`），
+命令行匹配只作兜底 —— 进程名是相对的 `run.py`，光靠它认不准。
 
 QQ 号从 `project_main/.env` 的 `SAYA_SELF_ID` 读，不写死在脚本里。
 

@@ -13,6 +13,7 @@ import logging
 import socket
 import threading
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from saya.adapter.base import Adapter, AdapterError
@@ -176,6 +177,29 @@ def _prewarm_dns(host: str, ttl_seconds: float) -> None:
     keep_warm(host, 443, interval)
 
 
+# 适配器的 GET 会原样回这个字符串（浏览器打开那个端口就能看到），拿它当指纹。
+_OUR_BOT_MARKER = "saya_bot onebot adapter ok"
+
+
+def is_our_own_bot(config: Config, *, timeout: float = 3.0) -> bool:
+    """端口被占时，判断占着它的**是不是我们自己的另一个实例**。
+
+    ⚠️ 这个区分很要紧：**「已经有一个在跑」不是配置问题**。
+    看不出来的时候，自检只能一律判失败，于是启动脚本拒绝启动 ——
+    用户想重启机器人，得到的却是一句"自检没过，先把它修好"。
+    """
+    host = config.onebot_listen_host
+    if host in ("0.0.0.0", "::", ""):
+        host = "127.0.0.1"  # 监听地址不可直连，探测时换成回环
+    url = f"http://{host}:{config.onebot_listen_port}/"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            body = response.read(200).decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001 - 探不通就是"不是我们"，不需要区分为什么
+        return False
+    return _OUR_BOT_MARKER in body
+
+
 def missing_env_keys(env_file: Path, example_file: Path) -> list[str]:
     """看看 `.env` 里缺了哪些 `.env.example` 已经有的键。
 
@@ -290,7 +314,20 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
             print(f"✓ 端口可用：http://{host}:{port}{config.onebot_event_path}")
             print("  （把上面这个地址填进 NapCat 的「HTTP 上报」）")
         except AdapterError as exc:
-            problems.append(f"事件端口不可用：{exc}")
+            if is_our_own_bot(config):
+                # ⚠️ **"已经有一个在跑"不是配置问题。**
+                # 以前不区分这两种情况，于是自检失败、启动脚本拒绝启动 ——
+                # 结果就是这个一键启动按钮**没法重启一个正在跑的机器人**，
+                # 还甩给用户一句"自检没过，先把它修好"。实测就是这么卡住的。
+                print(
+                    f"✓ 端口被**本项目已经在跑的那个实例**占着"
+                    f"（http://{config.onebot_listen_host}:"
+                    f"{config.onebot_listen_port}{config.onebot_event_path}）"
+                )
+                print("  → 这不是配置问题，只是「已经有一个在跑」。")
+                print("  → 要换成现在这份代码，用：bash tools/start_saya.sh --restart")
+            else:
+                problems.append(f"事件端口不可用：{exc}")
         finally:
             probe.close()
 

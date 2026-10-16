@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -14,6 +15,7 @@ from saya.__main__ import (  # noqa: E402
     ADAPTER_CHOICES,
     build_adapter,
     build_llm,
+    is_our_own_bot,
     missing_env_keys,
     run_check,
 )
@@ -118,6 +120,68 @@ class RunCheckTest(unittest.TestCase):
             )
         self.assertEqual(code, 1)
         self.assertIn("端口", buffer.getvalue())
+
+
+class IsOurOwnBotTest(unittest.TestCase):
+    """端口被占时，得能认出**占着它的是不是我们自己的另一个实例**。
+
+    ⚠️ 这个区分不是锦上添花：看不出来的时候，自检只能一律判失败，
+    于是"一键启动"按钮**没法重启一个正在跑的机器人**，还甩给用户
+    一句"自检没过，先把它修好"。实测就是这么卡住的。
+    """
+
+    def config(self, **overrides) -> Config:
+        base = replace(
+            Config.from_env(dotenv_path=NO_DOTENV),
+            onebot_listen_host="127.0.0.1",
+            onebot_listen_port=8080,
+        )
+        return replace(base, **overrides) if overrides else base
+
+    def fake_response(self, body: bytes):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self, size: int = -1) -> bytes:
+                return body
+
+        return Response()
+
+    def test_recognises_our_own_adapter(self):
+        with mock.patch(
+            "urllib.request.urlopen",
+            return_value=self.fake_response(b"saya_bot onebot adapter ok"),
+        ):
+            self.assertTrue(is_our_own_bot(self.config()))
+
+    def test_some_other_service_is_not_ours(self):
+        with mock.patch(
+            "urllib.request.urlopen",
+            return_value=self.fake_response(b"<html>some other thing</html>"),
+        ):
+            self.assertFalse(is_our_own_bot(self.config()))
+
+    def test_unreachable_counts_as_not_ours(self):
+        """探不通就当作"不是我们" —— 宁可当成真问题报出来，也别放过。"""
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+            self.assertFalse(is_our_own_bot(self.config()))
+
+    def test_wildcard_listen_address_is_probed_on_loopback(self):
+        """`0.0.0.0` 是监听地址、不是可连的地址，探测时得换成回环。"""
+        seen: list[str] = []
+
+        def spy(url, timeout):
+            seen.append(url)
+            return self.fake_response(b"saya_bot onebot adapter ok")
+
+        with mock.patch("urllib.request.urlopen", side_effect=spy):
+            is_our_own_bot(self.config(onebot_listen_host="0.0.0.0"))
+
+        self.assertIn("127.0.0.1", seen[0])
 
 
 class RouteValidationTest(unittest.TestCase):
