@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saya.config import Config  # noqa: E402
 from saya.core.roles import (  # noqa: E402
     AUDIENCE_OPEN,
+    RELATION_BRIEF,
     ROLE_ADMIN,
     ROLE_FRIEND,
     ROLE_LABELS,
@@ -130,6 +131,36 @@ class SingleSourceOfTruthTest(unittest.TestCase):
         config = self.make_config(owner_id=None)
         trigger = Trigger(config)
         self.assertFalse(trigger.is_allowed_private(OWNER))
+
+
+class OwnerToneTest(unittest.TestCase):
+    """⚠️ **对主人口气要跟对群友明显不一样。**
+
+    所有者的要求（2026-10-16）：对群友那样贫嘴可以，**对主人不行** ——
+    "关心一些、温柔一些、亲近一些"。这一条写在代码注入的关系块里
+    （人格文件当初就特意不写主人/管理员，身份判定归代码）。
+    """
+
+    def brief(self) -> str:
+        return RELATION_BRIEF
+
+    def test_tells_it_to_be_caring_toward_the_owner(self):
+        brief = self.brief()
+        self.assertIn("关心", brief)
+        self.assertIn("语气软", brief)
+
+    def test_forbids_teasing_the_owner(self):
+        """对群友可以贫嘴，对主人不行 —— 尤其别拿他的处境说事。"""
+        self.assertIn("别拿他打趣", self.brief())
+
+    def test_warmth_does_not_replace_honesty(self):
+        """⚠️ 别过度矫正成应声虫 —— 关心 ≠ 哄。"""
+        self.assertIn("关心不等于哄", self.brief())
+
+    def test_the_other_three_roles_are_still_explained(self):
+        brief = self.brief()
+        for label in ("管理员", "熟人", "群友"):
+            self.assertIn(label, brief)
 
 
 if __name__ == "__main__":
