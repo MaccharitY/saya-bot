@@ -33,6 +33,46 @@ def bat_files() -> list[Path]:
     )
 
 
+def sh_files() -> list[Path]:
+    return sorted(
+        path
+        for path in REPO_ROOT.rglob("*.sh")
+        if ".git" not in path.parts and "node_modules" not in path.parts
+    )
+
+
+class ShFileTest(unittest.TestCase):
+    """`.sh` 必须是 **LF**。
+
+    ⚠️ 2026-10-16 真撞过：改 `start_saya.sh` 里两个字符串时用了
+    `Path.read_text()` / `write_text()` —— 它们在 Windows 上**默认做换行转换**
+    （读时 CRLF→LF，写时 LF→os.linesep），于是整个脚本变成 CRLF，
+    机器人在面板里起不来：
+
+        start_saya.sh: line 17: set: pipefail: invalid option name
+        start_saya.sh: line 32: syntax error near unexpected token `$'in\\r''
+
+    `.gitattributes` 里 `*.sh text eol=lf` 是对的，但**它管的是 git 的进出**——
+    绕过 git 直接写文件（脚本、编辑器、另一个工具）就漏过去了。
+    所以这条只能靠**查工作区的真实字节**。
+    """
+
+    def test_there_are_some(self):
+        self.assertGreaterEqual(len(sh_files()), 1)
+
+    def test_lf_only(self):
+        for path in sh_files():
+            raw = path.read_bytes()
+            crlf = raw.count(b"\r\n")
+            if crlf:
+                self.fail(
+                    f"{path.name} 有 {crlf} 个 CRLF —— bash 会报 "
+                    f"`\\r: command not found`，脚本直接跑不起来。\n"
+                    f"多半是某个工具用默认换行写回文件了："
+                    f"读写时要用 newline=\"\"（Python）或直接按字节处理。"
+                )
+
+
 class BatFileTest(unittest.TestCase):
     def test_there_are_some(self):
         """先确认扫描器真的找到了东西 —— 不然下面全是空转。"""
