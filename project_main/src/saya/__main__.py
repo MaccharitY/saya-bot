@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import socket
 import sys
 import threading
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -374,6 +376,46 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     return 0
 
 
+def _runtime_status(config: Config, started_at: float) -> list[str]:
+    """命令台的 `status`。
+
+    ⚠️ 只管**进程自己才知道的东西**（跑了多久、PID、接在哪儿）——
+    设置类的信息 `show` 已经报了，重复一遍没用。
+    这也是 `status` 只属于**机器人自己那个终端**的原因：
+    外面的控制台问不到这个进程的运行时长。
+    """
+    elapsed = int(time.monotonic() - started_at)
+    hours, rest = divmod(elapsed, 3600)
+    minutes, seconds = divmod(rest, 60)
+    uptime = (
+        f"{hours} 小时 {minutes} 分" if hours
+        else f"{minutes} 分 {seconds} 秒" if minutes
+        else f"{seconds} 秒"
+    )
+    effort = (config.reasoning_effort or "").strip().lower()
+    thinking = "关" if effort in ("", "none", "off", "disabled") else f"开（{effort}）"
+
+    lines = [
+        "== 运行 ==",
+        f"  PID       {os.getpid()}",
+        f"  已运行    {uptime}",
+        f"  接入      {config.adapter}",
+    ]
+    if config.adapter.startswith("onebot11"):
+        lines.append(
+            f"  事件入口  http://{config.onebot_listen_host}:"
+            f"{config.onebot_listen_port}{config.onebot_event_path}"
+        )
+    lines += [
+        f"  模型      {config.llm_model}（思考模式 {thinking}）",
+        f"  看图路线  {config.vision_route}",
+        "",
+        f"  群策略    单独设过 {len(config.group_policies)} 个群，"
+        f"其余用默认的 {config.group_default_policy}",
+    ]
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="saya", description="saya_bot —— QQ 群聊机器人")
     parser.add_argument("--check", action="store_true", help="只自检，不启动、不发消息")
@@ -416,9 +458,29 @@ def main(argv: list[str] | None = None) -> int:
     # 这也是 0.2.0 那个 web 管理页的前置 —— 命令语义全在 saya/manage.py，与前端无关。
     if config.console_enabled:
         print(BANNER)
+        started_at = time.monotonic()
+        # ⚠️ 用个可变盒子装"当前生效的配置"：reconfigure 之后 status 要报新值，
+        # 而闭包捕获的是**变量指向的对象**，直接捕获 config 会永远报启动时那份。
+        live = {"config": config}
+
+        def reconfigure() -> list[str]:
+            """重读 `.env` 换掉内核手里的配置。
+
+            ⚠️ **新设置没通过校验时保留旧的继续跑** —— 不能因为一条手滑的命令
+            把群里正在用的机器人搞停。`Config` 冻结字段一个都不用捅：整个换掉。
+            """
+            try:
+                fresh = Config.from_env(dotenv_path=env_file or DEFAULT_ENV_FILE)
+            except ConfigError as exc:
+                return [f"  [!] 新设置没通过校验，**仍按旧的跑**：{exc}"]
+            pipeline.reconfigure(fresh)
+            live["config"] = fresh
+            return []
+
         Console(
             env_path=env_file or DEFAULT_ENV_FILE,
-            apply=lambda: _reconfigure(pipeline, env_file or DEFAULT_ENV_FILE),
+            apply=reconfigure,
+            status=lambda: _runtime_status(live["config"], started_at),
         ).start(sys.stdin)
 
     try:
@@ -428,20 +490,6 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         pipeline.stop()
     return 0
-
-
-def _reconfigure(pipeline: Pipeline, env_file: Path) -> list[str]:
-    """重读 `.env`，换掉内核手里的配置。返回要补说的话（正常是空的）。
-
-    ⚠️ **新设置没通过校验时，保留旧的继续跑** —— 不能因为一条手滑的命令
-    把群里正在用的机器人搞停。`Config` 冻结字段一个都不用捅：整个换掉。
-    """
-    try:
-        fresh = Config.from_env(dotenv_path=env_file)
-    except ConfigError as exc:
-        return [f"  [!] 新设置没通过校验，**仍按旧的跑**：{exc}"]
-    pipeline.reconfigure(fresh)
-    return []
 
 
 if __name__ == "__main__":

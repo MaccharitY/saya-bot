@@ -34,12 +34,17 @@ from saya.manage import Result, run
 # 结果行前面加两个空格，和 logging 的输出区隔开
 _PREFIX = "  "
 
+# 这些命令只有外面那个控制台（tools/panel.py）能做 —— 它们要另起或替换进程。
+# 在机器人自己的终端里敲到时，要**指路**而不是只说"没这个命令"。
+SUPERVISOR_ONLY = frozenset({"start", "restart"})
+
 BANNER = """
 ─────────────────────────────────────────────
  命令台就绪。敲 help 看有哪些命令。
  改完**立刻生效**，同时写回 .env（下次启动还是它）。
  例：show            admin add 10086
      group 123 silent    rate 3
+ 另：status 看它跑了多久；start / restart 在 tools/panel.py 那个控制台里
 ─────────────────────────────────────────────"""
 
 
@@ -51,11 +56,14 @@ class Console:
         *,
         env_path: Path,
         apply: Callable[[], Iterable[str]] | None = None,
+        status: Callable[[], Iterable[str]] | None = None,
         output: Callable[[str], None] = print,
     ) -> None:
         self.env_path = env_path
         # `apply` 返回"换完配置后要补说的话"（比如重建失败了）
         self._apply = apply
+        # 运行时长之类的**只有进程自己知道**的信息，由 main 那边提供
+        self._status = status
         self._output = output
 
     # ---- 纯逻辑：可单测，不碰 stdin/线程 ----
@@ -63,12 +71,38 @@ class Console:
     def handle(self, line: str) -> Result:
         """跑一行命令。**任何异常都不许冒出去** —— 这里是机器人的主进程，
         一条手滑的命令不该把群里那个机器人搞停。"""
+        word = line.strip().split()[0].lower() if line.strip() else ""
+
+        # 有几个命令**只属于外面的控制台**（tools/panel.py）：start / restart
+        # 要另起一个进程，机器人自己做不到。这里如果只说"没这个命令"，
+        # 用户会以为功能没做 —— 实测就是这么撞上的，所以直接指路。
+        if word in SUPERVISOR_ONLY:
+            return Result(
+                lines=(f"{word!r} 是外面那个控制台（tools/panel.py）的命令 —— "
+                       f"它要另起/替换进程，机器人自己做不到。",),
+                ok=False,
+            )
+
+        if word == "status" and self._status is not None:
+            try:
+                return Result(lines=tuple(self._status()))
+            except Exception as exc:  # noqa: BLE001
+                return Result(lines=(f"取运行状态时出错：{exc}",), ok=False)
+
         try:
             env = EnvFile(self.env_path)
         except FileNotFoundError as exc:
             return Result(lines=(str(exc),), ok=False)
 
         result = run(env, line)
+        if word in ("help", "?") and self._status is not None:
+            # `status` 是**这个前端特有的**（要问进程自己跑了多久），
+            # `manage` 那边不认识它，所以帮助里得在这儿补上 ——
+            # 不补的话用户永远不知道有这个命令（实测就是敲了三次没敲对）。
+            result = Result(
+                lines=result.lines
+                + ("", "只有机器人自己这个终端里才有：", "  status    跑了多久、接在哪儿、用的哪个模型")
+            )
         if not result.changed:
             return result
         if not result.ok:

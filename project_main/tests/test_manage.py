@@ -176,5 +176,49 @@ class ConsoleTest(EnvFixture):
         self.assertTrue(any("主人" in line for line in output))
 
 
+class RuntimeStatusTest(EnvFixture):
+    """`status` 只有**机器人自己那个终端**有 —— 外面的控制台问不到进程运行时长。"""
+
+    def make(self, status=None) -> Console:
+        return Console(
+            env_path=self.path, apply=lambda: [], status=status, output=lambda _: None
+        )
+
+    def test_status_comes_from_the_provider(self):
+        console = self.make(status=lambda: ["== 运行 ==", "  已运行    3 分 5 秒"])
+        result = console.handle("status")
+        self.assertTrue(result.ok)
+        self.assertIn("已运行", result.text)
+
+    def test_status_is_not_a_manage_command(self):
+        """没给 provider 时（比如离线 CLI）不该假装认识它。"""
+        result = self.make().handle("status")
+        self.assertFalse(result.ok)
+        self.assertIn("help", result.text)
+
+    def test_status_provider_blowing_up_does_not_escape(self):
+        def boom():
+            raise RuntimeError("取状态失败")
+
+        result = self.make(status=boom).handle("status")
+        self.assertFalse(result.ok)
+        self.assertIn("取运行状态时出错", result.text)
+
+    def test_supervisor_only_commands_point_elsewhere(self):
+        """⚠️ 在机器人自己的终端里敲 `start`，只说"没这个命令"会让人以为功能没做。
+
+        实测就这么撞上的：用户敲了三次 `status`，因为没人告诉他命令在哪。
+        """
+        console = self.make()
+        for command in ("start", "restart"):
+            result = console.handle(command)
+            self.assertFalse(result.ok)
+            self.assertIn("panel.py", result.text, f"{command} 该指路到 panel.py")
+
+    def test_help_mentions_status(self):
+        console = self.make(status=lambda: ["x"])
+        self.assertIn("status", console.handle("help").text)
+
+
 if __name__ == "__main__":
     unittest.main()
