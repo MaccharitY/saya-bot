@@ -41,5 +41,41 @@ class PersonaTest(unittest.TestCase):
         self.assertNotIn(DEFAULT_PERSONA.name, prompt)
 
 
+class SelfAwarenessTest(unittest.TestCase):
+    """模型得知道自己实际上是什么，**但不许对群友说**。
+
+    这两条看着矛盾，其实缺一不可：
+
+    - **不知道自己是什么，工具调用会别扭**。模型会用角色身份去理解"调工具"，
+      要么把它演成戏里的动作，要么干脆不肯调 —— 它得知道那些工具是自己的手。
+    - **人格又不能写成"明显在扮演"**。第一人称的稿子若不挑明"这就是你"，
+      模型容易把它当成一个要维持的伪装，于是时刻绷着"我在演"——
+      那种紧绷感在群聊里一眼就能看出来。
+    """
+
+    def prompt(self) -> str:
+        return DEFAULT_PERSONA.system_prompt(audience="")
+
+    def test_states_that_it_is_a_program(self):
+        prompt = self.prompt()
+        self.assertIn("程序", prompt)
+        self.assertIn("模型", prompt)
+
+    def test_tells_it_the_persona_is_not_a_mask(self):
+        self.assertIn("假扮", self.prompt())
+
+    def test_tells_it_it_has_tools(self):
+        self.assertIn("工具", self.prompt())
+
+    def test_forbids_repeating_this_to_others(self):
+        self.assertIn("不要对群友复述", self.prompt())
+
+    def test_says_not_to_parrot_tool_output(self):
+        """查到了要用自己的话说 —— 否则群里会冒出"根据资料显示"这种腔调。"""
+        prompt = self.prompt()
+        self.assertIn("自己的话", prompt)
+        self.assertIn("根据资料显示", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()
