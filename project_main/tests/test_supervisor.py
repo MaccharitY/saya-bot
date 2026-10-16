@@ -11,6 +11,9 @@
 from __future__ import annotations
 
 import io
+import os
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -391,6 +394,179 @@ class ServeTest(Fixture):
         text = self.text()
         self.assertIn("已退出", text)
         self.assertNotIn("未运行", text.split("已退出")[-1], "退出之后不该再处理后面的行")
+
+
+class RegressionsFromReviewTest(ServeTest):
+    """⚠️ 全部来自 2026-10-16 的**独立评审**，每一条都是真能出事的。
+
+    这里专门补的是原来**没测到**的路径。评审员指出：`FakeChild` 的
+    `send_signal` / `terminate` / `kill` 一律立刻成功，于是 `stop()` 的
+    **超时升级分支从来没被执行过** —— 那类"发了信号收不了尾"的缺陷
+    可以让整套测试全绿。
+    """
+
+    # ---- 归属锁 ----
+
+    def test_zombie_panel_does_not_block_the_lock(self):
+        """⚠️ **僵尸进程对 `os.kill(pid, 0)` 是"活着"的。**
+
+        面板被强杀后如果父进程还没回收，它会以僵尸形态赖着，而锁里记的正是那个号
+        —— 新面板于是判出"已存在运行中的控制台"、自己退出，**永远进不去**，
+        界面上没有任何提示，唯一出路是手工删 `project_main/data/panel.lock`。
+
+        （同一个坑 `watchdog.py` 那边修好了，`panel.py` 这边只修了一半。）
+        """
+        self.lock_path.write_text("4242", encoding="ascii")
+        with mock.patch("panel.pid_is_alive", return_value=False):
+            self.assertIsNone(self.sup.other_panel())
+
+    def test_claim_lock_is_atomic(self):
+        """⚠️ 以前是"先查一遍、再写一遍" —— 查和写之间别的进程能插进来，
+        于是**两个面板都以为自己独占**。现在用 `O_EXCL` 建文件，抢不到就是抢不到。"""
+        self.lock_path.write_text("4242", encoding="ascii")
+        with mock.patch("panel._pid_alive", return_value=True):
+            self.assertFalse(self.sup.claim_lock())
+        self.assertEqual(self.lock_path.read_text(encoding="ascii"), "4242")
+
+    def test_claim_lock_replaces_a_stale_lock(self):
+        """锁文件在、但里面那个进程没了 = 上次没收干净 —— 该清掉重抢。"""
+        self.lock_path.write_text("4242", encoding="ascii")
+        with mock.patch("panel._pid_alive", return_value=False):
+            self.assertTrue(self.sup.claim_lock())
+        self.assertEqual(self.lock_path.read_text(encoding="ascii"), str(os.getpid()))
+
+    def test_release_lock_leaves_someone_elses_lock_alone(self):
+        """⚠️ 以前是**无条件 unlink**：抢锁失败的那个面板一退出就把别人的锁删了，
+        于是第三个面板能进来，对着第一个的机器人"接管"。"""
+        self.lock_path.write_text("4242", encoding="ascii")
+        self.sup.release_lock()
+        self.assertTrue(self.lock_path.is_file())
+        self.assertEqual(self.lock_path.read_text(encoding="ascii"), "4242")
+
+    # ---- restart 不能把提问吞掉 ----
+
+    def test_restart_keeps_the_takeover_question(self):
+        """⚠️ `restart()` 以前只把 `start()` 的 `lines` 拼起来，把
+        `confirm` / `question` 丢掉了 —— 端口上有未托管实例时，屏幕上只出现
+        提问的**上半句**（断在破折号上），既没有问句也没有"已取消"，
+        敲完 y 什么都不会发生。"""
+        with mock.patch("panel._port_open", return_value=True), \
+             mock.patch("panel._pid_on_port", return_value=16837), \
+             mock.patch("panel._looks_like_our_bot", return_value=True):
+            outcome = self.sup.restart()
+        self.assertEqual(outcome.confirm, "takeover")
+        self.assertTrue(outcome.question)
+
+    def test_a_foreign_process_on_the_port_is_not_offered_for_takeover(self):
+        """⚠️ **端口号不算身份。** 8080 上坐着谁都可能，而"接管"的动作是
+        **杀进程** —— 把别的程序叫成"未托管实例"，人就会去点那个 y。"""
+        with mock.patch("panel._port_open", return_value=True), \
+             mock.patch("panel._pid_on_port", return_value=16837), \
+             mock.patch("panel._looks_like_our_bot", return_value=False):
+            outcome = self.sup.takeover_prompt(16837)
+        self.assertIsNone(outcome.confirm)
+        self.assertFalse(outcome.ok)
+        self.assertIn("不是本机器人", "\n".join(outcome.lines))
+
+    # ---- 循环不能死 ----
+
+    def test_one_bad_command_does_not_kill_the_console(self):
+        """⚠️ 敲错一句命令最坏的后果是"报个错"，**不是"控制台消失 + 机器人被停"**。
+
+        以前 `_loop` 裸调 `handle`：`manage` 抛异常 → 穿出 `_loop` →
+        `serve` 的 finally 收尾、**把机器人停掉** → 窗口带着一屏栈消失。
+        """
+        with mock.patch.object(self.sup, "handle", side_effect=RuntimeError("模拟的意外")):
+            self.run_it("show\n")
+        self.assertIn("出错了", self.text())
+
+    def test_an_unrecognized_answer_cancels_but_still_runs_the_line(self):
+        """⚠️ 在 `[y/N]` 下敲一条命令，以前会被**静默咽掉**。
+
+        `end` 之后顺手敲 `status`：只回一句"已取消。"，那条命令凭空消失
+        —— 正是所有者撞过的"把命令吃掉"。现在明确说取消，**并把它当命令再跑一遍**。
+        """
+        self.run_it("end\nstatus\n")
+        text = self.text()
+        self.assertIn("已取消", text)
+        self.assertIn("未运行", text, "被咽掉的那条命令应该照跑")
+
+    def test_empty_answer_takes_the_default_no(self):
+        """`[y/N]` 的默认是 N —— 直接回车就是"否"，而且要有回音。"""
+        self.run_it("end\n\n")
+        self.assertIn("已取消", self.text())
+
+    # ---- 命令台没开的时候 ----
+
+    def test_forward_says_so_when_the_console_is_off(self):
+        """⚠️ `SAYA_CONSOLE_ENABLED=false` 时机器人**根本没起那个线程** ——
+        往它的 stdin 写字是**白写**（管道那头没人读）。
+
+        以前 `forward` 只看 `self.running`，于是命令进了管道、面板**一个字都不回**、
+        `.env` 没写、内核也没换，而用户以为改好了。更糟的是行为不一致：
+        机器人**停着**时同一条命令反而会正常打印"已写入 .env"。
+        """
+        with self.env_path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write(SAMPLE + "SAYA_CONSOLE_ENABLED=false\n")
+        child = FakeChild()
+        self.sup._child = child  # noqa: SLF001
+        outcome = self.sup.forward("owner 10001")
+        self.assertIn("没开命令台", "\n".join(outcome.lines))
+        self.assertEqual(child.forwarded(), [], "不该往没人读的管道里写字")
+        self.assertEqual(self.env_value("SAYA_OWNER_ID"), "10001", "该走离线那条路")
+
+    def test_forward_uses_stdin_when_the_console_is_on(self):
+        child = FakeChild()
+        self.sup._child = child  # noqa: SLF001
+        self.assertEqual(self.sup.forward("owner 10001").lines, ())
+        self.assertEqual(child.forwarded(), ["owner 10001"])
+
+    # ---- 发信号收不了尾 ----
+
+    def test_stop_escalates_when_the_bot_ignores_sigint(self):
+        """⚠️ 评审指出这条**从来没被执行过**：桩子里的 `wait()` 立刻返回，
+        所以超时升级那两段是死代码。这里让它真的超时一次。
+
+        而且升级时也要走 `_signal_group` —— 脚本 `exec` 之前 PID 还归 bash，
+        只发单进程的话机器人根本收不到。
+        """
+        child = FakeChild()
+        child.wait = mock.Mock(  # type: ignore[method-assign]
+            side_effect=[subprocess.TimeoutExpired("x", 10), 0]
+        )
+        self.sup._child = child  # noqa: SLF001
+        with mock.patch("panel._signal_group") as send:
+            outcome = self.sup.stop()
+        self.assertEqual(
+            [call.args[1] for call in send.call_args_list],
+            [signal.SIGINT, signal.SIGTERM],
+        )
+        self.assertIn("已停止", "\n".join(outcome.lines))
+
+    def test_stop_gives_up_with_sigkill(self):
+        """温柔的两下都不理，就只剩强杀 —— 也不能在这里卡住。
+
+        ⚠️ 断言的是 `panel._SIGKILL` 而不是 `signal.SIGKILL`：**后者在 Windows 上
+        根本不存在**，直接引用会在求值那一刻就 `AttributeError`
+        （写这个测试的时候就是这么栽的 —— 面板只在 WSL 跑，但测试跑在 Windows 上）。
+        """
+        import panel as panel_module
+
+        child = FakeChild()
+        child.wait = mock.Mock(  # type: ignore[method-assign]
+            side_effect=[
+                subprocess.TimeoutExpired("x", 10),
+                subprocess.TimeoutExpired("x", 5),
+                0,
+            ]
+        )
+        self.sup._child = child  # noqa: SLF001
+        with mock.patch("panel._signal_group") as send:
+            self.sup.stop()
+        self.assertEqual(
+            [call.args[1] for call in send.call_args_list],
+            [signal.SIGINT, signal.SIGTERM, panel_module._SIGKILL],
+        )
 
 
 if __name__ == "__main__":

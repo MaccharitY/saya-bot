@@ -34,9 +34,26 @@ from saya.manage import Result, run
 # 结果行前面加两个空格，和 logging 的输出区隔开
 _PREFIX = "  "
 
-# 这些命令只有外面那个控制台（tools/panel.py）能做 —— 它们要另起或替换进程。
-# 在机器人自己的终端里敲到时，要**指路**而不是只说"没这个命令"。
-SUPERVISOR_ONLY = frozenset({"start", "restart"})
+# 这些命令只有外面那个控制台（tools/panel.py）能做：
+# `start` / `restart` 要**另起或替换进程**，机器人自己做不到；
+# `end` / `quit` 是**那个控制台自己的**生命周期动作（它退出时会带走机器人）。
+#
+# ⚠️ 一开始只收了 `start` / `restart`，于是 `end` / `quit` 落进通用分支，
+# 得到一句"没有 'end' 这个命令"，而 `help` 里也根本没有这两个词 ——
+# 正是当初为 `start` / `restart` 修掉的那个坑，**只修了一半**。
+SUPERVISOR_ONLY = frozenset({"start", "restart", "end", "quit"})
+
+# 每个词给一句**为什么**不在这儿做 —— 只说"不在这儿"等于把人推回去重猜
+_SUPERVISOR_REASON = {
+    "start": "它要另起一个进程",
+    "restart": "它要换掉正在跑的这个进程",
+    "end": "停机器人是那个控制台的动作（它退出时会带走机器人）",
+    "quit": "退出控制台是那个窗口自己的动作",
+}
+
+# ⚠️ 指路要指**使用者认识的东西**（他双击的那个文件），不是仓库内部的路径 ——
+# 那对他来说等于没说。
+_BAT_NAME = "saya_bot_controller.bat"
 
 BANNER = """
 ─────────────────────────────────────────────
@@ -71,16 +88,15 @@ class Console:
         word = line.strip().split()[0].lower() if line.strip() else ""
 
         # 有几个命令**只属于外面的控制台**（tools/panel.py）：start / restart
-        # 要另起一个进程，机器人自己做不到。这里如果只说"没这个命令"，
-        # 用户会以为功能没做 —— 实测就是这么撞上的，所以直接指路。
+        # 要另起或替换进程，end / quit 是那个窗口自己的生命周期动作，
+        # 机器人自己都做不到。这里如果只说"没这个命令"，用户会以为功能没做
+        # —— 实测就是这么撞上的，所以直接指路。
         if word in SUPERVISOR_ONLY:
+            reason = _SUPERVISOR_REASON.get(word, "机器人自己做不到")
             return Result(
-                # ⚠️ 指路要指**使用者认识的东西**（他双击的那个文件），
-                # 不是仓库内部的路径 —— 那对他来说等于没说。
                 lines=(
-                    f"{word!r} 得在外面那个控制台里敲"
-                    f"（就是双击 saya_bot_controller.bat 出来的窗口）—— "
-                    f"它要另起或替换进程，机器人自己做不到。",
+                    f"{word!r} 得在外面那个控制台里输入"
+                    f"（双击 {_BAT_NAME} 出来的那个窗口）—— {reason}。",
                 ),
                 ok=False,
             )

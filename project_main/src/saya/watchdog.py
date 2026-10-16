@@ -56,16 +56,25 @@ def is_zombie(pid: int) -> bool:
     return bool(fields) and fields[0] == "Z"
 
 
-def owner_is_alive(pid: int) -> bool:
-    """那个进程还在吗。
+def pid_is_alive(pid: int) -> bool:
+    """这个 PID 上**真的**还有活着的进程吗。**只能在 POSIX 上问。**
 
-    ⚠️⚠️ 和 `tools/panel.py` 里那个一样：`os.kill(pid, 0)` **只在 POSIX 上**
-    是"检查存在"。Windows 上它会走 `TerminateProcess` **真把那个进程杀掉**。
-    机器人跑在 WSL 里，正常走不到 Windows 这条 —— 但测试跑在 Windows 上，
-    所以护栏必须有。
+    ⚠️⚠️ 三个坑叠在一起，这个函数就是为它们存在的：
+
+    1. **僵尸进程对 `os.kill(pid, 0)` 是"活着"的。** 父进程还没 `wait()` 回收时，
+       `/proc/<pid>` 还在、kill **成功返回**，但它早死了 —— 所以要先看状态位。
+    2. **Windows 上 `os.kill(pid, 0)` 不是"检查存在"** —— 它走 `TerminateProcess`，
+       **真把那个进程杀掉**。那边一律不调，返回 False（"问不出来"）。
+    3. **PID 会被复用。** 只凭号判活**永远有假阳性** —— 这是这套机制的天花板，
+       加代码解决不了。所以凡是要**据此动手**的地方（发信号、杀进程），
+       都必须另有身份核对，不能只靠这个。
+
+    ⚠️ 调用方对 Windows 的默认值期待**不一样**：看护线程要"当作活着"
+    （宁可不动手），面板要"当作没了"（不然锁永远解不开）。所以这里只给事实，
+    默认值留给调用方自己定。
     """
     if os.name == "nt":  # pragma: no cover - 只在 Windows 上才走到
-        return True  # 判不了就当作活着，**绝不在这里动手**
+        return False
     if is_zombie(pid):
         return False
     try:
@@ -77,6 +86,18 @@ def owner_is_alive(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def owner_is_alive(pid: int) -> bool:
+    """那个进程还在吗。**判不了就当作活着。**
+
+    ⚠️ 这个默认值和 `panel._pid_alive` 正好相反，是有意的：
+    看护线程误判成"死了"会**杀掉一个正常的机器人**，误判成"活着"只是少收一次尾；
+    而面板误判成"活着"会让**新面板永远进不去**。两边的代价不对等。
+    """
+    if os.name == "nt":  # pragma: no cover - 只在 Windows 上才走到
+        return True  # 判不了就当作活着，**绝不在这里动手**
+    return pid_is_alive(pid)
 
 
 def watch_owner(
@@ -112,6 +133,12 @@ def watch_owner(
                 )
                 try:
                     (on_lost or _exit_now)()
+                except Exception:  # noqa: BLE001
+                    # ⚠️ **异常不许逃出这个线程。** 逃出去 `threading` 会往 stderr
+                    # 打一整段栈，而那段栈**就打在用户眼前** —— 按 ADR-027，
+                    # 屏幕上的东西都算界面文本，不能是一屏 traceback。
+                    # 反正下一步就是收尾退出，记一条日志足够了。
+                    logger.exception("收尾回调异常，仍按计划退出")
                 finally:
                     _exit_now()
                 return

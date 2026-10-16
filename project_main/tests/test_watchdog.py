@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 import time
 import unittest
@@ -106,14 +108,37 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(called, [1])
 
     def test_exits_even_if_on_lost_explodes(self):
-        """⚠️ 收尾失败也得走 —— 留在那儿当无头后端比什么都糟。"""
+        """⚠️ 收尾失败也得走 —— 留在那儿当无头后端比什么都糟。
+
+        ⚠️ 而且**异常不许逃出这个线程**：逃出去 `threading` 会往 stderr 打一整段栈，
+        那段栈就打在用户眼前（ADR-027：屏幕上的东西都是界面文本）。
+        以前这里会漏出去，跑整套测试时能看见一屏 traceback。
+        """
         with mock.patch.object(watchdog, "owner_is_alive", return_value=False), \
              mock.patch.object(watchdog, "_exit_now") as exit_now:
             watchdog.watch_owner(
-                12345, interval=0.01, on_lost=lambda: (_ for _ in ()).throw(RuntimeError("炸了"))
+                12345, interval=0.01, on_lost=lambda: (_ for _ in ()).throw(RuntimeError("收尾失败"))
             )
             time.sleep(0.1)
         exit_now.assert_called()
+
+    def test_thread_does_not_leak_an_exception(self):
+        """上面那条的"泄漏"版本，从**用户看得见的那一端**断言。
+
+        ⚠️ 异常逃出线程之后，`threading` 会把它打成一段栈印到 stderr ——
+        而**那段栈就打在用户眼前**（ADR-027：屏幕上的东西都算界面文本）。
+        以前这里真会漏，跑整套测试时能看见一屏 traceback 混在结果里。
+        """
+        captured = io.StringIO()
+        with mock.patch.object(watchdog, "owner_is_alive", return_value=False), \
+             mock.patch.object(watchdog, "_exit_now"), \
+             contextlib.redirect_stderr(captured):
+            watchdog.watch_owner(
+                12345, interval=0.01,
+                on_lost=lambda: (_ for _ in ()).throw(RuntimeError("收尾失败")),
+            )
+            time.sleep(0.1)
+        self.assertNotIn("Exception in thread", captured.getvalue())
 
     def test_says_nothing_while_the_owner_is_alive(self):
         called: list[int] = []
