@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
             "策略：silent / mention / keyword / random / always / selective\n"
             "\n"
             "⚠️ 改完要重启才生效：bash tools/start_saya.sh --restart\n"
-            "   不想重启就在机器人自己那个终端里敲同样的命令。"
+            "   不想重启就在机器人自己那个终端里输入同样的命令。"
         ),
     )
     parser.add_argument("--env", help=".env 的路径（默认 project_main/.env）")
