@@ -119,11 +119,17 @@ DEFAULT_PERSONA = Persona(
 
 
 def load_persona(path: Path, *, name: str = "") -> Persona:
-    """从文件读人格正文。**文件不存在或读不出内容时退回占位人格** ——
-    人格坏了不该让机器人起不来。"""
+    """从文件读人格正文。**文件不存在、读不出、或编码不对时，一律退回占位人格** ——
+    人格坏了不该让机器人起不来。
+
+    ⚠️ 光捕 `OSError` 是不够的：文件存成 GBK / UTF-16（Windows 记事本"ANSI/Unicode"
+    另存就是这么干的）会抛 `UnicodeDecodeError`，那是 `ValueError`，不是 `OSError` ——
+    它会一路穿过去，让机器人**启动即崩**，报的还是看不懂的编码栈。
+    设计承诺是"退回占位人格"，代码就得真的做到。
+    """
     try:
         body = path.read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, ValueError):
         return DEFAULT_PERSONA
 
     if not body:

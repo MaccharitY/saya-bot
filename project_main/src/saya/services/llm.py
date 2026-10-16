@@ -166,6 +166,14 @@ def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout:
         # 清掉让下次重新解析，比一直撞同一个死 IP 好
         net.clear()
         raise LLMError(f"连不上模型端点（{url}）：{exc.reason}") from exc
+    except OSError as exc:
+        # ⚠️ 这条不能少：**卡住不动而超时**抛的是 `TimeoutError`，
+        # 它是 `OSError` 但**不是** `URLError` —— 只捕 URLError 的话它会裸穿出去。
+        # 而调用方（pipeline / 实验执行器）捕的是 `LLMError`，于是：
+        # 机器人埋点里写一句"未捕获的异常"（看不出是连不上模型），
+        # 实验则直接中断、把已经花掉钱的结果全丢在内存里。
+        net.clear()
+        raise LLMError(f"与模型端点通信失败（{url}）：{type(exc).__name__}: {exc}") from exc
 
     try:
         result = json.loads(body)

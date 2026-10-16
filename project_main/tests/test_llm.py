@@ -6,7 +6,9 @@ import json
 import logging
 import sys
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -14,6 +16,7 @@ from saya.services.llm import (  # noqa: E402
     LLMClient,
     LLMError,
     ToolCall,
+    _urllib_transport,
     estimate_cost,
     image_block,
     text_message,
@@ -242,6 +245,36 @@ class ReasoningEffortTest(unittest.TestCase):
         client = make_client(self.transport, reasoning_effort="none")
         client.chat([{"role": "user", "content": "在吗"}], temperature=0.8)
         self.assertEqual(self.warnings(), [])
+
+
+class TransportErrorTest(unittest.TestCase):
+    """⚠️ **卡住超时抛的是 `TimeoutError`** —— 它是 `OSError`，但**不是** `URLError`。
+
+    只捕 `URLError` 的话它会裸穿出去，而调用方捕的是 `LLMError`：
+    机器人埋点里只会写一句"未捕获的异常"（看不出是连不上模型），
+    实验则直接中断、把**已经花掉钱**的结果全丢在内存里。
+    """
+
+    def call(self, error: Exception) -> None:
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            _urllib_transport(
+                "https://api.deepseek.com/chat/completions",
+                {"Authorization": "Bearer x"},
+                {"model": "m"},
+                1.0,
+            )
+
+    def test_timeout_becomes_llm_error(self):
+        with self.assertRaises(LLMError):
+            self.call(TimeoutError("timed out"))
+
+    def test_connection_reset_becomes_llm_error(self):
+        with self.assertRaises(LLMError):
+            self.call(ConnectionResetError("connection reset by peer"))
+
+    def test_url_error_still_becomes_llm_error(self):
+        with self.assertRaises(LLMError):
+            self.call(urllib.error.URLError("名字解析失败"))
 
 
 class RealRequestShapeTest(unittest.TestCase):

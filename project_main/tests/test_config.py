@@ -14,9 +14,44 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from saya.config import Config, ConfigError, parse_dotenv  # noqa: E402
+from saya.config import Config, ConfigError, load_env, parse_dotenv  # noqa: E402
 
 NO_DOTENV = Path("不存在的文件.env")
+
+
+class EnvEncodingTest(unittest.TestCase):
+    """⚠️ `.env` 存错编码时要说清楚，而不是抛一个看不懂的栈。
+
+    `.env` 是人在 Windows 侧用记事本编辑的，而"另存为 ANSI"是那个编辑器的默认选项之一。
+    真撞上时应该看到"你这份文件不是 UTF-8"，而不是
+    `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd0 ...`。
+
+    ⚠️ 而且**不能静默用 `errors="replace"` 兜过去**：那会悄悄改掉密钥里的字节，
+    换来的可能是一个"看起来读到了、但就是连不上"的 key —— 排查能耗掉一晚上。
+    宁可起不来，但要说清楚为什么。
+    """
+
+    def test_gbk_env_raises_a_readable_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_bytes("SAYA_LLM_MODEL=咲弥\n".encode("gbk"))
+
+            with self.assertRaises(ConfigError) as caught:
+                load_env(path)
+
+            message = str(caught.exception)
+            self.assertIn("UTF-8", message)
+            self.assertIn(str(path), message)
+
+    def test_utf8_env_loads_normally(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_text("SAYA_LLM_MODEL=咲弥\n", encoding="utf-8")
+
+            self.assertEqual(load_env(path)["SAYA_LLM_MODEL"], "咲弥")
+
+    def test_missing_file_is_not_an_error(self):
+        self.assertEqual(load_env(Path("不存在.env")).get("PATH"), __import__("os").environ.get("PATH"))
 
 
 def write_env(text: str, directory: Path) -> Path:

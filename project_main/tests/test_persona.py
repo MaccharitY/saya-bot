@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.core.guard import UNTRUSTED_CLOSE, UNTRUSTED_OPEN  # noqa: E402
-from saya.core.persona import DEFAULT_PERSONA, Persona  # noqa: E402
+from saya.core.persona import DEFAULT_PERSONA, Persona, load_persona  # noqa: E402
 
 
 class PersonaTest(unittest.TestCase):
@@ -75,6 +76,54 @@ class SelfAwarenessTest(unittest.TestCase):
         prompt = self.prompt()
         self.assertIn("自己的话", prompt)
         self.assertIn("根据资料显示", prompt)
+
+
+class LoadPersonaTest(unittest.TestCase):
+    """⚠️ 人格文件读不出来时**必须退回占位人格，而不是让机器人起不来**。
+
+    以前只捕 `OSError` —— 但文件存成 GBK / UTF-16（Windows 记事本"ANSI/Unicode"
+    另存就是这么干的）抛的是 `UnicodeDecodeError`，属于 `ValueError`，
+    会一路穿过去让启动即崩。设计承诺了兜底，代码就得真的兜住。
+    """
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+
+    def test_loads_a_utf8_file(self):
+        path = self.dir / "saya.md"
+        path.write_text("我是咲弥。", encoding="utf-8")
+        persona = load_persona(path, name="咲弥")
+
+        self.assertIsNot(persona, DEFAULT_PERSONA)
+        self.assertIn("我是咲弥", persona.description)
+
+    def test_missing_file_falls_back(self):
+        self.assertIs(load_persona(self.dir / "不存在.md"), DEFAULT_PERSONA)
+
+    def test_empty_file_falls_back(self):
+        path = self.dir / "empty.md"
+        path.write_text("   \n\n  ", encoding="utf-8")
+        self.assertIs(load_persona(path), DEFAULT_PERSONA)
+
+    def test_gbk_file_does_not_crash_the_bot(self):
+        """⚠️ 回归：这条以前会抛 UnicodeDecodeError，把启动整个打断。"""
+        path = self.dir / "saya-gbk.md"
+        path.write_bytes("我是咲弥。".encode("gbk"))
+
+        self.assertIs(load_persona(path), DEFAULT_PERSONA)
+
+    def test_utf16_file_does_not_crash_the_bot(self):
+        path = self.dir / "saya-utf16.md"
+        path.write_bytes("我是咲弥。".encode("utf-16"))
+
+        self.assertIs(load_persona(path), DEFAULT_PERSONA)
+
+    def test_name_falls_back_to_the_default(self):
+        path = self.dir / "saya.md"
+        path.write_text("我是无名氏。", encoding="utf-8")
+        self.assertEqual(load_persona(path).name, DEFAULT_PERSONA.name)
 
 
 if __name__ == "__main__":

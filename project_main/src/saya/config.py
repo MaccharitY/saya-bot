@@ -60,7 +60,18 @@ def _strip_inline_comment(value: str) -> str:
 def load_env(dotenv_path: Path | None = None) -> dict[str, str]:
     env: dict[str, str] = {}
     if dotenv_path is not None and dotenv_path.is_file():
-        env.update(parse_dotenv(dotenv_path.read_text(encoding="utf-8")))
+        try:
+            text = dotenv_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            # ⚠️ **不能静默用 errors="replace" 兜过去**：.env 里装的是密钥，
+            # 悄悄替换掉几个字节，换来的可能是一个"看起来读到了但就是连不上"的 key，
+            # 排查起来能耗掉一整个晚上。宁可起不来，但要说清楚是为什么。
+            raise ConfigError(
+                f"{dotenv_path} 不是 UTF-8 编码（{exc.reason}，第 {exc.start} 字节）。"
+                f"用记事本另存为 UTF-8，或换一个编辑器重写一遍 —— "
+                f"多半是它被存成了 ANSI/GBK。"
+            ) from exc
+        env.update(parse_dotenv(text))
     env.update(os.environ)
     return env
 

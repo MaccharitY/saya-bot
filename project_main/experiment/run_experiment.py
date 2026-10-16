@@ -8,7 +8,7 @@
 
 用法（在 WSL 里）：
 
-    python3 project_main/experiment/run.py \
+    python3 project_main/experiment/run_experiment.py \
         --manifest pre/experiments/testset/manifest.json \
         --out pre/experiments/results-baseline.jsonl \
         --routes direct delegated hybrid
@@ -293,49 +293,63 @@ def main(argv: list[str] | None = None) -> int:
     print(f"测试集 {len(items)} 条，路线 {args.routes}，模型 {config.llm_model}")
     print(thinking_banner(config))
 
+    # ⚠️ **边跑边落盘**，不要攒到最后统一写。
+    # 一次正式实验是两百多次真实计费的调用，跑完要好几分钟到几十分钟 ——
+    # 攒在内存里的话，中途任何一次网络抖动、Ctrl-C、或没预料到的异常，
+    # 都会让**已经花掉的钱全部作废**。每条 flush 一次，代价可以忽略。
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
     records: list[dict] = []
     try:
-        for route in args.routes:
-            vision = Vision(
-                client,
-                cache_dir=Path(config.data_dir) / "images",
-                route=route,
-                temperature=config.vision_temperature,
-                tools=tools,
+        with out_path.open("w", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps({"kind": "environment_baseline", **baseline}, ensure_ascii=False)
+                + "\n"
             )
-            for index, item in enumerate(items, start=1):
-                record = run_one(vision, item, images_dir=images_dir)
-                record["experiment_tag"] = config.experiment_tag
-                records.append(record)
-                mark = "✓" if record.get("correct") else ("✗" if record.get("correct") is False else "·")
-                note = record.get("error", "")[:40]
-                print(
-                    f"  [{route:<9}] {index:>3}/{len(items)} {item['id']:<24} {mark}"
-                    f"  {record.get('latency_ms', 0):>6} ms  {note}"
+            handle.write(
+                json.dumps(
+                    {
+                        "kind": "run_meta",
+                        "model": config.llm_model,
+                        "routes": args.routes,
+                        "temperature": config.vision_temperature,
+                        "reasoning_effort": config.reasoning_effort,
+                    },
+                    ensure_ascii=False,
                 )
+                + "\n"
+            )
+            handle.flush()
+
+            for route in args.routes:
+                vision = Vision(
+                    client,
+                    cache_dir=Path(config.data_dir) / "images",
+                    route=route,
+                    temperature=config.vision_temperature,
+                    tools=tools,
+                )
+                for index, item in enumerate(items, start=1):
+                    record = run_one(vision, item, images_dir=images_dir)
+                    record["experiment_tag"] = config.experiment_tag
+                    records.append(record)
+
+                    handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    handle.flush()
+
+                    mark = (
+                        "✓" if record.get("correct")
+                        else ("✗" if record.get("correct") is False else "·")
+                    )
+                    note = record.get("error", "")[:40]
+                    print(
+                        f"  [{route:<9}] {index:>3}/{len(items)} {item['id']:<24} {mark}"
+                        f"  {record.get('latency_ms', 0):>6} ms  {note}"
+                    )
     finally:
         if tools is not None:
             tools.close()
-
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"kind": "environment_baseline", **baseline}, ensure_ascii=False) + "\n")
-        handle.write(
-            json.dumps(
-                {
-                    "kind": "run_meta",
-                    "model": config.llm_model,
-                    "routes": args.routes,
-                    "temperature": config.vision_temperature,
-                    "reasoning_effort": config.reasoning_effort,
-                },
-                ensure_ascii=False,
-            )
-            + "\n"
-        )
-        for record in records:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     print(summarize(records))
     print(f"\n结果已写入 {out_path}")
