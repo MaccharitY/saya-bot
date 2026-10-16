@@ -11,10 +11,13 @@ QQ 群聊里以**个人账号**身份运行的对话机器人，核心模型 Dee
 
 ## 当前状态（会过期，以 docs/02-roadmap.md 为准）
 
-- 阶段：**M0 地基**
-- 已有：需求基线、架构草案（待评审）、目录骨架、本地 git 仓库
-- 没有：任何可运行代码
-- 最近更新：2026-10-15
+- 阶段：**M6 机器人其余功能**（M0–M3 已完成）
+- 已有：**能跑的机器人** —— 真 QQ 接入（NapCat / OneBot v11 HTTP）、
+  触发策略、防注入、记忆、三条看图路线、埋点、身份认知、长期记忆、知识源（萌娘百科）
+- 没有：人格正文（进行中）、选择性插嘴、记忆摘要自动生成
+- 测试：**360 个全过**，零第三方依赖（`cd project_main && python -m unittest discover -s tests`）
+- 新增代码前先读 [`docs/05-progress-brief.md`](docs/05-progress-brief.md) —— 那是交接页
+- 最近更新：2026-10-16
 
 ## 硬约束
 
@@ -38,15 +41,28 @@ saya_bot/
 │  └─ 02-roadmap.md                 里程碑、任务、当前进度
 ├─ project_main/           ← 机器人本体
 │  ├─ src/saya/            ← 源码（adapter 接入层 / core 内核 / services 能力 / obs 埋点）
+│  ├─ persona/             ← 人格正文与角色资料（saya.md、saya-lore.md、corpus/）
+│  ├─ cv_mcp/              ← 专用 CV 模型的 MCP server（依赖隔离在这个独立进程里）
+│  ├─ experiment/          ← 对照实验的执行器与测试集构建
 │  ├─ tests/
 │  └─ pyproject.toml
+├─ tools/                  ← 与本体无关的独立脚本（启动 / 抓网页 / 看长期记忆）
 └─ pre/                    ← 课程交付物
    ├─ 00-course-requirements.md   课程要求（从截图提取）
-   ├─ requirement/                原始截图（不可再生，别删）
+   ├─ requirement/                原始截图（不可再生，别删；**不进仓库**）
    ├─ experiments/                对照实验数据
    ├─ report/                     报告
    └─ slides/                     演示稿
 ```
+
+## 伦理红线（和密钥红线一样硬）
+
+**不做对抗性绕过。** 这条最初写在 QQ 风控上（不绕风控、不规避封号、不批量养号），
+但它适用于**任何第三方防护** —— 包括网站的反爬。
+
+具体案例：`wiki.arcaea.cn` 挂在 Anubis 反爬后面（PoW 挑战页）。
+**不实现 PoW 求解、不伪造浏览器指纹、不换 IP**，直接放弃接入（ADR-012）。
+拿不到的数据**如实留白**，不要编 —— 见 `docs/01-architecture.md`。
 
 ## 落盘规范（可继承性的关键，改这里之前先想清楚）
 

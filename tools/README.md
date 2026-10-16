@@ -27,6 +27,21 @@ bash tools/start_saya.sh --check  # 只自检
 
 QQ 号从 `project_main/.env` 的 `SAYA_SELF_ID` 读，不写死在脚本里。
 
+### `notes.py` —— 查看与删除长期记忆
+
+**为什么需要**：长期记忆（主人/管理员让机器人记住的事）是唯一一份"自己攒下来、
+又不会被自动清理"的数据。没有查看和删除的口子，它就变成只能进不能出的黑箱。
+
+```bash
+python tools/notes.py list          # 全部生效中的
+python tools/notes.py list --all    # 连已停用的也看
+python tools/notes.py search 猫      # 按关键词找
+python tools/notes.py forget 3      # 停用第 3 条（只失效，不删行）
+python tools/notes.py --db <路径> …  # 默认读 project_main/data/notebook.db
+```
+
+`forget` 只把记录标成失效、不再注入提示词 —— 留行是为了出问题时能回头看。
+
 ### `fetch.py` —— 抓网页转文本
 
 **为什么需要**：本机的 WebFetch 工具坏了——它要联网校验"域名是否可安全抓取"，那一步失败，
@@ -52,6 +67,11 @@ GitHub、DeepSeek 官方文档（`api-docs.deepseek.com`）
 
 **抓不到**（反爬或本机问题，**不代表目标条目有问题**）：IEEE Xplore（返回空响应）、
 Semantic Scholar 网页、Semantic Scholar API（持续 429）、DBLP（本机 SSL 证书链问题）
+
+> ⚠️ **`wiki.arcaea.cn` 是主动放弃的，不是抓不到**：它挂在 **Anubis 反爬**后面
+> （PoW 挑战页 "Making sure you're not a bot!"）。绕过它属于对抗性手段，
+> 项目红线不允许。详见 `docs/01-architecture.md` 的 ADR-012。
+> 它同时也是"随机 SSL 断连"的真凶 —— 连上的那几次拿到的也是挑战页，不是内容。
 
 > 💡 **查论文的会议归属与作者**：**arXiv 页本身常常不写会议名**（Comments 栏可能只写 "Technical Report"）。
 > 用 OpenAlex 更靠得住：
