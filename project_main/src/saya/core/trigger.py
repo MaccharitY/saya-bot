@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from saya.config import Config
+from saya.core.roles import Roles
 from saya.domain import DEFAULT_GROUP_POLICY, IncomingMessage
 
 WINDOW_SECONDS = 60.0
@@ -52,6 +53,7 @@ class Trigger:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._config = config
+        self._roles = Roles.from_config(config)
         self._rng = rng or random.Random()
         self._clock = clock
         self._recent: dict[int, deque[float]] = {}
@@ -114,12 +116,9 @@ class Trigger:
         return self._config.group_policies.get(group_id, self._config.group_default_policy)
 
     def is_allowed_private(self, user_id: int) -> bool:
-        config = self._config
-        if config.owner_id is not None and user_id == config.owner_id:
-            return True
-        if user_id in config.admin_ids:
-            return True
-        return user_id in config.friend_allowlist
+        """判定**只有一份**，在 roles.py 里 —— 别处不要再写一遍，
+        否则「谁能私聊」和「模型以为谁能私聊」迟早对不上。"""
+        return self._roles.may_dm(user_id)
 
     # ---- 状态 ----
 

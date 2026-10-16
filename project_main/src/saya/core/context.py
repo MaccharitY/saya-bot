@@ -15,9 +15,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from saya.core.memory import Memory, session_key
+from saya.core.notebook import MAX_LINE_CHARS, Notebook
+from saya.core.roles import ROLE_LABELS
 from saya.domain import IncomingMessage
 
 MAX_CHARS = 1500  # 整块硬上限，超了就砍（token 是真金白银）
+NOTES_MAX_CHARS = 600  # 长期记忆那一块的上限
 
 
 def _ago(when: datetime, now: datetime) -> str:
@@ -60,6 +63,32 @@ def build_history(
     if len(block) > MAX_CHARS:
         block = block[:MAX_CHARS] + "\n…（记忆太长，已截断）"
     return block
+
+
+def build_notes(notebook: Notebook, message: IncomingMessage) -> str:
+    """拼出长期记忆那一块；没有就返回空串。
+
+    **独立成一块，不并进群聊记录**：它跟闲聊的来源不同（经过身份筛选），
+    混在一起模型就分不出"随口一提"和"特意交代"。
+
+    ⚠️ 内容仍然是用户打的字，注入前必须过 `guard.wrap_notes`（在 pipeline 里做）。
+    """
+    notes = notebook.for_prompt(message.user_id)
+    if not notes:
+        return ""
+
+    title = "【他们让你记着的事】"
+    lines = [title]
+    used = len(title)
+    for note in notes:
+        who = ROLE_LABELS.get(note.subject_role, note.subject_role or "某人")
+        text = note.content.replace("\n", " ")[:MAX_LINE_CHARS]
+        line = f"- {who}（{note.subject_qq}）说过：{text}"
+        if used + len(line) > NOTES_MAX_CHARS:
+            break
+        lines.append(line)
+        used += len(line)
+    return "\n".join(lines)
 
 
 def _recent_section(

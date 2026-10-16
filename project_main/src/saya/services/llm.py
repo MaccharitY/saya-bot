@@ -210,3 +210,24 @@ def tool_result_message(tool_call_id: str, content: str) -> JSON:
     回灌给模型的格式是一样的。
     """
     return {"role": "tool", "tool_call_id": tool_call_id, "content": content}
+
+
+def assistant_tool_message(result: ChatResult) -> JSON:
+    """把"模型要求调用工具"这一轮原样回填进对话。
+
+    ⚠️ 这条**必须**回填：协议要求每个 tool 结果前面都得有一条提出该调用的 assistant 消息，
+    少了它下一轮会被服务端直接拒掉。参数按模型给的**原始字符串**回填，不要重新序列化 ——
+    一转手就可能把它的格式改掉，而服务端只认它自己发出来的那份。
+    """
+    return {
+        "role": "assistant",
+        "content": result.text or "",
+        "tool_calls": [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": call.arguments},
+            }
+            for call in result.tool_calls
+        ],
+    }

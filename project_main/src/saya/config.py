@@ -14,6 +14,13 @@ from saya.domain import DEFAULT_GROUP_POLICY, GROUP_POLICIES
 
 _TRUE = {"1", "true", "yes", "on"}
 
+# 知识源的默认端点。放常量不放代码里散着写，方便一处改。
+#
+# ⚠️ 原本还接 Arcaea 中文维基（wiki.arcaea.cn），**已放弃**：它挂在 Anubis
+# 反爬后面（PoW 挑战），实测直接拒连。按项目伦理红线不做绕过。
+# Arcaea 的内容改从萌娘百科取（那边有「咲弥」等完整条目）。
+DEFAULT_MOEGIRL_API = "https://zh.moegirl.org.cn/api.php"
+
 
 class ConfigError(RuntimeError):
     """配置有问题。信息必须指出**是哪一项**、错在哪。"""
@@ -140,6 +147,15 @@ class Config:
     dns_cache_ttl: float
     cv_mcp_command: str
     memory_enabled: bool
+    # 人格正文从文件读，换角色不动代码。相对路径按 project_main/ 解析。
+    persona_name: str
+    persona_file: str
+    # 主人/管理员的长期记忆，独立于会话记忆（不参与裁剪）
+    notebook_enabled: bool
+    # 知识源（接梗）：萌娘百科 + Arcaea 本地语料
+    wiki_enable: bool
+    wiki_moegirl_api: str
+    arcaea_corpus_dir: str
 
     @classmethod
     def from_env(cls, dotenv_path: Path | None = None) -> Config:
@@ -186,6 +202,12 @@ class Config:
             dns_cache_ttl=float(get("DNS_CACHE_TTL", "1800")),
             cv_mcp_command=get("CV_MCP_COMMAND"),
             memory_enabled=get("MEMORY_ENABLED", "true").lower() in _TRUE,
+            persona_name=get("PERSONA_NAME", "咲弥"),
+            persona_file=get("PERSONA_FILE", "./persona/saya.md"),
+            notebook_enabled=get("NOTEBOOK_ENABLED", "true").lower() in _TRUE,
+            wiki_enable=get("WIKI_ENABLE", "false").lower() in _TRUE,
+            wiki_moegirl_api=get("WIKI_MOEGIRL_API", DEFAULT_MOEGIRL_API),
+            arcaea_corpus_dir=get("ARCAEA_CORPUS_DIR", "./persona/corpus"),
         )
 
     def require_api_key(self) -> str:

@@ -22,9 +22,12 @@ from typing import Any
 from saya.adapter.base import Adapter
 from saya.config import Config
 from saya.core import guard
-from saya.core.context import build_history
+from saya.core.context import build_history, build_notes
 from saya.core.memory import Memory, session_key
+from saya.core.notebook import REMEMBER, Notebook, read_intent
 from saya.core.persona import Persona
+from saya.core.roles import ROLE_MEMBER, Roles
+from saya.core.tools import ToolBox, run_with_tools
 from saya.core.trigger import Trigger
 from saya.domain import IncomingMessage, OutgoingMessage
 from saya.obs.trace import TraceEvent, TraceWriter
@@ -40,6 +43,8 @@ _EMPTY_META: dict[str, Any] = {
     "tokens_out": 0,
     "latency_ms": 0,
     "cost": 0.0,
+    "tool_rounds": 0,
+    "tools_used": "",
 }
 
 
@@ -55,6 +60,8 @@ class Pipeline:
         trigger: Trigger,
         trace: TraceWriter,
         memory: Memory | None = None,
+        notebook: Notebook | None = None,
+        tools: ToolBox | None = None,
     ) -> None:
         self._config = config
         self._adapter = adapter
@@ -64,6 +71,9 @@ class Pipeline:
         self._trigger = trigger
         self._trace = trace
         self._memory = memory
+        self._notebook = notebook
+        self._tools = tools or ToolBox()
+        self._roles = Roles.from_config(config)
 
     # ---- 主循环 ----
 
@@ -90,6 +100,8 @@ class Pipeline:
         self._adapter.close()
         if self._memory is not None:
             self._memory.close()
+        if self._notebook is not None:
+            self._notebook.close()
 
     # ---- 单条消息 ----
 
@@ -108,10 +120,12 @@ class Pipeline:
             )
             # 虽然不回，但**要记**：记忆与活跃度靠的就是这些没被回的消息
             self._remember(message)
+            self._note(message)
             return False
 
         # 记在生成之前：这样它自己这次也能看到上下文
         self._remember(message)
+        self._note(message)
 
         check = guard.detect_injection(message.text)
         if check.suspicious:
@@ -119,7 +133,11 @@ class Pipeline:
             # 不因此拒答，否则正常聊天会被误伤（见 guard.py 的说明）。
             logger.info("疑似注入（%s）：user=%s", check.reason, message.user_id)
 
-        system_prompt = self._persona.system_prompt()
+        # 关系说明进**系统提示**（可信区），不进下面那个不可信区 ——
+        # 身份由代码按 QQ 号判定，而名字是群名片、用户可控，两者必须分开走。
+        system_prompt = self._persona.system_prompt(
+            audience=self._roles.audience(message)
+        )
         try:
             reply, meta = self._generate(message, system_prompt)
         except (LLMError, VisionError) as exc:
@@ -169,6 +187,43 @@ class Pipeline:
         except Exception:  # noqa: BLE001 - 记忆坏了不该让机器人不回话
             logger.exception("写记忆失败，跳过这一条")
 
+    def _note(self, message: IncomingMessage) -> None:
+        """把主人/管理员交代的「记着」落进长期记忆。
+
+        **门槛卡在身份上，不卡在句子**（见 core/notebook.py）：
+        群友把「记住」喊烂了也写不进这一本。
+        跟"回不回"同样无关 —— mention 群里没被 @ 时说的话，也是该记住的。
+        """
+        if self._notebook is None:
+            return
+
+        role = self._roles.of(message.user_id)
+        if role == ROLE_MEMBER:
+            return
+
+        intent = read_intent(message.text)
+        if intent is None:
+            return
+
+        try:
+            if intent.kind == REMEMBER:
+                added = self._notebook.add(
+                    subject_qq=message.user_id,
+                    subject_role=role,
+                    content=intent.payload,
+                    at=message.received_at,
+                )
+                detail = {"note": "added" if added else "duplicate", "role": role}
+            else:
+                removed = self._notebook.forget_containing(message.user_id, intent.payload)
+                detail = {"note": "forgotten", "role": role, "removed": removed}
+        except Exception:  # noqa: BLE001 - 记不住事不该让机器人不回话
+            logger.exception("写长期记忆失败，跳过")
+            return
+
+        logger.info("长期记忆：%s（%s）", detail["note"], role)
+        self._trace.write(self._event("note", detail, message))
+
     def _remember_reply(self, message: IncomingMessage, reply: str) -> None:
         """把自己的回复也记下来 —— 否则它下次会重复说过的话。
         用**它自己的名字**记，注入时能区分"谁说的"。私聊同样要记。"""
@@ -190,23 +245,30 @@ class Pipeline:
             logger.exception("写回复进记忆失败")
 
     def _user_content(self, message: IncomingMessage, text: str) -> str:
-        """拼出给模型看的用户内容：**记忆在前，本条消息在后**。
+        """拼出给模型看的用户内容：**长期记忆 → 群聊记录 → 本条消息**。
 
-        两块都过 guard 的包裹 —— 记忆是群友说过的话，同属不可信输入。
+        三块都过 guard 的包裹 —— 它们**全都是用户产生的文本**，同属不可信输入。
+        "这话是谁说的"可信（见 roles.py），不代表"说的内容"可以当指令。
         """
-        body = guard.wrap_message(message.sender_name, message.user_id, text)
-        if self._memory is None:
-            return body
+        parts: list[str] = []
 
-        history = build_history(
-            self._memory,
-            message,
-            bot_qq=self._config.self_id,
-            bot_name=self._persona.name,
-        )
-        if not history:
-            return body
-        return f"{guard.wrap_history(history)}\n\n{body}"
+        if self._notebook is not None:
+            notes = build_notes(self._notebook, message)
+            if notes:
+                parts.append(guard.wrap_notes(notes))
+
+        if self._memory is not None:
+            history = build_history(
+                self._memory,
+                message,
+                bot_qq=self._config.self_id,
+                bot_name=self._persona.name,
+            )
+            if history:
+                parts.append(guard.wrap_history(history))
+
+        parts.append(guard.wrap_message(message.sender_name, message.user_id, text))
+        return "\n\n".join(parts)
 
     # ---- 生成 ----
 
@@ -214,22 +276,27 @@ class Pipeline:
         if message.images and self._config.vision_enable:
             return self._generate_with_images(message, system_prompt)
 
-        result = self._llm.chat(
+        # 没有工具时这就是一次普通调用，不会多花任何钱（见 core/tools.py）
+        run = run_with_tools(
+            self._llm,
             [
                 text_message("system", system_prompt),
                 text_message("user", self._user_content(message, message.text)),
             ],
+            self._tools,
             temperature=self._config.temperature,
         )
         meta = {
             "route": "text",
-            "model": result.model,
-            "tokens_in": result.tokens_in,
-            "tokens_out": result.tokens_out,
-            "latency_ms": result.latency_ms,
-            "cost": result.cost,
+            "model": run.model,
+            "tokens_in": run.tokens_in,
+            "tokens_out": run.tokens_out,
+            "latency_ms": run.latency_ms,
+            "cost": run.cost,
+            "tool_rounds": run.rounds,
+            "tools_used": ",".join(run.calls),
         }
-        return result.text, meta
+        return run.text, meta
 
     def _generate_with_images(
         self, message: IncomingMessage, system_prompt: str

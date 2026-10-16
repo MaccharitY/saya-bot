@@ -21,8 +21,10 @@ from saya.adapter.mock import MockAdapter
 from saya.adapter.onebot11_http import OneBot11HttpAdapter
 from saya.config import Config
 from saya.core.memory import Memory
-from saya.core.persona import DEFAULT_PERSONA
+from saya.core.notebook import Notebook
+from saya.core.persona import DEFAULT_PERSONA, Persona, load_persona
 from saya.core.pipeline import Pipeline
+from saya.core.tools import ToolBox
 from saya.core.trigger import Trigger
 from saya.obs.trace import TraceWriter
 from saya.services.llm import LLMClient, LLMError, text_message
@@ -37,6 +39,7 @@ from saya.services.vision import (
     ROUTE_HYBRID,
     Vision,
 )
+from saya.services.wiki import build_knowledge_tools
 
 # __file__ = project_main/src/saya/__main__.py → parents[2] = project_main
 DEFAULT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -74,13 +77,26 @@ def build_llm(config: Config) -> LLMClient:
     )
 
 
+def project_path(raw: str) -> Path:
+    """把配置里的相对路径按 `project_main/` 解析（跟 `.env` 一个基准）——
+    从哪个目录启动都能找到，不必先 cd 过去。"""
+    path = Path(raw)
+    return path if path.is_absolute() else DEFAULT_ENV_FILE.parent / path
+
+
+def load_configured_persona(config: Config) -> tuple[Persona, Path]:
+    path = project_path(config.persona_file)
+    return load_persona(path, name=config.persona_name), path
+
+
 def build_pipeline(config: Config) -> Pipeline:
     client = build_llm(config)
+    log = logging.getLogger("saya")
 
     tools = None
     if config.vision_route in NEEDS_TOOLS:
         tools = start_cv_tools(config.cv_mcp_command)
-        logging.getLogger("saya").info(
+        log.info(
             "附属已就绪：%s（工具 %d 个）",
             tools.server_info.get("name", "?"),
             len(tools.list_tools()),
@@ -93,11 +109,34 @@ def build_pipeline(config: Config) -> Pipeline:
         temperature=config.vision_temperature,
         tools=tools,
     )
+
     memory = None
     if config.memory_enabled:
         memory = Memory(Path(config.data_dir) / "memory.db")
-        logging.getLogger("saya").info(
-            "记忆已启用：%s（%s）", memory._path, memory.stats()
+        log.info("记忆已启用：%s（%s）", memory._path, memory.stats())
+
+    notebook = None
+    if config.notebook_enabled:
+        notebook = Notebook(Path(config.data_dir) / "notebook.db")
+        log.info("长期记忆已启用：%s（%d 条）", Path(config.data_dir) / "notebook.db", notebook.count())
+
+    persona, persona_path = load_configured_persona(config)
+    if persona is DEFAULT_PERSONA:
+        log.warning("没读到人格文件 %s，用的是内置占位人格", persona_path)
+    else:
+        log.info("人格已加载：%s（%d 字）", persona_path, len(persona.description))
+
+    knowledge = ToolBox()
+    if config.wiki_enable:
+        corpus_dir = project_path(config.arcaea_corpus_dir)
+        knowledge = build_knowledge_tools(
+            moegirl_api=config.wiki_moegirl_api,
+            corpus_dir=corpus_dir,
+        )
+        log.info(
+            "知识源已接入：%s（本地剧情语料：%s）",
+            "、".join(knowledge.names),
+            "有" if (corpus_dir / "index.json").is_file() else "无",
         )
 
     return Pipeline(
@@ -105,10 +144,12 @@ def build_pipeline(config: Config) -> Pipeline:
         adapter=build_adapter(config),
         llm=client,
         vision=vision,
-        persona=DEFAULT_PERSONA,
+        persona=persona,
         trigger=Trigger(config),
         trace=TraceWriter(config.trace_path, enabled=config.trace_enabled),
         memory=memory,
+        notebook=notebook,
+        tools=knowledge,
     )
 
 
@@ -177,6 +218,21 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
         print("  ⚠️ 可私聊它的人: **一个都没配** —— 现在任何人私聊它都会被忽略")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
     print(f"  数据目录 : {config.data_dir}")
+
+    persona, persona_path = load_configured_persona(config)
+    if persona is DEFAULT_PERSONA:
+        print(f"  人格     : ⚠️ 没读到 {persona_path} —— 现在用的是内置占位人格")
+    else:
+        print(f"  人格     : {persona_path}（{len(persona.description)} 字）")
+    print(f"  长期记忆 : {'开' if config.notebook_enabled else '关'}")
+    if config.wiki_enable:
+        corpus = project_path(config.arcaea_corpus_dir)
+        print(
+            "  知识源   : 开（萌娘百科；"
+            f"Arcaea 本地剧情语料 {'有' if (corpus / 'index.json').is_file() else '无'}）"
+        )
+    else:
+        print("  知识源   : 关")
 
     problems: list[str] = []
 
