@@ -47,6 +47,30 @@ python tools/fetch_arcaea_corpus.py --force               # 覆盖已有文件
 ⚠️ 名字里的 "fetch" 是历史遗留：它**现在不联网**，只做本地切分
 （原先要抓的 `wiki.arcaea.cn` 已因反爬放弃，见 `docs/01-architecture.md` ADR-012）。
 
+### `privacy_scan.py` —— 发布前的隐私自检
+
+**为什么需要，而且为什么必须是个脚本**：检查「有没有泄露 X」的命令，本身就写着 X ——
+把它写进文档或验收清单，**那份文档自己就成了泄露源**。这不是假设，是真踩过的坑：
+验收清单的第一版把真群号与 TA 邮箱（用来当检查关键词）写进了公开仓库，
+最后靠重写 git 历史才擦掉。
+
+```bash
+python tools/privacy_scan.py             # 当前文件 + 全历史（发布前跑这个）
+python tools/privacy_scan.py --current   # 只扫当前文件（快）
+python tools/privacy_scan.py --env <路径>  # 指定 .env
+```
+
+- **要查的值一律从 `.env` 读**，不写在任何会被提交的地方
+- 只扫**可能被提交的文件**（`git ls-files -c -o --exclude-standard`）——
+  否则 `.env`、埋点日志这些被 gitignore 的东西会制造满屏假警报，假警报多了真警报就没人看了
+- **同时扫全历史**：改当前文件是不够的，git 会把你写过的每个字都带上
+
+退出码 0 = 干净，1 = 有命中。
+
+> ⚠️ 跑完如果报命中，**别只改当前文件** —— 见 `docs/05-progress-brief.md` 第 7 节
+> 里那套「改内容 + 改提交信息 + 删备份引用 + 过期 reflog + gc」的完整流程。
+> 少做一步，备份引用（`refs/original`、`refs/stash`）都还会把旧数据留在本地。
+
 ### `notes.py` —— 查看与删除长期记忆
 
 **为什么需要**：长期记忆（主人/管理员让机器人记住的事）是唯一一份"自己攒下来、
