@@ -21,11 +21,22 @@ _saya_logger.addHandler(logging.NullHandler())
 _saya_logger.propagate = False
 
 
-def text_response(text: str = "在的", *, tokens_in: int = 100, tokens_out: int = 10) -> dict:
+def text_response(
+    text: str = "在的",
+    *,
+    tokens_in: int = 100,
+    tokens_out: int = 10,
+    cache_hit: int | None = None,
+    cache_miss: int | None = None,
+    reasoning: int = 0,
+) -> dict:
     return {
         "model": "deepseek-flash",
         "choices": [{"message": {"role": "assistant", "content": text}}],
-        "usage": {"prompt_tokens": tokens_in, "completion_tokens": tokens_out},
+        "usage": _usage(
+            tokens_in, tokens_out, cache_hit=cache_hit, cache_miss=cache_miss,
+            reasoning=reasoning,
+        ),
     }
 
 
@@ -36,6 +47,9 @@ def tool_response(
     call_id: str = "call_1",
     tokens_in: int = 100,
     tokens_out: int = 20,
+    cache_hit: int | None = None,
+    cache_miss: int | None = None,
+    reasoning: int = 0,
 ) -> dict:
     return {
         "model": "deepseek-flash",
@@ -54,8 +68,31 @@ def tool_response(
                 }
             }
         ],
-        "usage": {"prompt_tokens": tokens_in, "completion_tokens": tokens_out},
+        "usage": _usage(
+            tokens_in, tokens_out, cache_hit=cache_hit, cache_miss=cache_miss,
+            reasoning=reasoning,
+        ),
     }
+
+
+def _usage(
+    tokens_in: int,
+    tokens_out: int,
+    *,
+    cache_hit: int | None,
+    cache_miss: int | None,
+    reasoning: int,
+) -> dict:
+    """造 `usage`。**只在显式给了值时才写那几个字段** ——
+    真实上游也不是每次都给，"字段缺失时的兜底"本身是要测的。"""
+    usage: dict = {"prompt_tokens": tokens_in, "completion_tokens": tokens_out}
+    if cache_hit is not None:
+        usage["prompt_cache_hit_tokens"] = cache_hit
+    if cache_miss is not None:
+        usage["prompt_cache_miss_tokens"] = cache_miss
+    if reasoning:
+        usage["completion_tokens_details"] = {"reasoning_tokens": reasoning}
+    return usage
 
 
 class ScriptedTransport:
@@ -72,12 +109,13 @@ class ScriptedTransport:
         return self.responses.pop(0)
 
 
-def make_client(transport: ScriptedTransport) -> LLMClient:
+def make_client(transport: ScriptedTransport, **prices) -> LLMClient:
     return LLMClient(
         base_url="https://api.deepseek.com",
         api_key="test-key",
         model="deepseek-flash",
         transport=transport,
+        **prices,
     )
 
 
@@ -127,9 +165,9 @@ class ToolBoxTest(unittest.TestCase):
 
 
 class RunWithToolsTest(unittest.TestCase):
-    def run_it(self, responses, toolbox=None, *, max_rounds=3, messages=None):
+    def run_it(self, responses, toolbox=None, *, max_rounds=3, messages=None, **prices):
         transport = ScriptedTransport(responses)
-        client = make_client(transport)
+        client = make_client(transport, **prices)
         messages = messages or [{"role": "user", "content": "你好"}]
         run = run_with_tools(
             client,
@@ -198,6 +236,66 @@ class RunWithToolsTest(unittest.TestCase):
         self.assertEqual(run.tokens_in, 300)
         self.assertEqual(run.tokens_out, 50)
         self.assertAlmostEqual(run.cost, 0.0)
+
+    def test_cache_tokens_are_summed_across_rounds(self):
+        """⚠️ 这一条 2026-10-16 补的：**跨轮累加的那三列从来没被断言过。**
+
+        评审原话：`ToolRun` 的 cache/reasoning 跨轮累加、pipeline 埋点透传
+        这三列，"没有任何断言" —— 累加写错（少加一轮、写错字段名）测试全绿，
+        而这几个数正是报告"成本"一栏的唯一来源。
+        """
+        run, _, _ = self.run_it(
+            [
+                tool_response("echo", "{}", tokens_in=100, tokens_out=20,
+                              cache_hit=80, cache_miss=20, reasoning=54),
+                text_response("好", tokens_in=200, tokens_out=30,
+                              cache_hit=150, cache_miss=50),
+            ],
+            ToolBox([echo_tool()]),
+        )
+        self.assertEqual(run.cache_hit_tokens, 230, "两轮的命中数要相加")
+        self.assertEqual(run.cache_miss_tokens, 70, "未命中的部分由 tokens_in − hit 推出来")
+        self.assertEqual(run.reasoning_tokens, 54)
+        # ⚠️ 守恒：存下来的两列必须正好等于总输入，否则报告里"命中率"和"成本"对不上
+        self.assertEqual(
+            run.cache_hit_tokens + run.cache_miss_tokens, run.tokens_in
+        )
+
+    def test_cost_uses_three_prices_and_counts_every_round(self):
+        """三档价都要用上，而且**每一轮都算进去**。
+
+        价格传 0 的话 `assertAlmostEqual(run.cost, 0.0)` 那种断言等于没测 ——
+        它只证明了"0 加起来还是 0"。
+        """
+        run, _, _ = self.run_it(
+            [
+                tool_response("echo", "{}", tokens_in=100, tokens_out=20,
+                              cache_hit=80, cache_miss=20),
+                text_response("好", tokens_in=200, tokens_out=30,
+                              cache_hit=150, cache_miss=50),
+            ],
+            ToolBox([echo_tool()]),
+            price_in=2.0, price_out=8.0, price_cache_hit=0.04,
+        )
+        # 命中 230 × 0.04 + 未命中 70 × 2 + 输出 50 × 8，除 1e6
+        expected = (230 * 0.04 + 70 * 2.0 + 50 * 8.0) / 1_000_000
+        self.assertAlmostEqual(run.cost, round(expected, 6))
+
+    def test_reasoning_tokens_are_not_added_to_cost(self):
+        """⚠️ `reasoning_tokens` 是 `tokens_out` 的**子集**（实测 56 里含 54）。
+
+        再加一遍就是**双倍计** —— 而它会安静地把报告里的成本抬高一大截。
+        """
+        plain, _, _ = self.run_it(
+            [text_response("好", tokens_in=100, tokens_out=56)],
+            price_in=2.0, price_out=8.0,
+        )
+        with_reasoning, _, _ = self.run_it(
+            [text_response("好", tokens_in=100, tokens_out=56, reasoning=54)],
+            price_in=2.0, price_out=8.0,
+        )
+        self.assertEqual(plain.cost, with_reasoning.cost, "思考 token 不该多算一笔")
+        self.assertEqual(with_reasoning.reasoning_tokens, 54)
 
     def test_running_out_of_rounds_still_produces_an_answer(self):
         """轮次用尽却还在要工具时，必须**摘掉工具再问一次**。

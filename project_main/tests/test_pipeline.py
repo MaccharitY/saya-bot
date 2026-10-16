@@ -49,9 +49,18 @@ _saya_logger.propagate = False
 class FakeTransport:
     """返回预设回复；可改成抛异常来测失败路径。"""
 
-    def __init__(self, text: str = "在的", error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        text: str = "在的",
+        error: Exception | None = None,
+        *,
+        usage: dict | None = None,
+    ) -> None:
         self.text = text
         self.error = error
+        # 想验哪一列就覆盖哪一列 —— 默认可不带 cache / reasoning 字段，
+        # 因为真实上游也不是每次都给，"缺字段时的兜底"本身是要测的
+        self.usage = usage or {"prompt_tokens": 100, "completion_tokens": 10}
         self.calls: list[dict] = []
 
     def __call__(self, url: str, headers: dict, payload: dict, timeout: float) -> dict:
@@ -61,7 +70,7 @@ class FakeTransport:
         return {
             "model": "deepseek-flash",
             "choices": [{"message": {"role": "assistant", "content": self.text}}],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 10},
+            "usage": dict(self.usage),
         }
 
     @property
@@ -294,6 +303,100 @@ class TraceTest(PipelineTestBase):
         event = trace.read_all()[0]
         self.assertEqual(event["detail"]["respond"], False)
         self.assertEqual(event["detail"]["reason"], "skip:mention")
+
+    def test_the_three_unrecoverable_columns_reach_the_trace(self):
+        """⚠️ 2026-10-16 独立评审指出的**测试盲区**：这三列从来没被断言过透传。
+
+        它们是"**这次调用当时才有的事实**，事后再也拿不回来"（ADR-020）——
+        字段名写错或忘了带过去，埋点里就是三个 0，而报告里"成本"一栏
+        （含"命中缓存省了多少"）全靠它们。
+
+        ⚠️ 注意 `_EMPTY_META` 本身就有这三个键，所以**只看键在不在是测不出来的**，
+        必须比数值。
+        """
+        transport = FakeTransport(
+            usage={
+                "prompt_tokens": 1000,
+                "completion_tokens": 56,
+                "prompt_cache_hit_tokens": 800,
+                "prompt_cache_miss_tokens": 200,
+                "completion_tokens_details": {"reasoning_tokens": 54},
+            }
+        )
+        pipeline, trace = self.build(transport=transport)
+        pipeline.handle(group_message("你好"))
+
+        detail = self.events(trace)[0]["detail"]
+        self.assertEqual(detail["cache_hit_tokens"], 800)
+        self.assertEqual(detail["cache_miss_tokens"], 200)
+        self.assertEqual(detail["reasoning_tokens"], 54)
+
+    def test_cache_split_is_conserved_even_when_upstream_disagrees(self):
+        """⚠️ 上游返的 hit / miss 加起来**不等于**总数时，以总数为准。
+
+        原来两个字段各自 clamp，于是**存下来的数**和**算钱用的数**成了两份
+        （存 `(800, 300)`、算钱按 `1000−800=200`）—— 报告里"输入缓存命中率"
+        和"成本"两栏于是对不上，而两个数看着都挺正常。
+        """
+        transport = FakeTransport(
+            usage={
+                "prompt_tokens": 1000,
+                "completion_tokens": 10,
+                "prompt_cache_hit_tokens": 800,
+                "prompt_cache_miss_tokens": 300,   # 800 + 300 = 1100 ≠ 1000
+            }
+        )
+        pipeline, trace = self.build(transport=transport)
+        pipeline.handle(group_message("你好"))
+
+        detail = self.events(trace)[0]["detail"]
+        self.assertEqual(
+            detail["cache_hit_tokens"] + detail["cache_miss_tokens"],
+            detail["tokens_in"],
+            "存下来的两列必须守恒，否则和成本对不上",
+        )
+
+
+class ReconfigureTest(PipelineTestBase):
+    """⚠️ 2026-10-16 独立评审指出的**测试盲区**：`Pipeline.reconfigure` 一条断言都没有。
+
+    它就是"改设置不用重启"的实现（ADR-022）。少重建一处 ——
+    忘了把新配置转给 `Trigger`、或者忘了重建 `Roles` ——
+    改完之后群里照旧，而**没有任何报错**。
+    """
+
+    def test_the_trigger_follows_the_new_config(self):
+        """只换 `pipeline` 手里那份是不够的，群策略读的是 `Trigger` 手里的。"""
+        pipeline, _ = self.build()
+        before = pipeline._trigger.group_policy(999)
+
+        pipeline.reconfigure(replace(self.config, group_default_policy="silent"))
+
+        after = pipeline._trigger.group_policy(999)
+        self.assertEqual(after, "silent")
+        self.assertNotEqual(before, after, "换配置得真的换掉")
+
+    def test_roles_are_rebuilt_too(self):
+        """⚠️ `Roles` 是 `__init__` 里从 config 构好的 —— 不重建的话，
+        改了管理员名单要**重启**才生效，而"不用重启"正是命令台存在的理由。"""
+        pipeline, _ = self.build()
+        self.assertFalse(pipeline._trigger.is_allowed_private(77777))
+
+        pipeline.reconfigure(replace(self.config, admin_ids=(77777,)))
+        self.assertTrue(
+            pipeline._trigger.is_allowed_private(77777), "改了管理员要立刻生效"
+        )
+
+    def test_a_new_policy_takes_effect_without_restarting(self):
+        """端到端：把默认策略改成 `silent` 之后，@ 它也不该再回了。"""
+        pipeline, _ = self.build()
+        self.assertTrue(pipeline.handle(group_message("你好", mentioned=True)))
+
+        pipeline.reconfigure(replace(self.config, group_default_policy="silent"))
+        self.assertFalse(
+            pipeline.handle(group_message("你好", mentioned=True, message_id="2")),
+            "改成 silent 之后就不该再回了",
+        )
 
 
 class IdentityAwarenessTest(PipelineTestBase):
