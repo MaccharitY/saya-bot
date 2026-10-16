@@ -222,7 +222,7 @@ class Supervisor:
         挡回来一句"已经有一个在跑了"，而用户不知道为什么。
         """
         if self.running:
-            return _say(f"已经在跑了（PID {self._child.pid}）。要换代码用 restart。")
+            return _say(f"运行中（PID {self._child.pid}）。更换代码请用 restart。")
 
         stray = self.stray_bot()
         if stray is not None and not take_over:
@@ -254,24 +254,24 @@ class Supervisor:
         self._started_at = time.monotonic()
         self._reader = threading.Thread(target=self._pump, daemon=True)
         self._reader.start()
-        return _say(f"启动中（PID {self._child.pid}）。日志会出现在下面。")
+        return _say(f"启动中（PID {self._child.pid}）--开始输出日志。")
 
     def takeover_prompt(self, stray: int) -> Outcome:
         """问要不要接管那个无头实例。**问题里把后果说清楚。**"""
         who = f"PID {stray}" if stray else "PID 拿不到"
         return Outcome(
             lines=(
-                f"端口 {self.listen_port()} 上有一个没人管的实例（{who}）——",
-                "多半是上次这个窗口被关掉时留下的，它占着端口会让新的起不来。",
+                f"端口 {self.listen_port()} 上存在未托管实例（{who}）——",
+                "该实例会占用端口，导致新实例无法启动。",
             ),
             confirm="takeover",
-            question="接管它吗？会先关掉它、再用现在这份代码起一个。 [y/N]",
+            question="接管？将先停止该实例，再以当前代码启动。 [y/N]",
         )
 
     def stop(self) -> Outcome:
         if not self.running:
             self._child = None
-            return _say("本来就没在跑。")
+            return _say("未运行。")
         pid = self._child.pid
         # ⚠️ 发 **SIGINT 而不是 SIGTERM**：机器人把 KeyboardInterrupt 接住了，
         # 会走 finally 里的 pipeline.stop()（关接入、落记忆）。直接 SIGTERM
@@ -290,10 +290,10 @@ class Supervisor:
             self._reader.join(timeout=2)
         self._child = None
         self._started_at = None
-        return _say(f"已停（PID {pid}）。")
+        return _say(f"已停止（PID {pid}）。")
 
     def restart(self) -> Outcome:
-        stopped = self.stop() if self.running else _say("（本来就没在跑，直接启动）")
+        stopped = self.stop() if self.running else _say("（未运行，直接启动）")
         started = self.start()
         return Outcome(lines=stopped.lines + started.lines)
 
@@ -303,13 +303,13 @@ class Supervisor:
             if stray is not None:
                 who = f"PID {stray}" if stray else "PID 拿不到"
                 return _say(
-                    f"没在管机器人。端口 {self.listen_port()} 上有一个没人管的实例（{who}）。",
-                    "敲 restart（或 start）可以接管它。",
+                    f"未在管理 bot。端口 {self.listen_port()} 上存在未托管实例（{who}）。",
+                    "输入 restart 或 start 可接管。",
                 )
-            return _say("没在跑。敲 start 起它。")
+            return _say("未运行。输入 start 启动。")
         elapsed = int(time.monotonic() - (self._started_at or time.monotonic()))
         minutes, seconds = divmod(elapsed, 60)
-        return _say(f"在跑（PID {self._child.pid}），已运行 {minutes} 分 {seconds} 秒。")
+        return _say(f"运行中（PID {self._child.pid}），已运行 {minutes} 分 {seconds} 秒。")
 
     def _pump(self) -> None:
         """把子进程的输出原样搬到我们这屏。**读到 EOF 就结束**（进程没了）。"""
@@ -345,7 +345,7 @@ class Supervisor:
         lines = list(result.lines)
         if result.changed and result.ok:
             risky = env.save()
-            lines.append(PREFIX + "机器人没在跑，已写进 .env（下次启动生效）")
+            lines.append(PREFIX + "bot 未运行，已写入 .env（下次启动生效）")
             if risky:
                 lines.append(PREFIX + "[!] 这个 .env 没被 git 忽略，而它有 API key")
         return Outcome(lines=tuple(lines), ok=result.ok)
@@ -364,18 +364,18 @@ class Supervisor:
             return self.start()
         if name == "end":
             return Outcome(
-                confirm="end", question="确定要停掉机器人吗？它会暂时不理人。 [y/N]"
+                confirm="end", question="确认停止 bot？停止期间不响应消息。 [y/N]"
             )
         if name == "restart":
             return Outcome(
-                confirm="restart", question="确定要重启吗？重启期间群里的消息它会漏掉。 [y/N]"
+                confirm="restart", question="确认重启？重启期间的消息不会处理。 [y/N]"
             )
         if name == "status":
             return self.status()
         if name == "quit":
             return Outcome(
                 confirm="quit",
-                question="退出控制台？机器人也会一起停（这个窗口管着它的命）。 [y/N]",
+                question="退出控制台？bot 同时终止。 [y/N]",
             )
 
         # 其余全归管理命令
@@ -387,7 +387,7 @@ class Supervisor:
         if action == "restart":
             return self.restart()
         if action == "quit":
-            return Outcome(lines=("再见。",), stop=True)
+            return Outcome(lines=("已退出。",), stop=True)
         if action == "takeover":
             # 用户确认过要接管那个无头实例
             return self.start(take_over=True)
@@ -396,24 +396,24 @@ class Supervisor:
 
 USAGE = "\n".join(
     [
-        "这台控制台能做什么：",
-        "  start            启动机器人（日志就在这一屏）",
-        "  end              停掉它            ← 要确认",
-        "  restart          重启（用现在这份代码）← 要确认",
-        "  status           在跑吗、跑了多久",
-        "  quit             退出控制台（机器人一起停）← 要确认",
+        "可用命令：",
+        "  start            启动 bot（日志输出至本终端）",
+        "  end              停止 bot（需确认）",
+        "  restart          重启（使用当前代码，需确认）",
+        "  status           查看运行状态",
+        "  quit             退出控制台（bot 同时终止，需确认）",
         "",
-        "[!] 这个窗口管着机器人的命：它一关，机器人就停。",
+        "[!] bot 会在此终端退出时同时终止。",
         "",
-        "设置命令（和机器人自己终端里那套完全一样）：",
-        "  show                       看现在是什么样",
-        "  group <群号> <策略>         设某个群的策略（写 - 就移出表）",
-        "  default <策略>              没列出的群默认怎么办",
-        "  owner <QQ>                  主人",
-        "  admin add|del <QQ>          管理员（最多 3 个）",
-        "  friend add|del <QQ>         白名单（最多 15 个）",
-        "  keyword set|add|del <词>    keyword 模式用的词",
-        "  prob <0~1> / rate <n>       random 概率 / 每分钟上限",
+        "设置命令（与 bot 终端内命令一致）：",
+        "  show                       查看当前配置",
+        "  group <群号> <策略>         设置群策略（- 表示移出）",
+        "  default <策略>              未列出群的默认策略",
+        "  owner <QQ>                  设置主人",
+        "  admin add|del <QQ>          管理员（上限 3）",
+        "  friend add|del <QQ>         白名单（上限 15）",
+        "  keyword set|add|del <词>    keyword 模式关键词",
+        "  prob <0~1> / rate <n>       random 概率 / 每分钟回复上限",
         "",
         "策略：silent / mention / keyword / random / always / selective",
     ]
@@ -442,8 +442,8 @@ def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
     # ① 已经有别的控制台了？**自己退出**，别两个一起敲。
     other = sup.other_panel()
     if other is not None:
-        output(f"{PREFIX}已经有一个控制台在跑（PID {other}）。")
-        output(f"{PREFIX}两个一起敲会打架，这个先退出了。")
+        output(f"{PREFIX}已存在运行中的控制台（PID {other}）。")
+        output(f"{PREFIX}本控制台退出。")
         return
 
     sup.claim_lock()
@@ -488,7 +488,7 @@ def _loop(sup: Supervisor, stream, output, *, pending: str | None = None) -> Non
         if pending is not None:
             action, pending = pending, None
             outcome = (
-                sup.confirmed(action) if is_yes(action, line) else _say("取消了。")
+                sup.confirmed(action) if is_yes(action, line) else _say("已取消。")
             )
         else:
             outcome = sup.handle(line)
@@ -504,10 +504,9 @@ def _loop(sup: Supervisor, stream, output, *, pending: str | None = None) -> Non
 
 BANNER = """
 ─────────────────────────────────────────────
- saya 控制台。敲 help 看命令。
- start / end / restart / status + 全部设置命令
- end / restart / quit 要打 y 确认
- [!] 这个窗口管着机器人的命：它一关，机器人就停。
+ saya 控制台--输入 help 查看命令。
+ start / end / restart / quit / status
+ [!] bot 会在此终端退出时同时终止
 ─────────────────────────────────────────────"""
 
 

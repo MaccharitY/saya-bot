@@ -231,8 +231,8 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     print("== saya_bot 自检 ==")
     print(f"  接入后端 : {config.adapter}")
     print(f"  模型     : {config.llm_model} @ {config.llm_base_url}")
-    print(f"  看图路线 : {config.vision_route}（可选：{' / '.join(ALL_ROUTES)}）")
-    print(f"  温度     : 对话 {config.temperature} / 看图 {config.vision_temperature}")
+    print(f"  视图模式 : {config.vision_route}（{' / '.join(ALL_ROUTES)}）")
+    print(f"  温度     : 对话 {config.temperature} / 识图 {config.vision_temperature}")
     effort = (config.reasoning_effort or "").strip().lower()
     if effort in ("", "none", "off", "disabled"):
         print(f"  思考模式 : 关（reasoning_effort={effort or '未设'}）")
@@ -250,9 +250,9 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
         filter(None, [config.owner_id, *config.admin_ids, *config.friend_allowlist])
     )
     if allowed:
-        print(f"  可私聊它的人: {len(allowed)} 个（主人/管理/白名单），其余私聊一律不理")
+        print(f"  可私聊用户: {len(allowed)}（主人/管理/白名单），其余私聊无效")
     else:
-        print("  [!] 可私聊它的人: 一个都没配 —— 现在任何人私聊它都会被忽略")
+        print("  [!] 可私聊用户: 未配置 —— 所有私聊均不响应")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
     # ⚠️ 价格要显出来：三档里少填一档会**静默**把成本算错（ADR-020），
     # 而 0 在配置文件里看起来和"没填"一模一样。
@@ -286,8 +286,8 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     # 提醒 .env 里缺的键（有默认值，不算问题，但配了没生效最气人）
     missing = missing_env_keys(env_file or DEFAULT_ENV_FILE, EXAMPLE_ENV_FILE)
     if missing:
-        print(f"\n  提示：你的 .env 里没有这些键（会走默认值）：{', '.join(missing)}")
-        print("        要改它们的话，照 .env.example 补上。")
+        print(f"\n  提示：.env 内未赋值键（将使用默认值）：{', '.join(missing)}")
+        print("        可依据 .env.example 更改。")
 
     known_routes = IMPLEMENTED_ROUTES + (ROUTE_DELEGATED, ROUTE_HYBRID)
     if config.vision_route not in known_routes:
@@ -322,12 +322,12 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
                     tools.close()
 
     if config.adapter.startswith("onebot11"):
-        print("\n→ 试着占用事件端口…")
+        print("\n→ 尝试占用事件端口…")
         probe = build_adapter(config)
         try:
             host, port = probe.start()
             print(f"√ 端口可用：http://{host}:{port}{config.onebot_event_path}")
-            print("  （把上面这个地址填进 NapCat 的「HTTP 上报」）")
+            print("  （可填入 NapCat「HTTP 上报」）")
         except AdapterError as exc:
             if is_our_own_bot(config):
                 # ⚠️ **"已经有一个在跑"不是配置问题。**
@@ -350,8 +350,8 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
         problems.append("未配置 SAYA_LLM_API_KEY —— 照 .env.example 复制一份 .env 并填入")
     else:
         # 只报长度、不回显内容 —— 免得密钥被贴进聊天记录或截图
-        print(f"\n  API key  : 已配置（长度 {len(config.llm_api_key)}）")
-        print("→ 试着跟模型说一句话…")
+        print("\n  API key  : 已配置")
+        print("→ 输入测试")
         try:
             client = LLMClient(
                 base_url=config.llm_base_url,
@@ -360,7 +360,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
             )
             result = client.chat([text_message("user", "只回复两个字：在的")])
             print(
-                f"√ 模型回了：{result.text!r}"
+                f"√ 输出测试：{result.text!r}"
                 f"（{result.tokens_in}+{result.tokens_out} tokens，{result.latency_ms} ms）"
             )
         except LLMError as exc:

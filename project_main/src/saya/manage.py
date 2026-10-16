@@ -25,12 +25,12 @@ MAX_ADMINS = 3
 MAX_FRIENDS = 15
 
 POLICY_HELP = {
-    "silent": "不记不回（「这个群当我没在」）",
-    "mention": "记录所有消息，只在被 @ 时回复  ← 最安全的默认",
-    "keyword": "记录所有消息，命中关键词才回",
-    "random": "记录所有消息，按概率回",
-    "always": "全回（只适合调试，会很吵）",
-    "selective": "选择性插嘴 —— [!] 尚未实现，会降级成 mention",
+    "silent": "不记录不回复",
+    "mention": "记录所有消息，仅在被 @ 时回复（推荐）",
+    "keyword": "记录所有消息，命中关键词时回复",
+    "random": "记录所有消息，按概率回复",
+    "always": "全部回复（仅适用于调试）",
+    "selective": "选择性插话 —— [!] 尚未实现，降级为 mention",
 }
 
 
@@ -95,7 +95,7 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
     """打印**现在生效的**设置。值后面跟说明，省得对着键名猜。"""
     lines = ["== 群 =="]
     default = env.get("SAYA_GROUP_DEFAULT_POLICY") or DEFAULT_GROUP_POLICY
-    lines.append(f"  没列出的群   {default:<10} {POLICY_HELP.get(default, '')}")
+    lines.append(f"  未列出群     {default:<10} {POLICY_HELP.get(default, '')}")
     for group_id, name in sorted(parse_policies(env.get("SAYA_GROUP_POLICIES")).items()):
         lines.append(f"  {group_id:<12} {name:<10} {POLICY_HELP.get(name, '')}")
 
@@ -104,19 +104,19 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
     owner = env.get("SAYA_OWNER_ID").strip()
     admins = split_csv(env.get("SAYA_ADMIN_IDS"))
     friends = split_csv(env.get("SAYA_FRIEND_ALLOWLIST"))
-    lines.append(f"  主人         {owner or '（没配）'}")
-    lines.append(f"  管理员       {','.join(admins) or '（没配）'}   [{len(admins)}/{MAX_ADMINS}]")
-    lines.append(f"  白名单       {','.join(friends) or '（没配）'}   [{len(friends)}/{MAX_FRIENDS}]")
+    lines.append(f"  主人         {owner or '（未配置）'}")
+    lines.append(f"  管理员       {','.join(admins) or '（未配置）'}   [{len(admins)}/{MAX_ADMINS}]")
+    lines.append(f"  白名单       {','.join(friends) or '（未配置）'}   [{len(friends)}/{MAX_FRIENDS}]")
     if not (owner or admins or friends):
-        lines.append("  [!] 一个都没配 —— 任何人私聊它都会被忽略")
+        lines.append("  [!] 未配置 —— 所有私聊均不响应")
 
     lines.append("")
     lines.append("== 触发参数 ==")
     words = split_csv(env.get("SAYA_TRIGGER_KEYWORDS"))
-    lines.append(f"  keyword 的词  {','.join(words) or '（没配）'}")
+    lines.append(f"  keyword 词    {','.join(words) or '（未配置）'}")
     lines.append(f"  random 概率   {env.get('SAYA_REPLY_PROBABILITY', '0.1')}")
     rate = env.get("SAYA_RATE_LIMIT_PER_GROUP_PER_MIN", "5").strip()
-    warn = "   [!] 0 不是「不限制」，是「永远不开口」" if rate == "0" else ""
+    warn = "   [!] 0 表示永不回复，而非不限制" if rate == "0" else ""
     lines.append(f"  每分钟上限    {rate}{warn}")
     return Result(lines=tuple(lines))
 
@@ -228,7 +228,7 @@ def cmd_keyword(env: EnvFile, args: list[str]) -> Result:
     env.set("SAYA_TRIGGER_KEYWORDS", ",".join(words))
     lines = [f"keyword 的词 → {','.join(words) or '（空了）'}"]
     if not words:
-        lines.append("  （没有词的话，keyword 模式下它就永远不开口）")
+        lines.append("  （未设置关键词时，keyword 模式不会回复）")
     return Result(lines=tuple(lines), changed=True)
 
 
@@ -257,8 +257,8 @@ def cmd_rate(env: EnvFile, args: list[str]) -> Result:
     env.set("SAYA_RATE_LIMIT_PER_GROUP_PER_MIN", str(number))
     lines = [f"每分钟上限 → {number}"]
     if number == 0:
-        lines.append("[!] 0 不是「不限制」—— 是「这个群永远不开口」。")
-        lines.append("   想让某个群闭嘴，用：group <群号> silent")
+        lines.append("[!] 0 表示永不回复，而非不限制。")
+        lines.append("   如需静默某个群：group <群号> silent")
     return Result(lines=tuple(lines), changed=True)
 
 
@@ -270,22 +270,22 @@ def cmd_help(env: EnvFile, args: list[str]) -> Result:
 
 # 命令表：名字 → (一句话说明, 处理函数)。`help` 就是照着它生成的。
 COMMANDS: dict[str, tuple[str, object]] = {
-    "help": ("看这个列表", cmd_help),
-    "show": ("看现在是什么样", cmd_show),
-    "group": ("group <群号> <策略>；策略写 - 就移出表", cmd_group),
-    "default": ("default <策略>：没列出的群默认怎么办", cmd_default),
-    "owner": ("owner <QQ>：主人（只有一个）", cmd_owner),
-    "admin": (f"admin add|del <QQ>：管理员（最多 {MAX_ADMINS} 个）", cmd_admin),
-    "friend": (f"friend add|del <QQ>：白名单（最多 {MAX_FRIENDS} 个）", cmd_friend),
-    "keyword": ("keyword set|add|del <词>：keyword 模式用的词", cmd_keyword),
-    "prob": ("prob <0~1>：random 模式的概率", cmd_prob),
-    "rate": ("rate <n>：每群每分钟最多回几条", cmd_rate),
+    "help": ("查看本列表", cmd_help),
+    "show": ("查看当前配置", cmd_show),
+    "group": ("group <群号> <策略>；- 表示移出", cmd_group),
+    "default": ("default <策略>：未列出群的默认策略", cmd_default),
+    "owner": ("owner <QQ>：设置主人（唯一）", cmd_owner),
+    "admin": (f"admin add|del <QQ>：管理员（上限 {MAX_ADMINS}）", cmd_admin),
+    "friend": (f"friend add|del <QQ>：白名单（上限 {MAX_FRIENDS}）", cmd_friend),
+    "keyword": ("keyword set|add|del <词>：keyword 模式关键词", cmd_keyword),
+    "prob": ("prob <0~1>：random 概率", cmd_prob),
+    "rate": ("rate <n>：每群每分钟回复上限", cmd_rate),
 }
 
 USAGE = "\n".join(
-    ["命令（直接敲，不用加前缀）："]
+    ["命令（无需前缀）："]
     + [f"  {name:<9} {summary}" for name, (summary, _) in COMMANDS.items()]
-    + ["", "策略：", policy_list(), "", "改完立刻生效，同时写回 .env。"]
+    + ["", "策略：", policy_list(), "", "更改后立刻及长期生效（写入 .env）。"]
 )
 
 

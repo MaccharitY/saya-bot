@@ -40,12 +40,8 @@ SUPERVISOR_ONLY = frozenset({"start", "restart"})
 
 BANNER = """
 ─────────────────────────────────────────────
- 命令台就绪。敲 help 看有哪些命令。
- 改完立刻生效，同时写回 .env（下次启动还是它）。
- 例：show            admin add 10086
-     group 123 silent    rate 3
- 另：status 看它跑了多久；start / restart 在命令行台里
-     （就是双击 saya_bot_controller.bat 出来的那个窗口）
+ 命令台就绪--输入 help 查看命令。
+ 更改后立刻及长期生效（写入 .env）。
 ─────────────────────────────────────────────"""
 
 

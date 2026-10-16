@@ -6,7 +6,7 @@
 #   1. 从 .env 读 QQ 号
 #   2. 跑一次自检（配置 / 附属 / 模型通道）—— **不过就不往下走**
 #   3. 确保 NapCat 在跑，不在就拉起来
-#   4. 启动机器人（前台，Ctrl+C 停）
+#   4. 启动机器人（前台，Ctrl+C 停止）
 #
 # ⚠️ 顺序是刻意的：**自检在碰 QQ 之前**。配置有问题时不该去动 QQ 侧。
 #
@@ -115,9 +115,9 @@ fi
 # ---- 3. NapCat ----
 bold "NapCat（QQ 侧）"
 if pgrep -f "opt/QQ/qq" >/dev/null 2>&1; then
-    echo "  已经在跑（QQ $QQ）"
+    echo "  运行中（QQ $QQ）"
 elif [ -x "$NAPCAT_DIR/opt/QQ/qq" ]; then
-    echo "  没在跑，拉起来…"
+    echo "  未运行，启动中…"
     mkdir -p "$NAPCAT_DIR/log"
     (cd "$NAPCAT_DIR" && setsid nohup xvfb-run -a "$NAPCAT_DIR/opt/QQ/qq" --no-sandbox -q "$QQ" \
         >"$NAPCAT_DIR/log/manual-start.log" 2>&1 &)
@@ -129,6 +129,6 @@ else
 fi
 
 # ---- 4. 启动 ----
-bold "启动 saya_bot（Ctrl+C 停）"
+bold "启动 saya_bot（Ctrl+C 停止）"
 cd "$PROJECT" || exit 1
 exec "$PYTHON" run.py

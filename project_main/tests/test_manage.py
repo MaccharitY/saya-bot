@@ -104,7 +104,7 @@ class CommandTest(EnvFixture):
     def test_rate_zero_warns_but_is_allowed(self):
         result = self.apply("rate 0")
         self.assertTrue(result.ok and result.changed)
-        self.assertIn("永远不开口", result.text)
+        self.assertIn("永不回复", result.text)
 
     def test_prob_out_of_range_is_rejected(self):
         self.assertFalse(self.apply("prob 1.5").ok)

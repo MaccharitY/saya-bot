@@ -108,10 +108,10 @@ class DispatchTest(Fixture):
 
     def test_quit_says_the_bot_goes_too(self):
         """退出控制台**会带走机器人** —— 这句话必须写出来，不然是暗坑。"""
-        self.assertIn("机器人也会一起停", self.sup.handle("quit").question)
+        self.assertIn("bot 同时终止", self.sup.handle("quit").question)
 
     def test_status_when_not_running(self):
-        self.assertIn("没在跑", "\n".join(self.sup.handle("status").lines))
+        self.assertIn("未运行", "\n".join(self.sup.handle("status").lines))
 
     def test_empty_line_is_a_no_op(self):
         self.assertEqual(self.sup.handle("   ").lines, ())
@@ -178,12 +178,12 @@ class StrayBotTest(Fixture):
             self.assertIsNone(self.sup.stray_bot())
 
     def test_status_points_at_the_stray(self):
-        """⚠️ 撞过的那一幕：面板说"本来就没在跑"，可端口上是上次留下的实例，
+        """⚠️ 撞过的那一幕：面板说"未运行"，可端口上是上次留下的实例，
         于是 start 被 start_saya.sh 挡回来。这里必须**说出来**。"""
         with mock.patch("panel._port_open", return_value=True), \
              mock.patch("panel._pid_on_port", return_value=16837):
             text = "\n".join(self.sup.status().lines)
-        self.assertIn("没人管", text)
+        self.assertIn("未托管", text)
         self.assertIn("16837", text)
 
 
@@ -194,7 +194,7 @@ class ManagementPassThroughTest(Fixture):
         outcome = self.sup.handle("admin add 20001")
         self.assertTrue(outcome.ok)
         self.assertEqual(self.env_value("SAYA_ADMIN_IDS"), "20001")
-        self.assertIn("机器人没在跑", "\n".join(outcome.lines))
+        self.assertIn("bot 未运行", "\n".join(outcome.lines))
 
     def test_bad_command_is_reported_and_writes_nothing(self):
         before = self.env_path.read_text(encoding="utf-8")
@@ -255,7 +255,7 @@ class LifecycleTest(Fixture):
             popen.return_value = FakeChild()
             self.sup.start()
             again = self.sup.start()
-        self.assertIn("已经在跑", "\n".join(again.lines))
+        self.assertIn("运行中", "\n".join(again.lines))
 
     def test_stop_uses_sigint_so_the_bot_can_clean_up(self):
         """⚠️ 发 SIGINT 而不是 SIGTERM：机器人接住 KeyboardInterrupt 会走
@@ -266,18 +266,18 @@ class LifecycleTest(Fixture):
         self.sup._child = child  # noqa: SLF001
         with mock.patch.object(child, "send_signal") as send_signal:
             outcome = self.sup.stop()
-        self.assertIn("已停", "\n".join(outcome.lines))
+        self.assertIn("已停止", "\n".join(outcome.lines))
         self.assertEqual(send_signal.call_args.args[0], signal_module.SIGINT)
 
     def test_stop_when_not_running_is_a_no_op(self):
-        self.assertIn("本来就没在跑", "\n".join(self.sup.stop().lines))
+        self.assertIn("未运行", "\n".join(self.sup.stop().lines))
 
     def test_status_counts_elapsed_time(self):
         with mock.patch("subprocess.Popen") as popen:
             popen.return_value = FakeChild()
             self.sup.start()
             outcome = self.sup.status()
-        self.assertIn("在跑", "\n".join(outcome.lines))
+        self.assertIn("运行中", "\n".join(outcome.lines))
 
 
 class ServeTest(Fixture):
@@ -291,14 +291,14 @@ class ServeTest(Fixture):
         """⚠️ 启动就报到一次 —— 不用先敲一下才知道现在什么状态。"""
         self.run_it("")
         self.assertIn("控制台", self.text())
-        self.assertIn("没在跑", self.text())
+        self.assertIn("未运行", self.text())
 
     def test_refuses_to_start_when_another_panel_holds_the_lock(self):
         self.lock_path.write_text("4242", encoding="ascii")
         with mock.patch("panel._pid_alive", return_value=True):
             self.run_it("show\n")
         text = self.text()
-        self.assertIn("已经有一个控制台在跑", text)
+        self.assertIn("已存在运行中的控制台", text)
         self.assertNotIn("主人", text, "自己退出了，就不该再处理命令")
 
     def test_claims_the_lock_while_running(self):
@@ -330,7 +330,7 @@ class ServeTest(Fixture):
             self.run_it("y\n")
 
         text = self.text()
-        self.assertIn("没人管", text)
+        self.assertIn("未托管", text)
         self.assertIn("--restart", popen.call_args.args[0], "确认后才允许接管")
 
     def test_declining_the_takeover_leaves_it_alone(self):
@@ -338,7 +338,7 @@ class ServeTest(Fixture):
              mock.patch("panel._pid_on_port", return_value=16837), \
              mock.patch("subprocess.Popen") as popen:
             self.run_it("n\n")
-        self.assertIn("取消了", self.text())
+        self.assertIn("已取消", self.text())
         popen.assert_not_called()
 
     def test_takeover_prompt_accepts_the_command_it_teaches(self):
@@ -355,7 +355,7 @@ class ServeTest(Fixture):
             self.run_it("restart\n")
 
         self.assertIn("--restart", popen.call_args.args[0])
-        self.assertNotIn("取消了", self.text())
+        self.assertNotIn("已取消", self.text())
 
     def test_startup_does_not_say_the_same_thing_twice(self):
         """⚠️ 另一处真撞过的地方：原来先打一遍 `status`（它已经把无头实例
@@ -368,8 +368,8 @@ class ServeTest(Fixture):
              mock.patch("panel._pid_on_port", return_value=16837):
             self.run_it("n\n")
         text = self.text()
-        self.assertEqual(text.count("没人管的"), 1, text)
-        self.assertNotIn("敲 restart（或 start）可以接管它", text)
+        self.assertEqual(text.count("未托管"), 1, text)
+        self.assertNotIn("可接管", text, "报到就说一次，别再补一句")
 
     def test_start_later_also_asks_before_taking_over(self):
         """启动时答了"否"之后，再敲 start 还是要有个说法 ——
@@ -384,13 +384,13 @@ class ServeTest(Fixture):
 
     def test_answer_n_cancels(self):
         self.run_it("end\nn\n")
-        self.assertIn("取消了", self.text())
+        self.assertIn("已取消", self.text())
 
     def test_quit_leaves_the_console(self):
         self.run_it("quit\ny\nstatus\n")
         text = self.text()
-        self.assertIn("再见", text)
-        self.assertNotIn("没在跑", text.split("再见")[-1], "退出之后不该再处理后面的行")
+        self.assertIn("已退出", text)
+        self.assertNotIn("未运行", text.split("已退出")[-1], "退出之后不该再处理后面的行")
 
 
 if __name__ == "__main__":
