@@ -32,6 +32,101 @@ class GradeTest(unittest.TestCase):
     def test_empty_answer_fails_when_keywords_expected(self):
         self.assertFalse(runner.grade("", ["猫"]))
 
+    # ---- ⚠️ 子串冲突：全表扫出来的**真实**跨题冲突，不是假想 ----
+
+    def test_a_number_inside_a_bigger_number_does_not_count(self):
+        """⚠️ `'3' ⊂ '13'`：7 条题期望 `3`、4 条期望 `13`。
+
+        朴素子串匹配会让**期望 3 的题答「13」被判对** —— counting 层的
+        准确率被系统性抬高。
+        """
+        rivals = {"3", "13", "4"}
+        self.assertTrue(runner.grade("图里有 3 只猫", ["3"], rivals=rivals))
+        self.assertFalse(runner.grade("图里有 13 只猫", ["3"], rivals=rivals))
+        self.assertTrue(runner.grade("图里有 13 只猫", ["13"], rivals=rivals))
+        self.assertTrue(runner.grade("3 只", ["3"], rivals=rivals), "两侧不是数字，照样算中")
+
+    def test_a_character_inside_a_longer_word_does_not_count(self):
+        """⚠️ `'马' ⊂ '斑马'`：fine 层 1 条期望「马」、2 条期望「斑马」。
+
+        期望「马」的题答「斑马」会被判对 —— 而**那正是 fine 层要测的细粒度错误**，
+        于是那一层虚高，还偏向回答更啰嗦的路线。
+        """
+        rivals = {"马", "斑马"}
+        self.assertTrue(runner.grade("图里有一匹马", ["马"], rivals=rivals))
+        self.assertFalse(runner.grade("图里有三只斑马", ["马"], rivals=rivals))
+        self.assertTrue(runner.grade("图里有三只斑马", ["斑马"], rivals=rivals))
+
+    def test_the_longer_keyword_is_never_hurt_by_the_shorter_one(self):
+        rivals = {"马", "斑马"}
+        self.assertTrue(runner.grade("斑马", ["斑马"], rivals=rivals))
+
+    def test_the_number_boundary_rule_does_not_need_rivals(self):
+        """数字那类冲突不依赖 rivals —— 它是边界规则，任何时候都该生效。
+
+        （中文那类才需要 rivals 才知道"哪个词更长"。）
+        """
+        self.assertTrue(runner.grade("图里有 3 只猫", ["3"]))
+        self.assertFalse(runner.grade("图里有 13 只猫", ["3"]))
+        self.assertTrue(runner.grade("答案是 3.0", ["3"]), "小数点不算数字")
+
+
+class ReadProgressTest(unittest.TestCase):
+    """⚠️ 断点续跑。一次正式实验是两三百次**真实计费**的调用 ——
+    重跑一遍等于把钱再花一次。
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.path = Path(self._tmp.name) / "results.jsonl"
+
+    def write(self, text: str) -> None:
+        with self.path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+
+    def test_reads_records_and_completed_pairs(self):
+        self.write(
+            json.dumps({"kind": "run_meta", "model": "m"}) + "\n"
+            + json.dumps({"id": "i1", "route": "direct"}) + "\n"
+            + json.dumps({"id": "i1", "route": "delegated"}) + "\n"
+        )
+        kept, records, done, dropped = runner._read_progress(self.path)
+        self.assertEqual(len(kept), 3)
+        self.assertEqual(len(records), 2, "run_meta 不是数据记录")
+        self.assertEqual(done, {("i1", "direct"), ("i1", "delegated")})
+        self.assertEqual(dropped, 0)
+
+    def test_a_half_written_last_line_is_dropped(self):
+        """⚠️ 边跑边落盘，被强杀时正好会留下一条半截的记录。
+
+        **不清掉的话就毁了整个文件**：后面追加的内容会和这半行连成一个
+        跨两行的坏 JSON，而文件里装着已经花掉的钱换来的数据。
+        """
+        self.write(
+            json.dumps({"id": "i1", "route": "direct"}) + "\n" + '{"id": "i2", "rou'
+        )
+        kept, _, done, dropped = runner._read_progress(self.path)
+        self.assertEqual(dropped, 1)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(done, {("i1", "direct")})
+
+    def test_the_repaired_file_is_valid_jsonl_again(self):
+        """把留下的行写回去之后，每一行都还能解析 —— 追加才是安全的。"""
+        self.write('{"id": "i1", "route": "direct"}\n{"id": "i2", "rou')
+        kept, _, _, _ = runner._read_progress(self.path)
+        with self.path.open("w", encoding="utf-8", newline="") as handle:
+            for line in kept:
+                handle.write(line + "\n")
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            json.loads(line)
+
+    def test_blank_lines_are_ignored(self):
+        self.write('\n{"id": "i1", "route": "direct"}\n\n')
+        _, records, done, dropped = runner._read_progress(self.path)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(dropped, 0)
+
 
 class PercentileTest(unittest.TestCase):
     def test_empty_list_is_zero(self):
@@ -114,12 +209,30 @@ class SummarizeTest(unittest.TestCase):
         self.assertIn("路线 delegated", text)
         self.assertIn("2/2 = 100%", text)
 
-    def test_ungraded_items_are_excluded_from_accuracy(self):
+    def test_ungraded_items_count_as_incorrect(self):
+        """⚠️ **口径必须是 ITT**：没判分的题算错，分母是全部样本。
+
+        这条以前钉的是**反过来的**行为（分母剔掉未判分的题），于是
+        **现场屏幕上看到的准确率比报告里的高** —— 同一批数据两个数字，
+        照现场那个引用就错了。报告用的 `analyze.py` 一直是 ITT
+        （`_correct` 里 `None → 0`），两边必须一致（pre/13 §5）。
+        """
         text = runner.summarize(
             [make_record("direct", correct=True), make_record("direct", correct=None)]
         )
-        self.assertIn("1/1", text)
-        self.assertNotIn("1/2", text)
+        self.assertIn("1/2 = 50%", text, "未判分的那条要留在分母里")
+        self.assertIn("ITT", text)
+
+    def test_errors_count_as_incorrect_too(self):
+        """失败 / 报错同样计入分母 —— 否则"跑崩了"反而会提高准确率。"""
+        text = runner.summarize(
+            [
+                make_record("direct", correct=True),
+                make_record("direct", correct=True),
+                make_record("direct", error="超时", correct=None),
+            ]
+        )
+        self.assertIn("2/3", text)
 
     def test_failures_are_counted_and_excluded_from_latency(self):
         text = runner.summarize(

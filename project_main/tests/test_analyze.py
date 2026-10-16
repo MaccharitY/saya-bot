@@ -14,7 +14,15 @@ from pathlib import Path
 PROJECT_MAIN = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_MAIN / "experiment"))
 
-from analyze import Data, cluster_bootstrap, holm, mcnemar_exact_p  # noqa: E402
+from analyze import (  # noqa: E402
+    Data,
+    cluster_bootstrap,
+    cluster_sign_flip_p,
+    hodges_lehmann,
+    holm,
+    mcnemar_exact_p,
+    wilcoxon_signed_rank_p,
+)
 
 
 def record(item, route, *, file, tier="counting", correct=True, **extra):
@@ -56,6 +64,89 @@ class HolmTest(unittest.TestCase):
         result = holm({"a": 0.02, "b": 0.03, "c": 0.9})
         # 0.02 > 0.05/3，所以第一个不显著
         self.assertFalse(result["a"][1])
+
+    def test_stopping_at_the_first_failure(self):
+        """⚠️⚠️ 这条钉的是**原来的实现根本不叫 Holm**。
+
+        老实现是"每个 p 各自比自己的阈值"，没有逐步下降。于是
+        `{a: 0.02, b: 0.02, c: 0.9}` 判出 a 不显著（阈值 0.0167）而 b **显著**
+        （阈值 0.025）—— **同一个 p 值、相反的两个判定**。
+        真正的 Holm 在 a 处就停了，后面一律不显著。
+        """
+        result = holm({"a": 0.02, "b": 0.02, "c": 0.9})
+        self.assertFalse(result["a"][1])
+        self.assertFalse(result["b"][1], "前一步没过，后面的一律不显著")
+        self.assertFalse(result["c"][1])
+
+    def test_oriented_so_a_bigger_p_is_never_significant_alone(self):
+        """把一个显著排在一个不显著之后，它也不许显著。"""
+        result = holm({"big": 0.2, "small": 0.009, "middle": 0.04})
+        self.assertTrue(result["small"][1])
+        self.assertFalse(result["middle"][1])
+        self.assertFalse(result["big"][1])
+
+    def test_single_comparison_is_just_alpha(self):
+        result = holm({"only": 0.049})
+        self.assertEqual(result["only"][0], 0.05)
+        self.assertTrue(result["only"][1])
+
+
+class ClusterSignFlipTest(unittest.TestCase):
+    """⚠️ 确证族的 p 值必须**按图**算，和区间同一个口径。
+
+    老实现用的是题目级 McNemar，于是能同时打出"95%CI 含 0"和"★显著" ——
+    而 McNemar 低估方差、p 偏小，方向是**偷偷放宽**显著性门槛。
+    """
+
+    def test_uniform_differences_are_significant(self):
+        self.assertLess(cluster_sign_flip_p([1.0] * 12), 0.01)
+
+    def test_balanced_differences_are_not_significant(self):
+        self.assertGreater(cluster_sign_flip_p([1.0, -1.0] * 10), 0.5)
+
+    def test_no_difference_at_all_is_p_one(self):
+        self.assertEqual(cluster_sign_flip_p([0.0, 0.0, 0.0]), 1.0)
+
+    def test_the_same_evidence_is_weaker_when_it_comes_from_few_images(self):
+        """⚠️⚠️ **这条就是评审举的那个反例，也是整件事的要害。**
+
+        同样是 10 个"只有 a 对"的不一致对：
+        - **摊在 10 张图上** —— 每张一个，独立信息有 10 份 → p 很小
+        - **挤在 2 张图上** —— 只有 2 份独立证据 → p 大得多
+
+        题目级的 McNemar 对这**两种情形给出同一个 p**（它只看不一致对的个数），
+        所以在后一种情形下会严重高估显著性。
+        而真实测试集里 **56% 的题与另一题同图**，这不是假想情形。
+        """
+        spread = cluster_sign_flip_p([1.0] * 10)
+        concentrated = cluster_sign_flip_p([5.0, 5.0] + [0.0] * 8)
+        self.assertLess(spread, 0.05)
+        self.assertGreater(concentrated, 0.2)
+        self.assertLess(spread, concentrated)
+
+    def test_same_seed_is_reproducible(self):
+        values = [1.0, -1.0, 2.0, 0.0, 3.0]
+        self.assertEqual(cluster_sign_flip_p(values), cluster_sign_flip_p(values))
+
+
+class LatencyTestTest(unittest.TestCase):
+    """延迟的次要分析（协议 §6 承诺的 Wilcoxon + Hodges-Lehmann）。"""
+
+    def test_all_positive_differences_are_significant(self):
+        self.assertLess(wilcoxon_signed_rank_p([10.0] * 20), 0.001)
+
+    def test_symmetric_differences_are_not_significant(self):
+        self.assertGreater(wilcoxon_signed_rank_p([10.0, -10.0] * 10), 0.9)
+
+    def test_all_zero_is_p_one(self):
+        self.assertEqual(wilcoxon_signed_rank_p([0.0, 0.0]), 1.0)
+
+    def test_hodges_lehmann_matches_a_hand_computed_case(self):
+        # [1,2,3] 的 Walsh 平均是 1, 1.5, 2, 2, 2.5, 3 → 中位数 2
+        self.assertAlmostEqual(hodges_lehmann([1.0, 2.0, 3.0]), 2.0)
+
+    def test_hodges_lehmann_resists_a_single_extreme_value(self):
+        self.assertLess(hodges_lehmann([1.0, 2.0, 1000.0]), 100.0)
 
 
 class ClusterBootstrapTest(unittest.TestCase):
@@ -135,6 +226,44 @@ class DataTest(unittest.TestCase):
         self.assertEqual(sorted(data.clusters), ["other.jpg", "same.jpg"])
         self.assertEqual(len(data.clusters["same.jpg"]), 2)
         self.assertEqual(data.reused, 1)
+
+    def test_cluster_contributions_keep_every_image(self):
+        """⚠️ 贡献为 0 的图**也要留在表里**。
+
+        符号翻转是在"每张图"上重抽的 —— 丢掉贡献为 0 的图等于少抽一批观测，
+        置换分布会变窄，p 偏小（又是同一个方向的错：让结果显得更显著）。
+        """
+        rows = [
+            record("i1", "a", file="f1", correct=True),
+            record("i1", "b", file="f1", correct=False),   # f1 贡献 +1
+            record("i2", "a", file="f2", correct=True),
+            record("i2", "b", file="f2", correct=True),    # f2 贡献 0
+            record("i3", "a", file="f3", correct=False),
+            record("i3", "b", file="f3", correct=False),   # f3 贡献 0
+        ]
+        data = self.make(rows)
+        contributions = data.cluster_contributions("a", "b")
+        self.assertEqual(len(contributions), 3, "三张图都要在，包括贡献为 0 的")
+        self.assertAlmostEqual(sum(contributions), 1.0)
+
+    def test_cluster_contributions_skip_unpaired_items(self):
+        """只有一条路线有记录的题**不能凑进配对贡献**。"""
+        rows = [
+            record("i1", "a", file="f1", correct=True),
+            record("i1", "b", file="f1", correct=False),
+            record("i2", "a", file="f1", correct=True),   # i2 没有 b
+        ]
+        data = self.make(rows)
+        self.assertAlmostEqual(sum(data.cluster_contributions("a", "b")), 1.0)
+
+    def test_paired_returns_only_complete_tuples(self):
+        rows = [
+            record("i1", "a", file="f1", latency_ms=100),
+            record("i1", "b", file="f1", latency_ms=140),
+            record("i2", "a", file="f2", latency_ms=90),   # i2 没有 b
+        ]
+        data = self.make(rows)
+        self.assertEqual(data.paired("a", "b", "latency_ms"), [(100.0, 140.0)])
 
     def test_missing_file_field_is_flagged(self):
         """老结果文件没有 file 字段时，必须**喊出来**而不是默默退化。"""

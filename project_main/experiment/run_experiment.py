@@ -28,12 +28,14 @@ import argparse
 import hashlib
 import json
 import logging
+import re
 import statistics
 import subprocess
 import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import Iterable
 
 # 让脚本能直接跑，不用先 pip install
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -118,12 +120,64 @@ def environment_baseline(base_url: str) -> dict:
     return {"dns_ms": dns_ms, "host": host}
 
 
-def grade(answer: str, keywords: list[str]) -> bool | None:
-    """关键词判据：全部出现才算对。没有关键词就不判（返回 None）。"""
+def _spans(text: str, word: str) -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    start = text.find(word)
+    while start != -1:
+        out.append((start, start + len(word)))
+        start = text.find(word, start + 1)
+    return out
+
+
+def _keyword_hit(text: str, word: str, rivals: Iterable[str]) -> bool:
+    """`word` 在这段回答里算不算命中。
+
+    ⚠️ **不能只做 `in`。** 子串匹配在这份测试集里有**真实的跨题冲突**
+    （全表扫过，不是假想）：
+
+    - `'3' ⊂ '13'` —— 7 条题期望 `3`、4 条期望 `13`
+    - `'马' ⊂ '斑马'` —— fine 层 1 条期望 `马`、2 条期望 `斑马`。
+      期望「马」的题答「斑马」会被判对，而**那正是 fine 层要测的细粒度错误** ——
+      于是那一层的准确率被系统性抬高，且偏向"话更多"的那条路线。
+
+    两条规则，各治一种：
+
+    1. **纯数字**：要求两侧不是数字。挡住 `3 ⊂ 13`。
+    2. **其余（含中文）**：命中位置若**落在某个更长关键词的范围里**，不算命中。
+       挡住 `马 ⊂ 斑马`。⚠️ 不能简单要求"两侧不是汉字" ——
+       那会把「一**匹马**」这种正常回答也毙掉。
+    """
+    if word.isdigit():
+        return re.search(rf"(?<!\d){re.escape(word)}(?!\d)", text) is not None
+
+    spans = _spans(text, word)
+    if not spans:
+        return False
+
+    blocked: list[tuple[int, int]] = []
+    for rival in rivals:
+        if len(rival) > len(word) and word in rival:
+            blocked.extend(_spans(text, rival))
+    if not blocked:
+        return True
+    return any(
+        not any(low <= start and end <= high for low, high in blocked)
+        for start, end in spans
+    )
+
+
+def grade(answer: str, keywords: list[str], *, rivals: Iterable[str] = ()) -> bool | None:
+    """关键词判据：**全部命中**才算对。没有关键词就不判（返回 None）。
+
+    `rivals` 是**整份测试集里的所有关键词** —— 用来识别上面说的子串冲突。
+    不传的话中文那类冲突（`马 ⊂ 斑马`）识别不出来；**数字那类（`3 ⊂ 13`）
+    仍然按边界判**，它不依赖 rivals。
+    """
     if not keywords:
         return None
-    lowered = answer.lower()
-    return all(keyword.lower() in lowered for keyword in keywords)
+    text = answer.lower()
+    pool = [r.lower() for r in rivals]
+    return all(_keyword_hit(text, k.lower(), pool) for k in keywords)
 
 
 def thinking_banner(config: Config) -> str:
@@ -145,7 +199,9 @@ def thinking_banner(config: Config) -> str:
     )
 
 
-def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
+def run_one(
+    vision: Vision, item: dict, *, images_dir: Path, rivals: Iterable[str] = ()
+) -> dict:
     image_path = (images_dir / item["file"]).resolve()
     if not image_path.is_file():
         return {
@@ -193,7 +249,7 @@ def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
         "file": item.get("file", ""),
         "question": item["question"],
         "answer": answer,
-        "correct": grade(answer, item.get("expect_keywords") or []),
+        "correct": grade(answer, item.get("expect_keywords") or [], rivals=rivals),
         "error": error,
         "wall_ms": int((time.monotonic() - started) * 1000),
     }
@@ -226,8 +282,15 @@ def summarize(records: list[dict]) -> str:
 
         lines.append(f"\n■ 路线 {route}")
         lines.append(f"  样本 {len(rows)}  失败 {len(rows) - len(ok)}")
-        if graded:
-            lines.append(f"  准确率 {correct}/{len(graded)} = {correct / len(graded):.0%}")
+        # ⚠️ **准确率的分母是全部样本（ITT）**：失败 / 报错 / 没判分的一律算错。
+        # 以前分母用的是"判过分的那些"（`graded`），于是**现场看到的数字比
+        # 报告里的高**（92% 对 88% 这种），照现场数字引用就是错的。
+        # 口径必须和 `analyze.py` 的 `_correct` 一致（pre/13 §5）。
+        if rows:
+            lines.append(
+                f"  准确率 ITT {correct}/{len(rows)} = {correct / len(rows):.0%}"
+                f"（失败/未判分计为错；其中判过分的 {len(graded)} 条）"
+            )
         if latencies:
             lines.append(
                 f"  延迟 P50 {percentile(latencies, 0.5):.0f} ms"
@@ -356,6 +419,36 @@ def warm_up(
     return record
 
 
+def _read_progress(path: Path) -> tuple[list[str], list[dict], set[tuple[str, str]], int]:
+    """读回已经跑完的部分 → (完好的原始行, 数据记录, 已完成的(题号,路线), 丢了几行)。
+
+    ⚠️ **只保留能解析成 JSON 的行。** 边跑边落盘意味着被强杀时会留下一条
+    写了一半的记录；那半行不清掉，后面追加的内容会让它变成一个**跨两行的
+    坏 JSON**，把整个文件毁掉（分析脚本读不了）。
+    """
+    kept: list[str] = []
+    records: list[dict] = []
+    dropped = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            dropped += 1
+            continue
+        kept.append(line)
+        if not parsed.get("kind"):
+            records.append(parsed)
+    done = {
+        (record["id"], record["route"])
+        for record in records
+        if record.get("id") and record.get("route")
+    }
+    return kept, records, done, dropped
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="三条视觉路线的对照实验")
     parser.add_argument("--manifest", required=True, help="测试集清单")
@@ -371,6 +464,11 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run",
         action="store_true",
         help="只列一遍要跑什么、检查图片与配置，不调模型（不花钱）",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="忽略已有的结果文件，从头跑（默认是**续跑**：跳过已经有的题目×路线）",
     )
     parser.add_argument("--env-file", help=".env 路径")
     args = parser.parse_args(argv)
@@ -416,38 +514,75 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # ---- 断点续跑 ----
+    # ⚠️ 以前这里是 `open("w")` —— **开跑即截断**。跑到一半断了（网络、Ctrl-C、
+    # 关机）之后重跑同一命令，已完成的那部分会**全部重买一遍**（两百多次真实
+    # 计费的调用，不是小钱）；而且进程恰好在 `write` 期间被杀的话会留下半行
+    # JSON，让分析脚本整个打不开。
+    # 现在**默认就是续跑**：跳过已经有的 (题号, 路线)。想让重跑覆盖，显式给 `--fresh`。
     records: list[dict] = []
+    done: set[tuple[str, str]] = set()
+    resuming = out_path.is_file() and not args.fresh
+    if resuming:
+        kept, records, done, dropped = _read_progress(out_path)
+        print(
+            f"续跑：已有 {len(records)} 条记录，跳过 {len(done)} 个（题号, 路线）组合。"
+            f"要整个重跑请加 --fresh。"
+        )
+        if dropped:
+            print(f"  [!] 丢掉 {dropped} 行只写了一半的记录（说明上次是中断的）")
+        # 把半截行清掉 —— 之后的追加才仍然是合法的 jsonl
+        with out_path.open("w", encoding="utf-8", newline="") as handle:
+            for line in kept:
+                handle.write(line + "\n")
+
     try:
-        with out_path.open("w", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps({"kind": "environment_baseline", **baseline}, ensure_ascii=False)
-                + "\n"
-            )
-            handle.write(
-                json.dumps(
-                    {
-                        "kind": "run_meta",
-                        "model": config.llm_model,
-                        "routes": args.routes,
-                        "temperature": config.vision_temperature,
-                        "reasoning_effort": config.reasoning_effort,
-                        # ⚠️ 复现三件套：**内容哈希**（路径相同内容可能不同）、
-                        # 代码 SHA（工作区要干净）、跑的时间窗（关系计价时段，见 pre/13 3.6）
-                        "manifest": str(manifest_path),
-                        "manifest_sha256": _sha256(manifest_path),
-                        "items": len(items),
-                        "git_sha": _git_sha(),
-                        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                        # 计价三档：报告里要写明用的是哪一套（高峰/空闲）
-                        "price_in": config.price_in,
-                        "price_cache_hit": config.price_cache_hit,
-                        "price_out": config.price_out,
-                    },
-                    ensure_ascii=False,
+        with out_path.open("a" if resuming else "w", encoding="utf-8") as handle:
+            if resuming:
+                handle.write(
+                    json.dumps(
+                        {
+                            "kind": "resume",
+                            "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                            "already_done": len(done),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
                 )
-                + "\n"
-            )
-            handle.flush()
+                handle.flush()
+            else:
+                handle.write(
+                    json.dumps(
+                        {"kind": "environment_baseline", **baseline}, ensure_ascii=False
+                    )
+                    + "\n"
+                )
+                handle.write(
+                    json.dumps(
+                        {
+                            "kind": "run_meta",
+                            "model": config.llm_model,
+                            "routes": args.routes,
+                            "temperature": config.vision_temperature,
+                            "reasoning_effort": config.reasoning_effort,
+                            # ⚠️ 复现三件套：**内容哈希**（路径相同内容可能不同）、
+                            # 代码 SHA（工作区要干净）、跑的时间窗（关系计价时段，见 pre/13 3.6）
+                            "manifest": str(manifest_path),
+                            "manifest_sha256": _sha256(manifest_path),
+                            "items": len(items),
+                            "git_sha": _git_sha(),
+                            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                            # 计价三档：报告里要写明用的是哪一套（高峰/空闲）
+                            "price_in": config.price_in,
+                            "price_cache_hit": config.price_cache_hit,
+                            "price_out": config.price_out,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                handle.flush()
 
             cache_dir = Path(config.data_dir) / "images"
             visions = {
@@ -476,9 +611,16 @@ def main(argv: list[str] | None = None) -> int:
             # 分块跑时三条路线落在不同的时间段，服务端负载 / 网络 / 模型热更新
             # 都会**整条路线**地摊到某一组头上。轮转让它们在时间上交织。
             # 附带好处：中途崩了不至于只有一条路线有完整数据、根本没法对比。
+            # 整份测试集的关键词 —— 判分时用来识别**子串冲突**（`3 ⊂ 13`、`马 ⊂ 斑马`）
+            rivals = {k for one in items for k in (one.get("expect_keywords") or [])}
+
             for index, item in enumerate(items, start=1):
                 for route in args.routes:
-                    record = run_one(visions[route], item, images_dir=images_dir)
+                    if (item["id"], route) in done:
+                        continue  # 上次已经跑过（续跑）
+                    record = run_one(
+                        visions[route], item, images_dir=images_dir, rivals=rivals
+                    )
                     record["experiment_tag"] = config.experiment_tag
                     records.append(record)
 
@@ -497,6 +639,17 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if tools is not None:
             tools.close()
+
+    # ⚠️ pre/13 §3.5 要求"跑完检查整轮是不是同一个 model 字符串，变了作废"。
+    # `run_meta` 里记的是**配置里的名字**，而这里数的是**服务端实际返回的**——
+    # 服务商中途换权重的话，只有后者看得出来，数据会静默地混成两个模型。
+    # （协议条款写进注释就够了，屏幕上不打内部索引。）
+    seen_models = sorted({r.get("model") for r in records if r.get("model")})
+    if len(seen_models) > 1:
+        print(f"\n[!] 整轮里出现了 {len(seen_models)} 个不同的 model 字符串：{seen_models}")
+        print("    中途换过模型的数据不能直接用 —— 这批作废，要重跑。")
+    elif seen_models:
+        print(f"\n模型（服务端实际返回）：{seen_models[0]}（配置里写的是 {config.llm_model}）")
 
     print(summarize(records))
     print(f"\n结果已写入 {out_path}")
