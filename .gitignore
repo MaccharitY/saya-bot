@@ -53,4 +53,8 @@ desktop.ini
 ~$*
 
 # ---- 注意 ----
-# pre/requirement/*.jpg 是课程要求原始截图，不可再生，**必须提交**，不要加进忽略。
+# pre/requirement/ 里是**课程原始截图（投屏照片）**，含 TA 邮箱等第三方信息，
+# **不适合放在公开仓库**。原件仍然保留在本地（不可再生），但不进 git。
+# 要求内容已提取进 pre/00-course-requirements.md，日常查那个就够。
+pre/requirement/*.jpg
+pre/requirement/*.png

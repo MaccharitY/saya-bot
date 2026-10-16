@@ -14,7 +14,7 @@
 - **Due date：Thursday (Week 9), 29-Oct-2026**
 - **Each student** should complete the report **independently**.
 - The report should consist of **background, methodology, results and conclusion**.
-- Sent TA（E-mail: **（TA 邮箱见本地原件）**）your report **along with the presentation slides**.
+- Sent TA（E-mail 见 `requirement/` 原始截图 —— **该目录不公开**）your report **along with the presentation slides**.
 
 ## 2. 课程安排（Course Schedule，img2）
 
@@ -59,7 +59,7 @@
 | 报告 | ~1000 词，四节结构，**独立完成** | `pre/report/` |
 | 演示稿 | slides，与报告一起交 | `pre/slides/` |
 | 实验数据 | 两条路线的对照数据（自产） | `pre/experiments/` |
-| 提交 | 邮件发 TA `（TA 邮箱见本地原件）` | —— |
+| 提交 | 邮件发 TA（邮箱见 `requirement/` 原件） | —— |
 
 ## 7. 倒排时间线
 
