@@ -105,10 +105,14 @@ QQ 号：10001
 **替代**：Arcaea 的内容改从**萌娘百科**取（那边有完整的 Arcaea 条目，含「咲弥」）。
 深度剧情靠本地语料，但**语料同样受此限制**，拿不到就如实留白。
 
-**萌娘百科的脾气**（实测）：`action=opensearch`（找条目）与
-`action=query&prop=extracts`（取正文）能用；
-`list=search`、`action=parse`、取原始 wikitext **全被禁**。
-所以只能按前缀模糊匹配找条目 —— **关键词对不上就是找不到**。
+**萌娘百科的脾气**（实测）：`action=query&prop=extracts`（取正文）能用；
+找条目首选 **`generator=search`（真全文检索）**，`action=opensearch`
+（前缀匹配）只作退路。**被禁的是 `list=search` 那一个端点。**
+
+> ⚠️ **这一节后来订正过**（见 §11）：原文写的是"只能按前缀模糊匹配，
+> 关键词对不上就是找不到"—— 那是**只看 `list=search` 被禁**就下的结论。
+> 实测 **`generator=search` 全放行**，两者差别就是"搜不到"和"搜得到"。
+> 留着这段是为了记住：**"某一个端点被禁"不等于"这个能力没有"。**
 
 ### 9.4 第 6 件附带：工具调用终于有了"轮子"
 
@@ -306,14 +310,20 @@ bash tools/start_saya.sh --check  # 只自检，不碰 QQ
 
 在群里 @ 它。**这次它应该记得住刚才聊过什么了。**
 
-**② 跑正式实验**（会花钱，225 次调用 —— 我没替你跑）
+**② 跑正式实验**（会花钱，**315 次调用** —— 我没替你跑）
 
 ```
 wsl -d Ubuntu -e bash -lc "cd /mnt/d/Claude/DeepSeek_api/saya_bot/project_main && python3 experiment/run_experiment.py --manifest ../pre/experiments/testset/manifest.json --out ../pre/experiments/results.jsonl --routes direct delegated hybrid"
 ```
 
-**跑之前先填价格**，否则埋点里的成本恒为 0、报告的成本对比做不出来：
-`project_main/.env` 里的 `SAYA_PRICE_IN` / `SAYA_PRICE_OUT`（**元/百万 token，去官网抄**）。
+**价格已经填好了** —— 一共**三档**，都在 `project_main/.env`：
+`SAYA_PRICE_IN`（缓存**未命中**的输入价）、`SAYA_PRICE_OUT`（输出价）、
+`SAYA_PRICE_CACHE_HIT`（**命中**的输入价），单位元/百万 token。
+⚠️ **三档都要有**：命中比未命中便宜约 50 倍，漏掉第三档会把命中那部分算成免费
+（ADR-020）。空闲时段约为高峰的 5 折，跑的时候按当时的档填一套即可。
+
+⚠️ 跑到一半断了就**重跑同一条命令** —— 默认续跑，跳过已经跑完的（题号, 路线），
+不会重复计费。
 
 ## 5. 已知缺口与风险
 

@@ -30,31 +30,52 @@
 │                                                  │
 │  adapter/  ── 接入层：把外部协议翻译成内部事件      │
 │    base.py      统一接口 Adapter（收/发）          │
-│    mock.py      本地假事件（**回放真 OneBot 格式**）│
-│    onebot11.py  真后端（M5 才写）                  │
+│    onebot11.py  事件解析（**Mock 与真后端共用**）   │
+│    onebot11_http.py  真后端：OneBot v11 **HTTP**   │
+│    mock.py      本地假事件（回放真 OneBot 格式）    │
 │         ↓ 内部领域事件（IncomingMessage）          │
 │  core/  ──── 内核：业务逻辑，零外部协议依赖         │
 │    trigger.py   该不该回？(FR-2)                  │
 │    pipeline.py  编排：判定→组装→护栏→生成→过滤→发送 │
 │    persona.py   人格与提示词组装 (FR-3)            │
-│    guard.py     防注入护栏 (FR-4)                  │
-│    memory.py    记忆读写 (FR-7)                    │
+│    roles.py     身份判定：主人/管理/白名单          │
+│    guard.py     防注入 + **分区隔离** (FR-4)       │
+│    context.py   上下文裁剪                         │
+│    memory.py    会话记忆 (FR-7)                    │
+│    notebook.py  长期记忆（只收主人/管理员的话）      │
+│    tools.py     工具循环（function calling 的轮子） │
+│    console.py   运行时命令台（前端之一，ADR-022）   │
 │         ↓                                        │
 │  services/ ─ 能力层：每个能力一个模块，可替换        │
-│    llm.py       文本对话（DeepSeek）               │
-│    vision.py    看图 —— 内含两条路线 (FR-5/FR-9)    │
+│    llm.py       文本对话 + **成本核算** (FR-1)      │
+│    vision.py    看图 —— 内含三条路线 (FR-5/FR-9)    │
+│    cv_tools.py  调附属（专用 CV）(FR-9)            │
+│    mcp_client.py  MCP stdio 客户端                 │
 │    wiki.py      萌娘百科检索 (FR-6)                │
-│    tools.py     MCP / 工具调用专用 CV 模型 (FR-9)   │
+│    net.py       网络与 DNS 缓存                    │
 │         ↓                                        │
-│  obs/  ───── 埋点层：记录每次调用的全量指标 (FR-8)   │
-│    trace.py     写 JSONL，pre 的数据源             │
-│    cost.py      token / 成本核算                   │
+│  obs/  ───── 埋点层：写 JSONL，pre 的数据源 (FR-8)  │
+│    trace.py                                      │
+│                                                  │
+│  顶层（谁都能用，不属于任何一层）                   │
+│    config.py     .env → 配置对象（密钥零落盘）      │
+│    envfile.py    .env 的外科手术式写入              │
+│    manage.py     管理命令语义（与前端无关）          │
+│    console.py    控制台编码与逐行缓冲               │
+│    watchdog.py   看护：控制台没了本进程就退出        │
+│    domain.py     领域模型                          │
 └──────────────────────────────────────────────────┘
                     ↓
               data/ (记忆库)  logs/ (trace)
 ```
 
-**依赖方向是单向的**：`adapter → core → services → obs`。反方向依赖一律禁止（比如 `core` 里不许 `import` 任何 OneBot 的东西）。
+**依赖方向大方向是单向的**：`adapter → core → services → obs`。反方向依赖一律禁止
+（比如 `core` 里不许 `import` 任何 OneBot 的东西）。
+
+⚠️ **两个例外是有意留的**，别把它们当成违规去"修"：
+`services/wiki.py` 要 `core/tools.py` 的 `Tool` 接口（工具的形状定义在内核），
+`services/vision.py` 要 `core/guard.py` 的 `wrap_untrusted`（分区隔离的**唯一入口**，
+附属读出来的字必须过它）。两者都是**拿内核的契约**，不是反向的业务依赖。
 
 ## 3. 一条消息的生命周期
 
@@ -149,7 +170,11 @@
   - `hybrid`（路线 C）：附属出结构化产物（框/掩码/编号），`[原图 + 产物]` 一起进 v41f
   三条路线返回同样的 `meta`（route / model / tokens / latency / cost），写进同一条 trace。
 - **理由**：报告要做公平对照，接口不统一就没法比；**共用大脑才能把"架构差异"和"模型差异"分开**。
-- **待定**：路线 B / C 里的"附属"是**通用视觉大模型**还是**专用 CV 模型**（见 pre/12 第 3 节）——**未定，阻塞实现**。
+- **已定（2026-10-15）**：附属用**专用 CV 模型** —— ultralytics **YOLO**（检测）
+  + **RapidOCR**（文字），跑在 `cv_mcp/server.py` 里，GPU 可用。
+  ⚠️ 这条决定当时只写进了 `pre/12` 与路线图，**没进 ADR 附录** —— 于是这份"
+  决策权威"长期显示成"未定，阻塞实现"，读的人会以为 B/C 的选型还没拍板。
+  2026-10-16 补记到这里。
 - **代价**：路线 B 要搭 MCP server；路线 C 还要做画框标注。工作量明显大于路线 A。
 
 ### ADR-006 记忆的存储形式
@@ -167,7 +192,8 @@
 - **调研证实了这个担忧**：领域代表作 **Set-of-Mark**（arXiv 2310.11441）本身就是**混合路线**——用分割模型出候选、再让 MLLM 做语义推理。也就是说现实中**最强的做法往往既不是纯 A 也不是纯 B**。
 - **采用的报告主线**：不比"谁更好"，而比"**什么任务该走哪条路**"：
   - 路线 A：视觉任务**全部交给主模型本体**（v41f 直接看图）
-  - 路线 B：视觉任务**全部外包给"附属"**（附属是通用视觉大模型还是专用 CV 模型，见 ADR-005 / `pre/12` 第 3 节，**尚未定**）
+  - 路线 B：视觉任务**全部外包给"附属"**（附属 = 专用 CV 模型：YOLO + RapidOCR，
+    见 ADR-005 与 `pre/12` 第 3 节，**已定 2026-10-15**）
   - 路线 C：**混合**——附属出候选，主模型做语义推理（SoM 一类）
 - **理由**：这样选题不再犯范畴错误；已知锚点论文（SoM / VisionLLM / LMM-Det / COUNTS）全部能自然纳入；而且**自己的实测数据正好回答"该走哪条"**——这恰是报告最有价值的部分。
 - **代价 / 风险**：三条路线的实验量比两条大，需按 M3 的分层测试集控制规模。
@@ -256,10 +282,13 @@
 - **状态**：已定（2026-10-16）
 - **背景**：项目所有者要求接入 Arcaea 中文维基（`wiki.arcaea.cn`）与萌娘百科。
 - **实测结论**：
-  - **萌娘百科**：API 可用。`action=opensearch`（找条目）与
-    `action=query&prop=extracts`（取正文）都通；但 `list=search`、
-    `action=parse`、取原始 wikitext **全被禁**（`action-notallowed`）。
-    所以只能按前缀模糊匹配找条目。
+  - **萌娘百科**：API 可用。`action=query&prop=extracts`（取正文）通；
+    找条目有两条路 —— **`generator=search`（真全文检索，首选）**与
+    `action=opensearch`（前缀匹配，退路）。**禁的是 `list=search` 那一个
+    端点**，`generator=search` 全放行。
+    ⚠️ 这一段 2026-10-16 订正过：原文写的是"只能按前缀模糊匹配找条目"，
+    那是**只看 `list=search` 被禁**就下的结论，实测不成立。
+    区别很要紧：「关键词对不上就找不到」和「能全文搜到」是两种东西。
   - **Arcaea 中文维基**：挂在 **Anubis 反爬**后面（PoW 挑战页
     "Making sure you're not a bot!"）。它同时解释了先前观察到的
     "HTTPS 随机断连"——**连上的那些次拿到的也是挑战页，不是内容**。探测后期
@@ -745,7 +774,7 @@
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| pre 实验（mcp_tools 路线）工作量被低估 | 报告没有对照数据 → 交不了 | 见路线图的**关键路径**：M4 提前到 10-19 前必须出最小版 |
+| pre 实验工作量被低估 | 报告没有对照数据 → 交不了 | 测试集与执行器**已就绪，只剩跑**（见 [`02-roadmap.md`](02-roadmap.md) §2）。报告截止 **2026-10-29** |
 | talk 日期可能就在这几天 | 措手不及 | **优先去确认日期** |
 | OneBot 事件格式抄错 | M5 才发现 | 接入前拿真实事件核对 |
 | 个人账号被封 | 项目中断 | 接受；Mock 环境不受影响，开发不依赖真号 |

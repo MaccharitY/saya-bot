@@ -7,8 +7,14 @@
 
 - **萌娘百科**：`list=search`、`action=parse`、取原始 wikitext **全被禁**
   （返回 `action-notallowed: Unauthorized API call`）。能用的是
-  `action=opensearch`（找条目）与 `action=query&prop=extracts`（取正文）。
-  所以这里的检索只有"按前缀模糊匹配"这一条路，**关键词命中不了就是找不到**。
+  `action=query&prop=extracts`（取正文），以及找条目用的两条路：
+  **`generator=search`（真全文检索，首选）** 与 `action=opensearch`
+  （前缀匹配，退路）。
+
+  ⚠️ **这里 2026-10-16 订正过一次。** 原来写的是"只有前缀匹配这一条路，
+  关键词命中不了就是找不到"—— 那是**只看 `list=search` 被禁**就下的结论。
+  实测：**禁的是 `list=search` 这个端点，`generator=search` 全放行**，
+  两者差的就是"搜不到"和"搜得到"。见 `_find_title` 里的说明。
 - **Arcaea 中文维基（`wiki.arcaea.cn`）已经放弃**：它挂在 Anubis 反爬后面
   （PoW 挑战页），实测直接拒连。按项目伦理红线**不做绕过**，详情见下方
   `build_knowledge_tools`。Arcaea 的内容改从萌娘百科取（那边有条目）。
