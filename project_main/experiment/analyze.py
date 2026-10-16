@@ -380,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    from saya.console import keep_console_from_crashing  # noqa: E402
+    from saya.console import prepare_console  # noqa: E402
 
-    keep_console_from_crashing()
+    prepare_console()
     raise SystemExit(main())

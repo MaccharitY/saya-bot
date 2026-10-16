@@ -142,6 +142,20 @@ class LifecycleTest(Fixture):
         self.assertEqual(argv[0], "bash")
         self.assertTrue(argv[1].endswith("start_saya.sh"))
 
+    def test_start_asks_for_unbuffered_output(self):
+        """⚠️ 子进程的 stdout 是**管道**，Python 会因此块缓冲 ——
+        机器人命令台的输出全卡在缓冲区里，面板一个字都看不到。
+        （表现就是"日志在滚、敲命令没反应"：日志走 stderr，一直是逐行的。）
+
+        机器人自己那边也设了 `line_buffering`（那才是主修，见 saya/console.py）；
+        这里再加一道是因为**子进程未必是我们的 Python**。
+        """
+        with mock.patch("subprocess.Popen") as popen:
+            popen.return_value = FakeChild()
+            self.sup.start()
+        env = popen.call_args.kwargs["env"]
+        self.assertEqual(env["PYTHONUNBUFFERED"], "1")
+
     def test_start_twice_says_already_running(self):
         with mock.patch("subprocess.Popen") as popen:
             popen.return_value = FakeChild()

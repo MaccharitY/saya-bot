@@ -39,7 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.config import Config  # noqa: E402
-from saya.console import keep_console_from_crashing  # noqa: E402
+from saya.console import prepare_console  # noqa: E402
 from saya.domain import ImageRef  # noqa: E402
 from saya.services.cv_tools import CvToolsError, start_cv_tools  # noqa: E402
 from saya.services.llm import LLMClient, LLMError  # noqa: E402
@@ -505,5 +505,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     # ⚠️ 这个必须加：跑到一半因为一个字符崩掉 = **钱白花**（调用已经发出去了）
-    keep_console_from_crashing()
+    prepare_console()
     raise SystemExit(main())

@@ -37,7 +37,7 @@ DEFAULT_ENV = REPO_ROOT / "project_main" / ".env"
 
 sys.path.insert(0, str(REPO_ROOT / "project_main" / "src"))
 
-from saya.console import keep_console_from_crashing  # noqa: E402
+from saya.console import prepare_console  # noqa: E402
 from saya.envfile import EnvFile  # noqa: E402
 from saya.manage import Result, run  # noqa: E402
 
@@ -100,5 +100,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    keep_console_from_crashing()
+    prepare_console()
     raise SystemExit(main())

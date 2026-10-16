@@ -36,6 +36,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import subprocess
 import sys
@@ -50,7 +51,7 @@ START_SCRIPT = REPO_ROOT / "tools" / "start_saya.sh"
 
 sys.path.insert(0, str(REPO_ROOT / "project_main" / "src"))
 
-from saya.console import keep_console_from_crashing  # noqa: E402
+from saya.console import prepare_console  # noqa: E402
 from saya.envfile import EnvFile  # noqa: E402
 from saya.manage import run as run_manage  # noqa: E402
 
@@ -80,8 +81,17 @@ def _say(*lines: str) -> Outcome:
 class Supervisor:
     """管着机器人那个子进程，并把设置命令转给对的地方。"""
 
-    def __init__(self, *, env_path: Path = DEFAULT_ENV, output=print) -> None:
+    def __init__(
+        self,
+        *,
+        env_path: Path = DEFAULT_ENV,
+        start_script: Path = START_SCRIPT,
+        output=print,
+    ) -> None:
         self.env_path = env_path
+        # 可注入是为了**测试**：真跑 start_saya.sh 会拉起 NapCat、抢端口、
+        # 动到正在跑的那个实例 —— 测试不该碰用户机器上的任何东西。
+        self.start_script = start_script
         self._output = output
         self._child: subprocess.Popen | None = None
         self._started_at: float | None = None
@@ -98,9 +108,17 @@ class Supervisor:
             return _say(f"已经在跑了（PID {self._child.pid}）。要换代码用 restart。")
 
         # 走项目自己的启动脚本，别在这里重写一遍 NapCat / 自检那套逻辑
+        #
+        # ⚠️ **子进程的 stdout 是管道，不是终端** —— Python 会因此把 stdout
+        # 改成**块缓冲**，于是机器人自己命令台的横幅和结果全卡在缓冲区里，
+        # 面板这边一个字都看不到（表现就是"本体指令正常、原前端指令异常"）。
+        # `PYTHONUNBUFFERED=1` 让它逐行出来。ADR-021 那条是"编码"，
+        # 这条是"缓冲"，同一类问题：**输出不接终端时也得能用**。
+        env = dict(os.environ, PYTHONUNBUFFERED="1")
         self._child = subprocess.Popen(
-            ["bash", str(START_SCRIPT)],
+            ["bash", str(self.start_script)],
             cwd=str(REPO_ROOT),
+            env=env,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -293,11 +311,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="saya_bot 控制台：启停 + 改设置")
     parser.add_argument("--env", help=".env 的路径（默认 project_main/.env）")
     parser.add_argument(
+        "--start-script", help="换个启动脚本（**只给测试用**，默认 tools/start_saya.sh）"
+    )
+    parser.add_argument(
         "command", nargs="*", help="不给就进交互模式；给了就跑一条命令然后退出"
     )
     args = parser.parse_args(argv)
 
-    sup = Supervisor(env_path=Path(args.env).resolve() if args.env else DEFAULT_ENV)
+    sup = Supervisor(
+        env_path=Path(args.env).resolve() if args.env else DEFAULT_ENV,
+        start_script=Path(args.start_script).resolve() if args.start_script else START_SCRIPT,
+    )
 
     # 非交互：跑一条就走（给脚本和测试用）
     if args.command:
@@ -314,5 +338,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    keep_console_from_crashing()
+    prepare_console()
     raise SystemExit(main())

@@ -21,7 +21,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from saya.console import keep_console_from_crashing  # noqa: E402
+from saya.console import prepare_console  # noqa: E402
 
 PROJECT_MAIN = Path(__file__).resolve().parents[1]
 REPO_ROOT = PROJECT_MAIN.parent
@@ -163,7 +163,13 @@ class ConsoleTextFromHelpersTest(unittest.TestCase):
 
 
 class GuardTest(unittest.TestCase):
-    """兜底本身：只改 errors，不改 encoding。"""
+    """兜底本身。两件事都要做到：**别崩**、**别攒着**。
+
+    第二条是 2026-10-16 补的：stdout 接的不是终端时会变成**块缓冲**，
+    于是命令台的输出全卡在缓冲区里 —— 现象是"日志在滚、敲命令没反应"
+    （日志走 stderr，一直是逐行的）。实测过：不加 `line_buffering`
+    时管道 6 秒后还是空的，加了立刻就有。
+    """
 
     def test_sets_replace_and_leaves_encoding_alone(self):
         class Recorder:
@@ -175,15 +181,15 @@ class GuardTest(unittest.TestCase):
 
         out, err = Recorder(), Recorder()
         with mock.patch.object(sys, "stdout", out), mock.patch.object(sys, "stderr", err):
-            keep_console_from_crashing()
+            prepare_console()
 
-        self.assertEqual(out.kwargs, {"errors": "replace"})
-        self.assertEqual(err.kwargs, {"errors": "replace"})
+        self.assertEqual(out.kwargs, {"errors": "replace", "line_buffering": True})
+        self.assertEqual(err.kwargs, {"errors": "replace", "line_buffering": True})
 
     def test_survives_a_stream_without_reconfigure(self):
         """不是 TextIOWrapper（比如测试里换成了 StringIO）也不能炸。"""
         with mock.patch.object(sys, "stdout", io.StringIO()), mock.patch.object(sys, "stderr", object()):
-            keep_console_from_crashing()
+            prepare_console()
 
     def test_survives_reconfigure_raising(self):
         class Detached:
@@ -191,7 +197,7 @@ class GuardTest(unittest.TestCase):
                 raise ValueError("underlying buffer has been detached")
 
         with mock.patch.object(sys, "stdout", Detached()), mock.patch.object(sys, "stderr", Detached()):
-            keep_console_from_crashing()
+            prepare_console()
 
 
 if __name__ == "__main__":
