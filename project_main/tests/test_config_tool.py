@@ -128,7 +128,7 @@ class RoundTripTest(unittest.TestCase):
         for key, value in (
             ("SAYA_OWNER_ID", "10000888"),
             ("SAYA_GROUP_POLICIES", "111:mention,222:silent"),
-            ("SAYA_TRIGGER_KEYWORDS", "莎夜,在吗"),
+            ("SAYA_TRIGGER_KEYWORDS", "咲弥,在吗"),
             ("SAYA_ADMIN_IDS", "20001,20002,20003"),
             ("SAYA_REPLY_PROBABILITY", "0.25"),
         ):

@@ -122,7 +122,7 @@ class ConfigTest(unittest.TestCase):
             "SAYA_ADAPTER=onebot11_http\n"
             "SAYA_GROUP_DEFAULT_POLICY=mention\n"
             "SAYA_GROUP_POLICIES=123456789:mention,999:silent\n"
-            "SAYA_TRIGGER_KEYWORDS=莎夜,在吗\n"
+            "SAYA_TRIGGER_KEYWORDS=咲弥,在吗\n"
             "SAYA_OWNER_ID=1001\nSAYA_ADMIN_IDS=2001,2002\nSAYA_FRIEND_ALLOWLIST=3001\n"
             "SAYA_SELF_ID=99999\nSAYA_PRICE_IN=1.5\n",
             self.dir,
@@ -131,7 +131,7 @@ class ConfigTest(unittest.TestCase):
 
         self.assertEqual(config.adapter, "onebot11_http")
         self.assertEqual(config.group_policies, {123456789: "mention", 999: "silent"})
-        self.assertEqual(config.trigger_keywords, ("莎夜", "在吗"))
+        self.assertEqual(config.trigger_keywords, ("咲弥", "在吗"))
         self.assertEqual(config.owner_id, 1001)
         self.assertEqual(config.admin_ids, (2001, 2002))
         self.assertEqual(config.friend_allowlist, (3001,))

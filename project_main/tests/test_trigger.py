@@ -114,16 +114,16 @@ class GroupPolicyTest(unittest.TestCase):
         self.assertFalse(quiet.respond)
         self.assertEqual(quiet.reason, "skip:mention")
 
-        loud = trigger.evaluate(group_message("莎夜在吗", mentioned=True, message_id="2"))
+        loud = trigger.evaluate(group_message("咲弥在吗", mentioned=True, message_id="2"))
         self.assertTrue(loud.observe)
         self.assertTrue(loud.respond)
         self.assertEqual(loud.reason, "hit:mention")
 
     def test_keyword_policy(self):
         trigger = Trigger(
-            base_config(group_policies={GROUP: "keyword"}, trigger_keywords=("莎夜", "在吗"))
+            base_config(group_policies={GROUP: "keyword"}, trigger_keywords=("咲弥", "在吗"))
         )
-        self.assertTrue(trigger.evaluate(group_message("莎夜今天怎么样")).respond)
+        self.assertTrue(trigger.evaluate(group_message("咲弥今天怎么样")).respond)
         self.assertFalse(trigger.evaluate(group_message("今天天气不错", message_id="2")).respond)
 
     def test_random_policy(self):

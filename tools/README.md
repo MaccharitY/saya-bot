@@ -117,7 +117,7 @@ python tools/config.py owner 10001                 # 主人（只能一个）
 python tools/config.py admin add 20001             # 管理员（最多 3 个）
 python tools/config.py admin del 20001
 python tools/config.py friend add 30001            # 白名单（最多 15 个）
-python tools/config.py keyword set 莎夜,在吗        # keyword 模式用的词
+python tools/config.py keyword set saya,咲弥        # keyword 模式用的词
 python tools/config.py prob 0.15                   # random 模式的概率
 python tools/config.py rate 3                      # 每群每分钟最多回几条
 python tools/config.py path                        # 只打印 .env 的路径

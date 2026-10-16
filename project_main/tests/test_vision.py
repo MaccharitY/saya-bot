@@ -191,7 +191,7 @@ class VisionTest(unittest.TestCase):
         vision.describe(
             ImageRef(url="http://x/a.jpg", local_path=str(self.image_path)),
             "这是什么",
-            system_prompt="你是莎夜",
+            system_prompt="你是咲弥",
         )
         messages = self.transport.calls[0]["messages"]
         self.assertEqual(messages[0]["role"], "system")

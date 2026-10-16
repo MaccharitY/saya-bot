@@ -38,7 +38,7 @@ class ContextTestCase(unittest.TestCase):
         )
 
     def build(self, message: IncomingMessage, *, now: datetime | None = None) -> str:
-        return build_history(self.memory, message, bot_qq=999, bot_name="莎夜", now=now)
+        return build_history(self.memory, message, bot_qq=999, bot_name="咲弥", now=now)
 
 
 class BuildHistoryTest(ContextTestCase):
@@ -55,7 +55,7 @@ class BuildHistoryTest(ContextTestCase):
         """它自己说过的话要用它的名字出现 —— 否则下次会重复自己。"""
         self.say(qq=999, name="", text="在的", from_bot=True)
         text = self.build(group_message())
-        self.assertIn("莎夜：在的", text)
+        self.assertIn("咲弥：在的", text)
 
     def test_speaker_section_is_about_the_current_speaker_only(self):
         """**这是省 token 的关键**：只查正在说话的人，不是把成员名单倒进去。"""

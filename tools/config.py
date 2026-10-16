@@ -21,7 +21,7 @@
     python tools/config.py admin add 20001             # 加管理员（最多 3 个）
     python tools/config.py admin del 20001
     python tools/config.py friend add 30001            # 加白名单（最多 15 个）
-    python tools/config.py keyword set 莎夜,在吗        # keyword 模式用的词
+    python tools/config.py keyword set saya,咲弥        # keyword 模式用的词
     python tools/config.py prob 0.15                   # random 模式的概率
     python tools/config.py rate 3                      # 每群每分钟最多回几条
     python tools/config.py path                        # 只打印 .env 的路径
@@ -164,31 +164,37 @@ class EnvFile:
         """⚠️ 这个文件**装着 API key**，被提交上去就是泄密。
 
         `.gitignore` 里 `.env` / `.env.*` 两条能盖住默认路径，
-        但 `--env 别的名字` 就盖不住了 —— 而**告警必须在写盘前后立刻给**，
+        但 `--env 别的名字` 就盖不住了 —— 而**告警必须在写盘后立刻给**，
         不能等谁哪天顺手 `git add -A` 才发现。
         （这条不是假想：写这个工具的当天，我拿真 `.env` 复制出来做测试，
          副本名不匹配忽略规则，差点把 key 提上去。）
+
+        ⚠️ **逐个查、看退出码**，不要一次传一串再拿 stdout 比字符串：
+        git 打印的路径格式和传进去的未必一样（Windows 上尤其），
+        字符串一比就会**把已经忽略的文件也报成危险** —— 实测在真 `.env`
+        上就误报了一次，而误报多了真警报就没人看了。
         """
-        probe = [str(self.path), str(backup)]
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(self.path.parent), "check-ignore", "--", *probe],
-                capture_output=True, text=True, timeout=10,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return
-        # ⚠️ 退出码不是 0/1 就是 git 自己出错了（比如这个目录根本不在仓库里）。
-        # 那时 stdout 是空的，直接拿它判断会**把每个临时文件都误报成危险** ——
-        # 测试跑在系统临时目录，实测被淹了一屏。0=有被忽略的，1=一个都没忽略。
-        if result.returncode not in (0, 1):
-            return
-        ignored = set(result.stdout.split())
-        risky = [item for item in probe if item not in ignored]
+        risky = [item for item in (self.path, backup) if not self._is_ignored(item)]
         if risky and not quiet:
             print("[!][!] **这些文件没被 git 忽略，里面有 API key**：")
             for item in risky:
                 print(f"     {item}")
-            print("   → 把它们加进 .gitignore，或者改用默认的 project_main/.env")
+
+    @staticmethod
+    def _is_ignored(path: Path) -> bool:
+        """`git check-ignore` 的退出码：0=被忽略，1=没被忽略，其他=git 自己出错。
+
+        第三种情况**当作"安全"放过** —— 判不了就别喊，否则临时目录、
+        非仓库目录这些都会刷屏（测试跑在临时目录里，实测淹了一屏）。
+        """
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(path.parent), "check-ignore", "--quiet", "--", path.name],
+                capture_output=True, text=True, timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return True
+        return result.returncode != 1
 
 
 # ---------------------------------------------------------------- 校验

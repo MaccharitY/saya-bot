@@ -165,7 +165,7 @@ class TriggerGateTest(PipelineTestBase):
 
     def test_mentioned_triggers_reply(self):
         pipeline, _ = self.build()
-        self.assertTrue(pipeline.handle(group_message("莎夜在吗", mentioned=True)))
+        self.assertTrue(pipeline.handle(group_message("咲弥在吗", mentioned=True)))
         self.assertEqual(len(self.adapter.sent), 1)
         self.assertEqual(self.adapter.sent[0].target_id, 123456789)
 

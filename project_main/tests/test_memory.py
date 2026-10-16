@@ -48,7 +48,7 @@ class RecordAndReadTest(MemoryTestCase):
 
     def test_bot_replies_are_recorded_but_do_not_count_as_members(self):
         self.say(text="在吗")
-        self.memory.record(session="g:1", qq=999, name="莎夜", text="在的", at=T0 + timedelta(seconds=5), from_bot=True)
+        self.memory.record(session="g:1", qq=999, name="咲弥", text="在的", at=T0 + timedelta(seconds=5), from_bot=True)
 
         recent = self.memory.recent("g:1")
         self.assertEqual(len(recent), 2)
