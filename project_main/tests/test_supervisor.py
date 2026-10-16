@@ -338,8 +338,49 @@ class ServeTest(Fixture):
              mock.patch("panel._pid_on_port", return_value=16837), \
              mock.patch("subprocess.Popen") as popen:
             self.run_it("n\n")
-        self.assertIn("那就不动它", self.text())
+        self.assertIn("取消了", self.text())
         popen.assert_not_called()
+
+    def test_takeover_prompt_accepts_the_command_it_teaches(self):
+        """⚠️ 真撞过的一版：提示语教用户"敲 restart 接管"，可 `restart` 这一答
+        不在 YES 里，于是**被当成"否"静默吃掉** —— 用户只看到"那就不动它"，
+        完全不知道自己的命令去哪了。
+
+        所以接管那一问要多认 restart / start。
+        """
+        with mock.patch("panel._port_open", return_value=True), \
+             mock.patch("panel._pid_on_port", return_value=16837), \
+             mock.patch("subprocess.Popen") as popen:
+            popen.return_value = FakeChild()
+            self.run_it("restart\n")
+
+        self.assertIn("--restart", popen.call_args.args[0])
+        self.assertNotIn("取消了", self.text())
+
+    def test_startup_does_not_say_the_same_thing_twice(self):
+        """⚠️ 另一处真撞过的地方：原来先打一遍 `status`（它已经把无头实例
+        描述了一遍），紧接着**提问又把同一件事说了一遍** —— 两段叠在一起，
+        所有者直接说"我没看懂这是什么交互逻辑"。
+
+        有一个无头实例时，**那个问题本身就是报到**，不要再打 status。
+        """
+        with mock.patch("panel._port_open", return_value=True), \
+             mock.patch("panel._pid_on_port", return_value=16837):
+            self.run_it("n\n")
+        text = self.text()
+        self.assertEqual(text.count("没人管的"), 1, text)
+        self.assertNotIn("敲 restart（或 start）可以接管它", text)
+
+    def test_start_later_also_asks_before_taking_over(self):
+        """启动时答了"否"之后，再敲 start 还是要有个说法 ——
+        不然只会被 start_saya.sh 挡回来一句"已经有一个在跑了"。
+        """
+        with mock.patch("panel._port_open", return_value=True), \
+             mock.patch("panel._pid_on_port", return_value=16837), \
+             mock.patch("subprocess.Popen") as popen:
+            popen.return_value = FakeChild()
+            self.run_it("n\nstart\ny\n")
+        self.assertIn("--restart", popen.call_args.args[0])
 
     def test_answer_n_cancels(self):
         self.run_it("end\nn\n")

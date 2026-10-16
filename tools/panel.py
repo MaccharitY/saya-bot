@@ -72,8 +72,15 @@ from saya.manage import run as run_manage  # noqa: E402
 
 PREFIX = "  "
 
-# 要确认才做的动作 —— 都不能一条命令就悔棋
+# 确认时的"是"。**默认只认这些** —— 在 [y/N] 提示下敲别的东西一律当"否"，
+# 这是常识，别自作聪明。
 YES = {"y", "yes", "是", "确认", "好", "嗯"}
+
+# ⚠️ **接管那一问例外**：它问的是"要不要用现在这份代码起一个"，
+# 用户很自然会敲 `restart` 或 `start` —— 而且提示语本身就该这么说。
+# 不认这两个的话，**敲了命令却被当成"否"静默吃掉**，人会一脸问号。
+# （实测撞过：所有者就是在 [y/N] 下敲了 `restart`，然后看到"那就不动它"。）
+YES_TAKEOVER = YES | {"restart", "start", "接管", "重开"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,10 +215,18 @@ class Supervisor:
     def start(self, *, take_over: bool = False) -> Outcome:
         """起机器人。`take_over=True` 时用 `--restart`，顺手清掉占着端口的那个。
 
-        ⚠️ 只有**用户确认过**才能 take_over —— 那会杀掉一个别人正在用的实例。
+        ⚠️ **端口上有别人时先问**，不用 `--restart` 直接上 ——
+        那会杀掉一个别人正在用的实例。
+        ⚠️ 这里也问一遍（不只在启动时问）是有意的：启动时答了"否"之后
+        再敲 `start`，还是要有个说法 —— 否则它就只会被 `start_saya.sh`
+        挡回来一句"已经有一个在跑了"，而用户不知道为什么。
         """
         if self.running:
             return _say(f"已经在跑了（PID {self._child.pid}）。要换代码用 restart。")
+
+        stray = self.stray_bot()
+        if stray is not None and not take_over:
+            return self.takeover_prompt(stray)
 
         # 走项目自己的启动脚本，别在这里重写一遍 NapCat / 自检那套逻辑
         #
@@ -240,6 +255,18 @@ class Supervisor:
         self._reader = threading.Thread(target=self._pump, daemon=True)
         self._reader.start()
         return _say(f"启动中（PID {self._child.pid}）。日志会出现在下面。")
+
+    def takeover_prompt(self, stray: int) -> Outcome:
+        """问要不要接管那个无头实例。**问题里把后果说清楚。**"""
+        who = f"PID {stray}" if stray else "PID 拿不到"
+        return Outcome(
+            lines=(
+                f"端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）——",
+                "多半是上次这个窗口被关掉时留下的，它占着端口会让新的起不来。",
+            ),
+            confirm="takeover",
+            question="接管它吗？会先关掉它、再用现在这份代码起一个。 [y/N]",
+        )
 
     def stop(self) -> Outcome:
         if not self.running:
@@ -276,9 +303,8 @@ class Supervisor:
             if stray is not None:
                 who = f"PID {stray}" if stray else "PID 拿不到"
                 return _say(
-                    f"这个控制台没在管机器人。",
-                    f"[!] 但端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）——",
-                    "    它是上一次控制台被关掉时留下的。敲 restart 可以接管它。",
+                    f"没在管机器人。端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）。",
+                    "敲 restart（或 start）可以接管它。",
                 )
             return _say("没在跑。敲 start 起它。")
         elapsed = int(time.monotonic() - (self._started_at or time.monotonic()))
@@ -395,11 +421,15 @@ USAGE = "\n".join(
 )
 
 
-def _read_answer(stream) -> str:
-    """读一行当 y/n 用。EOF 当成"没答应"。"""
-    for raw in stream:
-        return raw.strip().lower()
-    return ""
+def is_yes(action: str, answer: str) -> bool:
+    """这一答算不算"是"。
+
+    ⚠️ 默认只认 `y/yes/是/…`；**接管那一问多认 `restart` / `start`** ——
+    它问的就是"要不要起一个"，而提示语本身也在教用户敲 restart。
+    第一版没认，结果用户敲 `restart` 被当成"否"**静默吃掉**
+    （他只看到"那就不动它"，完全不知道自己的命令去哪了）。
+    """
+    return answer in (YES_TAKEOVER if action == "takeover" else YES)
 
 
 def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
@@ -419,23 +449,8 @@ def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
 
     sup.claim_lock()
     try:
-        # ② **启动就报到一次** —— 不用先敲一下才知道现在什么状态。
-        for line in sup.status().lines:
-            output(f"{PREFIX}{line}")
-
-        # ③ 有个**没人管的**机器人在跑？问一句再接管。
-        stray = sup.stray_bot()
-        if stray is not None:
-            who = f"PID {stray}" if stray else "PID 拿不到"
-            output(f"{PREFIX}[!] 端口 {sup.listen_port()} 上有一个**没人管的**机器人（{who}）。")
-            output(f"{PREFIX}    多半是上次控制台被关掉时留下的（那样会占着端口，")
-            output(f"{PREFIX}    让 start 起不来）。接管它？会先关掉它、再用现在这份代码起一个。 [y/N]")
-            if _read_answer(stream) in YES:
-                for line in sup.start(take_over=True).lines:
-                    output(f"{PREFIX}{line}")
-            else:
-                output(f"{PREFIX}那就不动它。这个控制台不启动机器人。")
-        _loop(sup, stream, output)
+        pending = _report_on_startup(sup, output)
+        _loop(sup, stream, output, pending=pending)
     finally:
         # ⚠️ **不管怎么退出的**（quit / EOF / Ctrl+C / 抛异常），都要收尾：
         # 停掉机器人 + 放掉锁。少做一步就是无头后端。
@@ -445,8 +460,27 @@ def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
         sup.release_lock()
 
 
-def _loop(sup: Supervisor, stream, output) -> None:
-    pending: str | None = None
+def _report_on_startup(sup: Supervisor, output) -> str | None:
+    """启动就报到一次。返回一个"待确认的动作名"（没有就返回 None）。
+
+    ⚠️ **有一个无头实例时直接问，不先打一遍 status** ——
+    `status` 会把同一件事再说一遍，两段话叠在一起很晕（实测撞过：
+    所有者看到同一件事说了两遍，然后没看懂在问什么）。
+    这时候**那个问题本身就是报到**。
+    """
+    stray = sup.stray_bot()
+    if stray is not None:
+        prompt = sup.takeover_prompt(stray)
+        for line in prompt.lines:
+            output(f"{PREFIX}{line}")
+        output(f"{PREFIX}{prompt.question}")
+        return prompt.confirm
+    for line in sup.status().lines:
+        output(f"{PREFIX}{line}")
+    return None
+
+
+def _loop(sup: Supervisor, stream, output, *, pending: str | None = None) -> None:
     for raw in stream:
         line = raw.strip()
         if not line:
@@ -454,7 +488,9 @@ def _loop(sup: Supervisor, stream, output) -> None:
 
         if pending is not None:
             action, pending = pending, None
-            outcome = sup.confirmed(action) if line.lower() in YES else _say("取消了。")
+            outcome = (
+                sup.confirmed(action) if is_yes(action, line) else _say("取消了。")
+            )
         else:
             outcome = sup.handle(line)
 
