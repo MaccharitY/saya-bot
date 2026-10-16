@@ -190,5 +190,108 @@ class NotebookTest(unittest.TestCase):
         self.assertEqual(self.book.count(), 300)
 
 
+class ForgetMatchingTest(unittest.TestCase):
+    """⚠️ 忘记的**匹配**（2026-10-16 修，所有者报的"忘记功能好像不太行"）。
+
+    真事：记下来的是「群号…里的用户 aaa大肥鱼 也是Chatbot」，
+    人说的是「忘掉那个 Chatbot 的事」——**整串 LIKE 一条都对不上**，
+    而用户看到的是"操作完成了，只是没删掉任何东西"。
+
+    根因是当时的兜底只会**削几个尾部虚词**，它假设"你说的就是原话加个尾巴"。
+    **人不会照抄原话。** 所以长关键词改按 2 字片段重合度算。
+
+    下面这些说法都是从那次实测里抄来的。
+    """
+
+    # 所有者真实的记忆内容（脱敏保留结构）
+    NOTE = "记住：群号123456789里的用户aaa大肥鱼也是Chatbot"
+
+    def fresh(self) -> Notebook:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        book = Notebook(Path(tmp.name) / "n.db")
+        self.addCleanup(book.close)
+        book.add(subject_qq=OWNER, subject_role="owner", content=self.NOTE)
+        return book
+
+    def forget(self, text: str) -> int:
+        book = self.fresh()
+        intent = read_intent(text)
+        self.assertIsNotNone(intent, f"没识别成忘记指令：{text!r}")
+        self.assertEqual(intent.kind, FORGET)
+        if not intent.payload:
+            return book.forget_recent(OWNER)
+        return book.forget_containing(OWNER, intent.payload)
+
+    def test_wording_does_not_have_to_match_the_original(self):
+        """这些说法以前**全都删不掉**。"""
+        for text in (
+            "把大肥鱼的事忘掉",
+            "忘掉那个Chatbot的事",
+            "忘掉大肥鱼是Chatbot的事",
+            "忘记群号123456789的事",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(self.forget(text), 1, f"没删掉：{text}")
+
+    def test_short_phrasings_still_work(self):
+        for text in ("忘掉大肥鱼", "忘记大肥鱼", "忘掉大肥鱼的事"):
+            with self.subTest(text=text):
+                self.assertEqual(self.forget(text), 1, f"没删掉：{text}")
+
+    def test_polite_requests_work(self):
+        for text in ("帮我忘掉大肥鱼", "给我忘掉Chatbot的事"):
+            with self.subTest(text=text):
+                self.assertEqual(self.forget(text), 1, f"没删掉：{text}")
+
+    def test_this_note_means_the_most_recent_one(self):
+        """「忘掉这条记忆」没说什么事，但意图明确。以前**静默什么都不做**。"""
+        for text in ("忘掉这条记忆", "删掉这条记忆"):
+            with self.subTest(text=text):
+                self.assertEqual(self.forget(text), 1, f"没删掉：{text}")
+
+    def test_forget_recent_only_takes_the_newest(self):
+        book = self.fresh()
+        book.add(subject_qq=OWNER, subject_role="owner", content="第二条")
+
+        self.assertEqual(book.forget_recent(OWNER), 1)
+        remaining = book.all_active()
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0].content, self.NOTE, "该删的是最新那条")
+
+    def test_everyday_sentences_do_not_trigger_a_forget(self):
+        """⚠️ 「我忘记了」是在陈述，不是在下令。
+
+        少了这道护栏它会被当成忘记指令（实测：关键词被切成「我了」）——
+        这次修的时候真踩了一次。
+        """
+        for text in ("我忘记了", "我忘掉了", "今天天气不错", "在吗", "咱忘掉就行"):
+            with self.subTest(text=text):
+                intent = read_intent(text)
+                self.assertTrue(
+                    intent is None or intent.kind != FORGET,
+                    f"误判成忘记指令：{text}",
+                )
+
+    def test_dont_forget_is_still_a_remember_request(self):
+        """「别忘了带伞」是让**记住** —— 一个字之差，方向相反。"""
+        intent = read_intent("别忘了带伞")
+        self.assertEqual(intent.kind, REMEMBER)
+
+    def test_a_meaningless_phrase_deletes_nothing(self):
+        """「忘记我说过的话」没说清是什么，**宁可不动**。"""
+        self.assertEqual(self.forget("忘记我说过的话"), 0)
+
+    def test_it_only_touches_that_person(self):
+        book = self.fresh()
+        book.add(subject_qq=999, subject_role="admin", content="别人的大肥鱼")
+
+        book.forget_containing(OWNER, "那个Chatbot的事")
+
+        remaining = book.all_active()
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0].subject_qq, 999)
+
+
 if __name__ == "__main__":
     unittest.main()

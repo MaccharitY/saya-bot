@@ -60,18 +60,38 @@ _REMEMBER_CUES = (
 
 # ⚠️ 顺序要紧：「别忘了」里也有个"忘"字，别把它当成"忘记"。
 # 用定宽的后顾断言把「别/不要/勿 + 忘记」排除掉。
+#
+# ⚠️ `(?<![我咱])` 同「记住」那边一个道理：**「我忘记了」是在陈述，不是在下令。**
+# 少了它，这句日常话会被当成忘记指令（实测：关键词被切成"我了"）。
+# 「帮我忘掉…」这种请求仍要放行，所以把「帮我/给我/替我」显式开个口子。
 _FORGET_CUES = (
-    re.compile(r"(?<!别)(?<!不要)(?<!勿)(?:忘(?:掉|记)|别再记)"),
+    re.compile(
+        r"(?:"
+        r"(?<!别)(?<!不要)(?<!勿)(?<![我咱])"  # 「别忘了…」是让记住、「我忘记了」是陈述
+        r"|(?<=帮我)|(?<=给我)|(?<=替我)"  # 但这几种是在请求，要放行
+        r")(?:忘(?:掉|记)|别再记)"
+    ),
     re.compile(r"(?:删|去掉)(?:掉)?(?:那|这)(?:条|个)记(?:忆|录)"),
     re.compile(r"\bforget\b", re.I),
 )
+
+# 「忘掉**这条**记忆」—— 没说什么事，但意图明确：删最近那条。
+# ⚠️ 必须和上一条分开：**光有"忘记"两个字不算**（「我忘记了」是句正常话），
+# 要有「这/那条记忆」这种明确的指代才能当指令。
+_FORGET_LATEST = re.compile(r"(?:忘(?:掉|记)|删掉?|去掉)(?:那|这)(?:条|个)记(?:忆|录)")
 
 # 剥壳用的标点。**别把"的/记/忆"这类实字放进来** —— 会把正经内容削掉。
 _PUNCT = "：:，,。.、！!？?~～ 　\t"
 
 MIN_TAIL_CHARS = 2  # 提示词后面剩这么少，就当作是应答而不是交代
 
-# 退一步匹配时要削掉的尾巴虚词（「猫的事」→「猫」）
+# ---- 忘记时怎么算"沾边" ----
+# ⚠️ 这些阈值是拿真实说法试出来的，不是拍的（见 _related 的说明）
+SHORT_KEYWORD_CHARS = 3  # 这么短的关键词就直接子串匹配，别绕
+MIN_GRAM_HITS = 2  # 长关键词至少要命中这么多个 2 字片段
+MIN_GRAM_RATIO = 0.4  # 而且命中率不能太低
+
+# 削掉尾巴虚词再试一次用的（「猫的事」→「猫」）
 _TRAILING_PARTICLES = "的了着把事啊吧呢嘛哦呀"
 
 REMEMBER = "remember"
@@ -105,6 +125,12 @@ def read_intent(text: str) -> Intent | None:
     text = text.strip()
     if not text:
         return None
+
+    # 「忘掉这条记忆」这种：**空的关键词代表"最近那一 条"**（见 forget_recent）
+    latest = _FORGET_LATEST.search(text)
+    if latest:
+        rest = _FORGET_LATEST.sub("", text, count=1).strip().strip(_PUNCT).strip()
+        return Intent(FORGET, rest)
 
     for pattern in _FORGET_CUES:
         match = pattern.search(text)
@@ -182,32 +208,49 @@ class Notebook:
             return int(cursor.lastrowid or 0)
 
     def forget_containing(self, subject_qq: int, keyword: str) -> int:
-        """把某人说的话里**提到这个关键词的**记忆停用。返回停用了几条。
+        """把某人说过的话里**跟这个关键词沾边的**记忆停用。返回停用了几条。
 
-        用 LIKE 而不是正则：这里的输入是主人自己打的字，不是攻击面，
-        简单可靠优先。
+        ⚠️ **匹配必须是模糊的，因为人不会照抄原话。**
 
-        ⚠️ 会做一次**退一步的尝试**：人说的是「忘掉猫的事」，而记下来的原话是
-        「我养了一只猫」—— 整段关键词对不上。所以精确匹配落空时，
-        把尾巴上的虚词削掉再试一次（「猫的事」→「猫」）。
-        **只在精确匹配一条都没中的时候才退这一步**，免得误伤。
+        实测：记下来的是「群号…里的用户 aaa大肥鱼 也是Chatbot」，
+        而人是这么说的 ——「忘掉那个 Chatbot 的事」「把大肥鱼的事忘掉」。
+        拿整串去 `LIKE` **一条都对不上**，用户看到的却是"操作完成了，只是没删掉任何东西"。
+
+        做法：短关键词照旧子串匹配（精确又直观）；长句改按 **2 字片段重合度**
+        打分 —— 中文没有词边界，在不引分词器的前提下这是够用又稳的办法。
         """
-        for candidate in _keyword_candidates(keyword):
-            removed = self._forget_like(subject_qq, candidate)
-            if removed:
-                return removed
-        return 0
+        keyword = keyword.strip()
+        if not keyword:
+            return 0
 
-    def _forget_like(self, subject_qq: int, keyword: str) -> int:
-        escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        rows = self._db.execute(
+            "SELECT id, content FROM notes WHERE subject_qq = ? AND active = 1",
+            (subject_qq,),
+        ).fetchall()
+        doomed = [int(row["id"]) for row in rows if _related(str(row["content"]), keyword)]
+        return self._deactivate(doomed)
+
+    def forget_recent(self, subject_qq: int) -> int:
+        """停用**最近记下的那一条**。
+
+        对应「忘掉这条记忆」这种说法 —— 它没说什么事，但意图很明确。
+        以前这种句子会被当成"没说清楚要忘什么"而**静默什么都不做**。
+        """
+        row = self._db.execute(
+            "SELECT id FROM notes WHERE subject_qq = ? AND active = 1 ORDER BY id DESC LIMIT 1",
+            (subject_qq,),
+        ).fetchone()
+        return self._deactivate([int(row["id"])] if row is not None else [])
+
+    def _deactivate(self, ids: list[int]) -> int:
+        if not ids:
+            return 0
         with self._lock:
-            cursor = self._db.execute(
-                "UPDATE notes SET active = 0"
-                " WHERE subject_qq = ? AND active = 1 AND content LIKE ? ESCAPE '\\'",
-                (subject_qq, f"%{escaped}%"),
+            self._db.executemany(
+                "UPDATE notes SET active = 0 WHERE id = ?", [(note_id,) for note_id in ids]
             )
             self._db.commit()
-            return int(cursor.rowcount or 0)
+        return len(ids)
 
     def forget(self, note_id: int) -> bool:
         with self._lock:
@@ -244,12 +287,54 @@ class Notebook:
         return int(self._db.execute(sql).fetchone()["n"])
 
 
-def _keyword_candidates(keyword: str):
-    """先给原样的关键词，再给削掉尾巴虚词的版本。"""
-    yield keyword
+def _related(content: str, keyword: str) -> bool:
+    """这条记忆跟这个关键词沾不沾边。
+
+    三路判断，从紧到松：
+
+      1. **整串子串命中** —— 精确，最可信
+      2. **削掉尾巴虚词再试** —— 「猫的事」对不上「我养了一只猫」，
+         削成「猫」就对上了。真实说法和原话常常就差这么个尾巴
+      3. 长关键词（>3 字）再按 **2 字片段重合度**兜底：
+
+        「忘掉那个Chatbot的事」 vs 记忆「…的用户aaa大肥鱼也是Chatbot」
+        → 片段 {那个,个C,Ch,ha,at,tb,bo,ot,t的,的事} 命中 6 个 → 沾边 ✓
+
+        「忘记我说过的话」 → 片段命中 0 个 → 不沾边 ✓（这句话本来就没说什么）
+
+    阈值（至少 2 个片段、命中率 ≥ 四成）是拿真实说法试出来的：
+    取 1 会误伤（随便一个"记忆"就中），取 3 又会让「把大肥鱼的事忘掉」这种
+    只剩两个有效片段的说法落空。
+    """
+    if not keyword:
+        return False
+    if keyword in content:
+        return True
+
     trimmed = keyword.rstrip(_TRAILING_PARTICLES)
-    if trimmed and trimmed != keyword:
-        yield trimmed
+    if trimmed and trimmed != keyword and trimmed in content:
+        return True
+
+    if len(keyword) <= SHORT_KEYWORD_CHARS:
+        return False
+
+    grams = _grams(keyword)
+    if not grams:
+        return False
+    hits = sum(1 for gram in grams if gram in content)
+    return hits >= MIN_GRAM_HITS and hits / len(grams) >= MIN_GRAM_RATIO
+
+
+def _grams(text: str) -> list[str]:
+    """每 2 个字切一个片段。**不引分词器** —— 中文没有词边界，这样够用且零依赖。
+
+    （`services/wiki.py` 里有一份同名的，用途不同、分层也不同 ——
+    core 不该为了四行函数去 import 整个 services 包。）
+    """
+    cleaned = re.sub(r"\s+", "", text)
+    if len(cleaned) <= 2:
+        return [cleaned] if cleaned else []
+    return list({cleaned[index : index + 2] for index in range(len(cleaned) - 1)})
 
 
 def _note(row: sqlite3.Row) -> Note:

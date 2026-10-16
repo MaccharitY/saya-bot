@@ -214,9 +214,18 @@ class Pipeline:
                     at=message.received_at,
                 )
                 detail = {"note": "added" if added else "duplicate", "role": role}
-            else:
+            elif intent.payload:
                 removed = self._notebook.forget_containing(message.user_id, intent.payload)
-                detail = {"note": "forgotten", "role": role, "removed": removed}
+                # ⚠️ **关键词一定要记进埋点。** 没有它，"删了 0 条"这个结果
+                # 根本查不出原因 —— 用户说的是什么、为什么没匹配上，全无线索。
+                # （这个洞真踩过：一次 removed=0 排查了半天。）
+                detail = {"note": "forgotten", "role": role, "removed": removed,
+                          "keyword": intent.payload[:60]}
+            else:
+                # 「忘掉这条记忆」：空关键词 = 删最近那条
+                removed = self._notebook.forget_recent(message.user_id)
+                detail = {"note": "forgotten", "role": role, "removed": removed,
+                          "keyword": "（最近那条）"}
         except Exception:  # noqa: BLE001 - 记不住事不该让机器人不回话
             logger.exception("写长期记忆失败，跳过")
             return

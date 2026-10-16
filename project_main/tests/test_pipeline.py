@@ -442,6 +442,32 @@ class NotebookPipelineTest(PipelineTestBase):
 
         self.assertEqual(self.book.count(), 0)
 
+    def test_forget_records_what_the_user_actually_said(self):
+        """⚠️ **关键词必须进埋点。**
+
+        没有它，"删了 0 条"这个结果根本查不出原因 —— 用户说的是什么、
+        为什么没匹配上，全无线索。（这个洞真踩过：一次 `removed=0`
+        排查了半天才定位到是匹配太死。）
+        """
+        self.book.add(subject_qq=222, subject_role="owner", content="我养了一只猫")
+        pipeline, trace = self.build(notebook=self.book)
+        pipeline.handle(group_message("忘掉猫的事", user_id=222))
+
+        events = [e for e in trace.read_all() if e["kind"] == "note"]
+        detail = events[-1]["detail"]
+        self.assertEqual(detail["removed"], 1)
+        self.assertEqual(detail["keyword"], "猫的事")
+
+    def test_forget_this_note_goes_through_the_pipeline(self):
+        """「忘掉这条记忆」——空关键词走"删最近那条"这条路。"""
+        self.book.add(subject_qq=222, subject_role="owner", content="第一条")
+        pipeline, trace = self.build(notebook=self.book)
+        pipeline.handle(group_message("忘掉这条记忆", user_id=222))
+
+        self.assertEqual(self.book.count(), 0)
+        events = [e for e in trace.read_all() if e["kind"] == "note"]
+        self.assertEqual(events[-1]["detail"]["removed"], 1)
+
     def test_pipeline_without_a_notebook_still_works(self):
         """没开长期记忆时，流水线照跑。"""
         pipeline, _ = self.build()
