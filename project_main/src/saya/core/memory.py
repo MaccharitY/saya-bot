@@ -44,6 +44,7 @@ DEFAULT_MEMBERS_KEPT = 300  # 成员榜保留多少个
 DEFAULT_MEMBERS_WITH_NOTE = 100  # 前多少名保留摘要
 DEFAULT_TOPIC_GAP_MINUTES = 30  # 隔多久算新话题
 DEFAULT_RECENT = 20  # `recent()` 不给 limit 时的条数
+DEFAULT_IMAGES_PER_SESSION = 15  # 每个会话记着多少张最近发过的图
 
 # ⚠️ **"注入时带几条"不归这里管** —— 那是 `core/context.py` 按字数预算定的
 # （`RECENT_FETCH` 取候选，再按预算裁）。这里只管**存储**侧的裁剪。
@@ -86,6 +87,16 @@ class TopicInfo:
     last_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class RememberedImage:
+    """群里最近发过的一张图。`path` 是本地缓存里的位置。"""
+
+    qq: int
+    name: str
+    path: str
+    at: datetime
+
+
 _SCHEMA_TABLES = """
 CREATE TABLE IF NOT EXISTS members (
     qq         INTEGER PRIMARY KEY,
@@ -121,6 +132,18 @@ CREATE TABLE IF NOT EXISTS topic_speakers (
     qq       INTEGER NOT NULL,
     PRIMARY KEY (topic_id, qq)
 );
+
+-- 群里最近发过的图。**只是记着，不主动喂给模型** ——
+-- 用途是"刚才那张图是什么"：有人先发了图（机器人没被 @ 所以没看），
+-- 过一会儿才 @ 它问。没有这张表，它只能答"图没到我这儿"。
+CREATE TABLE IF NOT EXISTS images (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    session TEXT    NOT NULL,
+    qq      INTEGER NOT NULL,
+    name    TEXT    NOT NULL DEFAULT '',
+    path    TEXT    NOT NULL,
+    at      TEXT    NOT NULL
+);
 """
 
 # ⚠️ 索引**必须等迁移跑完再建** —— 老库的 messages 表还没有 session 列，
@@ -129,6 +152,7 @@ _SCHEMA_INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_topics_session ON topics(session, last_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session, id DESC);
 CREATE INDEX IF NOT EXISTS idx_speakers_qq ON topic_speakers(qq);
+CREATE INDEX IF NOT EXISTS idx_images_session ON images(session, id DESC);
 """
 
 
@@ -142,6 +166,7 @@ class Memory:
         members_kept: int = DEFAULT_MEMBERS_KEPT,
         members_with_note: int = DEFAULT_MEMBERS_WITH_NOTE,
         topic_gap_minutes: int = DEFAULT_TOPIC_GAP_MINUTES,
+        images_per_session: int = DEFAULT_IMAGES_PER_SESSION,
     ) -> None:
         self._path = Path(path)
         self._messages_per_session = messages_per_session
@@ -149,6 +174,7 @@ class Memory:
         self._members_kept = members_kept
         self._members_with_note = members_with_note
         self._topic_gap = timedelta(minutes=topic_gap_minutes)
+        self._images_per_session = images_per_session
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
@@ -340,6 +366,51 @@ class Memory:
             self._db.execute("UPDATE members SET note = ? WHERE qq = ?", (note[:500], qq))
             self._db.commit()
 
+    # ---- 图片 ----
+
+    def remember_image(
+        self, *, session: str, qq: int, name: str, path: Path | str, at: datetime
+    ) -> None:
+        """记下"谁在什么时候发了哪张图"。
+
+        ⚠️ **图片本身不喂给模型**，这里只建索引。真要看的时候由 pipeline 决定
+        （见 `recent_images` 与 `pipeline._recalled_image`）。
+        """
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO images (session, qq, name, path, at) VALUES (?, ?, ?, ?, ?)",
+                (session, qq, name, str(path), at.isoformat(timespec="seconds")),
+            )
+            self._prune_images(session)
+            self._db.commit()
+
+    def recent_images(self, session: str, limit: int = DEFAULT_IMAGES_PER_SESSION):
+        """这个会话里最近发过的图，**从新到旧**。"""
+        rows = self._db.execute(
+            "SELECT qq, name, path, at FROM images WHERE session = ?"
+            " ORDER BY id DESC LIMIT ?",
+            (session, limit),
+        ).fetchall()
+        return [
+            RememberedImage(
+                qq=int(row["qq"]),
+                name=str(row["name"]),
+                path=str(row["path"]),
+                at=datetime.fromisoformat(row["at"]),
+            )
+            for row in rows
+        ]
+
+    def _prune_images(self, session: str) -> None:
+        self._db.execute(
+            """
+            DELETE FROM images WHERE session = ? AND id NOT IN (
+                SELECT id FROM images WHERE session = ? ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (session, session, self._images_per_session),
+        )
+
     def set_topic_summary(self, topic_id: int, title: str, summary: str) -> None:
         with self._lock:
             self._db.execute(
@@ -417,4 +488,5 @@ class Memory:
             "members": count("members"),
             "messages": count("messages"),
             "topics": count("topics"),
+            "images": count("images"),
         }

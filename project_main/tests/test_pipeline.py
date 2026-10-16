@@ -25,7 +25,7 @@ from saya.core.guard import (  # noqa: E402
 from saya.core.memory import Memory  # noqa: E402
 from saya.core.notebook import Notebook  # noqa: E402
 from saya.core.persona import DEFAULT_PERSONA  # noqa: E402
-from saya.core.pipeline import Pipeline  # noqa: E402
+from saya.core.pipeline import Pipeline, _probably_about_the_image  # noqa: E402
 from saya.core.roles import AUDIENCE_CLOSE, AUDIENCE_OPEN  # noqa: E402
 from saya.core.tools import Tool, ToolBox, object_schema  # noqa: E402
 from saya.core.trigger import Trigger  # noqa: E402
@@ -640,6 +640,172 @@ class StoredInjectionTest(PipelineTestBase):
 
         content = self.transport.last_messages[1]["content"]
         self.assertEqual(content.count(HISTORY_CLOSE), 1, "记忆里伪造出了第二个结束标记")
+
+
+class RecentImageTest(PipelineTestBase):
+    """⚠️ 群里发的图**先存一份**，哪怕这一轮不喂给模型。
+
+    真实场景（所有者 2026-10-16 报的）：有人先发了张图，**机器人没被 @ 所以没看**；
+    过一会儿才 @ 它问「我那张图在说什么」——它只能答"图没到我这儿，只看到空壳"。
+
+    做法：**只存不喂**。观察到就下载并建索引（每会话留 15 张），
+    图本身不进提示词；等有人明确在问某张图时才捞出来。
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.memory = Memory(self.dir / "memory.db")
+        self.addCleanup(self.memory.close)
+
+    def image(self) -> tuple[ImageRef, ...]:
+        return (ImageRef(url="https://example.com/a.jpg"),)
+
+    def stored(self) -> list:
+        return self.memory.recent_images("g:123456789")
+
+    def test_an_unmentioned_image_is_still_stored(self):
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+
+        self.assertEqual(len(self.stored()), 1, "没被 @ 的图也该存下来")
+
+    def test_storing_it_costs_no_model_call(self):
+        """**只存不喂** —— 没被 @ 的那条根本不该产生任何模型调用。"""
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+
+        self.assertEqual(self.transport.calls, [], "存图不该花钱")
+
+    def test_a_later_question_pulls_the_image_back(self):
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+        pipeline.handle(group_message("我那张图在说什么", message_id="q"))
+
+        content = self.transport.last_messages[-1]["content"]
+        self.assertEqual(
+            [block["type"] for block in content],
+            ["text", "image_url"],
+            "该把之前那张图带上",
+        )
+
+    def test_it_tells_the_model_the_image_is_not_from_this_message(self):
+        """不然模型会以为图是**本条消息**带的，答非所问。"""
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+        pipeline.handle(group_message("那张图说了什么", message_id="q"))
+
+        text = self.transport.last_messages[-1]["content"][0]["text"]
+        self.assertIn("不是本条消息带的", text)
+
+    def test_ordinary_talk_does_not_pull_an_image_back(self):
+        """⚠️ 光有"图"字不够 —— 图书馆、地图、意图都不该触发。"""
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+
+        for text in ("图书馆在哪", "这地图真大", "我没这个意图"):
+            with self.subTest(text=text):
+                self.transport.calls.clear()
+                pipeline.handle(group_message(text, message_id=f"q-{text}"))
+                content = self.transport.last_messages[-1]["content"]
+                self.assertIsInstance(content, str, f"不该带图：{text}")
+
+    def test_the_speakers_own_image_wins(self):
+        """「**我**那张图」是最常见说法 —— 优先挑说话人自己发的那张。"""
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, user_id=999,
+                          message_id="other")
+        )
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, user_id=111,
+                          message_id="mine")
+        )
+        self.assertEqual(len(self.stored()), 2, "两张图都该存着")
+
+        recalled = pipeline._recalled_image(group_message("我那张图呢", user_id=111))
+        self.assertIsNotNone(recalled)
+        self.assertEqual(self.stored()[0].qq, 111, "最近一张是 111 发的")
+
+    def test_missing_files_are_skipped(self):
+        """缓存被清了就从索引里跳过，**别给它一个坏路径**。"""
+        pipeline, _ = self.build(memory=self.memory)
+        pipeline.handle(
+            group_message("", images=self.image(), mentioned=False, message_id="img")
+        )
+        for item in self.stored():
+            Path(item.path).unlink()
+
+        recalled = pipeline._recalled_image(group_message("那张图呢"))
+        self.assertIsNone(recalled)
+
+    def test_no_memory_means_no_crash(self):
+        pipeline, _ = self.build()
+        pipeline.handle(group_message("", images=self.image(), mentioned=False))
+        self.assertIsNone(pipeline._recalled_image(group_message("那张图呢")))
+
+
+class ImageTriggerTest(unittest.TestCase):
+    """什么时候该去翻群里最近那张图。
+
+    ⚠️ 所有者点出过：**光靠"图"字触发太窄了** —— 那等于要求人把话说全，
+    而人偏偏不会。真正该判断的是"这句话我读不懂，是不是因为没看图"。
+    所以又加了一条：**短句 + 没有先行词的指代**（「这个怎么样」「刚才那个呢」）。
+    """
+
+    def triggers(self, text: str) -> bool:
+        return _probably_about_the_image(text)
+
+    def test_explicit_questions_about_an_image(self):
+        for text in (
+            "我那张图在说什么",
+            "这张图是什么",
+            "刚才发的图看看",
+            "看图",
+            "图里写了啥",
+        ):
+            with self.subTest(text=text):
+                self.assertTrue(self.triggers(text))
+
+    def test_unanchored_short_messages_also_trigger(self):
+        """这些句子缺的就是上下文 —— 而最近那张图常常正是它。"""
+        for text in (
+            "这个怎么样",
+            "刚才那个呢",
+            "它是什么",
+            "啥意思",
+            "怎么回事",
+        ):
+            with self.subTest(text=text):
+                self.assertTrue(self.triggers(text))
+
+    def test_ordinary_talk_does_not_trigger(self):
+        """⚠️ 别乱开：这些句子有自己的意思，不需要图。"""
+        for text in (
+            "图书馆在哪",
+            "这地图真大",
+            "我没这个意图",
+            "他说要来的",
+            "今天天气不错",
+            "在吗",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(self.triggers(text))
+
+    def test_a_long_message_carries_its_own_context(self):
+        self.assertFalse(self.triggers("这个游戏昨天我打通关了，结局挺一般的，你觉得呢？"))
+
+    def test_empty_text_does_not_trigger(self):
+        self.assertFalse(self.triggers("   "))
 
 
 if __name__ == "__main__":

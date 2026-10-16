@@ -286,5 +286,64 @@ class LegacyMigrationTest(unittest.TestCase):
         self.assertIn("session", columns)
 
 
+class ImageMemoryTest(unittest.TestCase):
+    """群里最近发过的图。**只建索引，图本身不进提示词。**"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.memory = Memory(
+            Path(self._tmp.name) / "memory.db",
+            images_per_session=3,
+        )
+        self.addCleanup(self.memory.close)
+
+    def put(self, name: str, *, qq: int = 111, session: str = "g:1", offset: int = 0) -> None:
+        self.memory.remember_image(
+            session=session,
+            qq=qq,
+            name=name,
+            path=Path(self._tmp.name) / f"{name}.jpg",
+            at=T0 + timedelta(seconds=offset),
+        )
+
+    def test_records_and_reads_back(self):
+        self.put("a", qq=222)
+        images = self.memory.recent_images("g:1")
+
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0].qq, 222)
+        self.assertEqual(images[0].name, "a")
+        self.assertTrue(images[0].path.endswith("a.jpg"))
+
+    def test_newest_first(self):
+        self.put("第一张", offset=0)
+        self.put("第二张", offset=10)
+
+        self.assertEqual(
+            [i.name for i in self.memory.recent_images("g:1")], ["第二张", "第一张"]
+        )
+
+    def test_capped_per_session(self):
+        """每个会话只留最近几张 —— 不然一个热闹的群能把磁盘吃满。"""
+        for index in range(10):
+            self.put(f"第{index}张", offset=index)
+
+        images = self.memory.recent_images("g:1", limit=99)
+        self.assertEqual(len(images), 3)
+        self.assertEqual([i.name for i in images], ["第9张", "第8张", "第7张"])
+
+    def test_scoped_to_its_own_session(self):
+        self.put("一群的图", session="g:1")
+        self.put("二群的图", session="g:2")
+
+        self.assertEqual([i.name for i in self.memory.recent_images("g:1")], ["一群的图"])
+        self.assertEqual([i.name for i in self.memory.recent_images("g:2")], ["二群的图"])
+
+    def test_shows_up_in_stats(self):
+        self.put("a")
+        self.assertEqual(self.memory.stats()["images"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

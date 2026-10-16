@@ -305,6 +305,18 @@ class Vision:
         result = self._client.chat(messages, temperature=self._temperature)
         return VisionResult.from_chat(result, route=ROUTE_DIRECT)
 
+    def cache_image(self, image: ImageRef) -> Path | None:
+        """只把图**下载到本地**，不做任何模型调用；下不下来就返回 None。
+
+        用途：群里发的图即使这一轮不喂给模型，也先存一份 ——
+        见 `core/memory.remember_image`。文件按内容哈希缓存在 `data/images/` 下，
+        所以同一张图反复出现不会重复下载。
+        """
+        try:
+            return self._ensure_local(image)
+        except (VisionError, OSError):
+            return None
+
     def _ensure_local(self, image: ImageRef) -> Path:
         if image.local_path:
             path = Path(image.local_path)
