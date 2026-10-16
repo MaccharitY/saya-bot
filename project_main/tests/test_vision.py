@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.domain import ImageRef  # noqa: E402
-from saya.services.cv_tools import CvToolsError  # noqa: E402
+from saya.services.cv_tools import CvToolsError, split_command  # noqa: E402
 from saya.services.llm import LLMClient  # noqa: E402
 from saya.services.vision import (  # noqa: E402
     NEEDS_TOOLS,
@@ -387,6 +387,49 @@ class HybridRouteTest(unittest.TestCase):
 
         url = transport.calls[0]["messages"][-1]["content"][1]["image_url"]["url"]
         self.assertTrue(url.startswith("data:image/"), "退回应是原图的 data URL")
+
+
+class SplitCommandTest(unittest.TestCase):
+    """⚠️ `.env` 里的命令行要能在 Windows 与 POSIX 两边都拆对。
+
+    实测两种模式各有各的坑：
+
+        posix=True   `C:\\Users\\me\\...`  →  `C:Usersme...`        反斜杠被当转义符吃掉
+        posix=False  `"C:\\Program Files"` →  `'"C:\\Program Files"'`  引号被原样保留
+
+    而**这两边都会遇到** —— `.env` 是人在 Windows 上编辑的，机器人跑在 WSL。
+    """
+
+    def test_posix_paths(self):
+        argv = split_command("/home/me/venv/bin/python /mnt/d/bot/cv_mcp/server.py", posix=True)
+        self.assertEqual(
+            argv, ["/home/me/venv/bin/python", "/mnt/d/bot/cv_mcp/server.py"]
+        )
+
+    def test_posix_paths_with_spaces_keep_quotes_stripped(self):
+        argv = split_command('"/home/me/my venv/bin/python" "/mnt/d/a b/server.py"', posix=True)
+        self.assertEqual(argv, ["/home/me/my venv/bin/python", "/mnt/d/a b/server.py"])
+
+    def test_windows_backslashes_are_not_eaten(self):
+        argv = split_command(
+            r"C:\Users\me\venv\Scripts\python.exe C:\bot\cv_mcp\server.py", posix=False
+        )
+        self.assertEqual(
+            argv,
+            [r"C:\Users\me\venv\Scripts\python.exe", r"C:\bot\cv_mcp\server.py"],
+        )
+
+    def test_windows_quoted_path_loses_its_quotes(self):
+        """非 posix 模式下 shlex 会把引号留在 token 里 —— 必须剥掉，否则系统认不出这个路径。"""
+        argv = split_command(
+            r'"C:\Program Files\py\python.exe" C:\bot\cv_mcp\server.py', posix=False
+        )
+        self.assertEqual(argv[0], r"C:\Program Files\py\python.exe")
+        self.assertNotIn('"', argv[0])
+
+    def test_unbalanced_quotes_give_a_readable_error(self):
+        with self.assertRaises(CvToolsError):
+            split_command('"/home/me/venv/bin/python /tmp/x.py', posix=True)
 
 
 if __name__ == "__main__":

@@ -316,11 +316,6 @@ class Vision:
         )
 
 
-def build_tool_result_content(parts: Sequence[str]) -> str:
-    """把附属（CV 工具）的输出拼成回灌给模型的文本。路线 B/C 会用到，先放着。"""
-    return "\n".join(part for part in parts if part)
-
-
 __all__ = [
     "IMPLEMENTED_ROUTES",
     "ROUTE_DELEGATED",
@@ -329,7 +324,6 @@ __all__ = [
     "Vision",
     "VisionError",
     "VisionResult",
-    "build_tool_result_content",
     "download_image",
     "sniff_mime",
     "to_data_url",

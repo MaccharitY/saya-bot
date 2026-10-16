@@ -1,0 +1,23 @@
+# 附属进程（专用 CV 模型）的依赖。
+#
+# ⚠️ **机器人本体不需要这些** —— 本体的运行时依赖是空的（只用 Python 标准库）。
+#    这些依赖被刻意隔离在这个独立进程里，把它们的体量和风险挡在内核之外。
+#
+# ⚠️ 与 `pyproject.toml` 的 `[cv]` extra **必须保持一致**，改一处要改两处。
+#    （曾经这里写的是 paddleocr 而代码 import 的是 rapidocr —— 照错的那份建环境，
+#     会白装几百 MB，且 OCR 永远 ModuleNotFoundError。）
+#
+# 安装（**建议单独的 venv**，别污染机器人本体用的解释器）：
+#
+#   python -m venv ~/saya-venv
+#   ~/saya-venv/bin/pip install -r project_main/cv_mcp/requirements.txt
+#
+# 然后把那个解释器的路径填进 `.env`：
+#   SAYA_CV_MCP_COMMAND=/home/<你>/saya-venv/bin/python /绝对路径/project_main/cv_mcp/server.py
+#
+# 模型权重不在这里 —— 首次运行会自动下载到 `~/.cache/saya-cv/`（见 server.py）。
+
+mcp>=1.0
+ultralytics>=8.3
+rapidocr_onnxruntime>=1.3
+pillow>=10

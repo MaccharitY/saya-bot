@@ -77,4 +77,3 @@ class OutgoingMessage:
     source: MessageSource
     target_id: int
     text: str
-    reply_to: str | None = None

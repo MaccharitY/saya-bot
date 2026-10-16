@@ -25,14 +25,17 @@ ROTATED_SUFFIX = ".1"
 
 @dataclass(frozen=True, slots=True)
 class TraceEvent:
-    kind: str  # trigger | llm_call | vision_call | reply | error | note
+    """一次调用的记录。
+
+    ⚠️ **指标全在 `detail` 里**，不要在这里加平铺字段。
+    这个类曾经有 `route` / `model` / `tokens_in` / `tokens_out` / `latency_ms` / `cost`
+    六个平铺字段，但**从没有任何地方写过它们** —— 所有指标都塞进了 `detail`。
+    留着只会让读代码的人以为事件上带着这些值（还会去 `event["tokens_in"]` 取到 0）。
+    2026-10-16 删。
+    """
+
+    kind: str  # trigger | note | reply | error
     experiment_tag: str
-    route: str = ""
-    model: str = ""
-    tokens_in: int = 0
-    tokens_out: int = 0
-    latency_ms: int = 0
-    cost: float = 0.0
     at: str = ""
     detail: dict[str, Any] = field(default_factory=dict)
 

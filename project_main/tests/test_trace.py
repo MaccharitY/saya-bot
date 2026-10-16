@@ -24,24 +24,28 @@ class TraceWriterTest(unittest.TestCase):
         self.assertTrue(self.path.parent.is_dir())
 
     def test_write_then_read_round_trip(self):
+        """指标都走 `detail` —— 这就是流水线真实的写法。"""
         writer = TraceWriter(self.path)
-        event = TraceEvent(
-            kind="vision_call",
-            experiment_tag="baseline",
-            route="direct_mllm",
-            model="deepseek-vl",
-            tokens_in=1234,
-            tokens_out=56,
-            latency_ms=890,
-            cost=0.0012,
-            detail={"分类": "猫", "备注": "中文要能原样往返"},
+        writer.write(
+            TraceEvent(
+                kind="reply",
+                experiment_tag="baseline",
+                detail={
+                    "route": "direct",
+                    "model": "deepseek-flash",
+                    "tokens_in": 1234,
+                    "tokens_out": 56,
+                    "cost": 0.0012,
+                    "备注": "中文要能原样往返",
+                },
+            )
         )
-        writer.write(event)
 
         records = writer.read_all()
         self.assertEqual(len(records), 1)
-        self.assertEqual(records[0]["route"], "direct_mllm")
-        self.assertEqual(records[0]["tokens_in"], 1234)
+        self.assertEqual(records[0]["kind"], "reply")
+        self.assertEqual(records[0]["experiment_tag"], "baseline")
+        self.assertEqual(records[0]["detail"]["tokens_in"], 1234)
         self.assertEqual(records[0]["detail"]["备注"], "中文要能原样往返")
 
     def test_at_is_filled_automatically(self):
@@ -50,11 +54,13 @@ class TraceWriterTest(unittest.TestCase):
     def test_records_append_one_line_each(self):
         writer = TraceWriter(self.path)
         for index in range(3):
-            writer.write(TraceEvent(kind="trigger", experiment_tag="t", latency_ms=index))
+            writer.write(
+                TraceEvent(kind="trigger", experiment_tag="t", detail={"序号": index})
+            )
 
         lines = self.path.read_text(encoding="utf-8").strip().splitlines()
         self.assertEqual(len(lines), 3)
-        self.assertEqual(json.loads(lines[2])["latency_ms"], 2)
+        self.assertEqual(json.loads(lines[2])["detail"]["序号"], 2)
 
     def test_disabled_writer_writes_nothing(self):
         writer = TraceWriter(self.path, enabled=False)

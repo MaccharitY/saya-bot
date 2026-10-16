@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 from pathlib import Path
 
@@ -57,6 +58,29 @@ class CvTools:
         self._client.close()
 
 
+def split_command(command: str, *, posix: bool | None = None) -> list[str]:
+    """把 `.env` 里的一行命令拆成 argv。
+
+    ⚠️ **两种模式各有各的坑，所以两个都得处理**（实测见下）：
+
+        posix=True   C:\\Users\\me\\...  →  C:Usersme...       反斜杠被当转义符吃掉
+        posix=False  "C:\\Program Files"  →  '"C:\\Program Files"'  引号被原样保留
+
+    `.env` 是人在 Windows 侧编辑的，而机器人跑在 WSL —— **两边都会遇到**。
+    所以：按平台选模式，再把 token 两头的引号剥掉。
+    """
+    if posix is None:
+        posix = os.name != "nt"
+    try:
+        argv = shlex.split(command, posix=posix)
+    except ValueError as exc:
+        raise CvToolsError(
+            f"附属的命令行拆不开（多半是引号没配对）：{exc}。现在的值是：{command!r}"
+        ) from exc
+    # posix 模式已经自己处理过引号了；非 posix 模式留下的引号要剥掉
+    return argv if posix else [token.strip('"').strip("'") for token in argv]
+
+
 def start_cv_tools(command: str, *, timeout: float = 180.0) -> CvTools:
     """按配置里的命令行启动附属并握手。
 
@@ -66,6 +90,6 @@ def start_cv_tools(command: str, *, timeout: float = 180.0) -> CvTools:
     if not command.strip():
         raise CvToolsError("没有配置附属的命令（SAYA_CV_MCP_COMMAND），无法使用路线 delegated / hybrid")
 
-    client = McpStdioClient(shlex.split(command), timeout=timeout)
+    client = McpStdioClient(split_command(command), timeout=timeout)
     client.start()
     return CvTools(client)

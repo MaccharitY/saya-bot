@@ -87,8 +87,8 @@ def parse_labels(path: Path) -> list[tuple[int, float]]:
     return boxes
 
 
-def load_names(coco_dir: Path) -> dict[int, str]:
-    """id → 类名。"""
+def load_names() -> dict[int, str]:
+    """id → 类名。直接用内置的 COCO 类名表，不去读数据集里的 yaml。"""
     return {index: name for index, name in enumerate(COCO_CLASSES)}
 
 
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     images_dir = out / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    names = load_names(coco)
+    names = load_names()
     image_files = sorted((coco / "images" / "train2017").glob("*.jpg"))
 
     # 先统计每个类在整个子集里的出现次数 —— 用来分"常见/稀有"
