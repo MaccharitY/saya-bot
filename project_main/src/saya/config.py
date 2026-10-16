@@ -117,7 +117,6 @@ class Config:
     llm_base_url: str
     llm_model: str
     llm_api_key: str
-    vision_model: str
     vision_route: str
     vision_enable: bool
     temperature: float
@@ -172,7 +171,6 @@ class Config:
             llm_base_url=get("LLM_BASE_URL", "https://api.deepseek.com"),
             llm_model=get("LLM_MODEL", "deepseek-flash"),
             llm_api_key=get("LLM_API_KEY"),
-            vision_model=get("VISION_MODEL", "deepseek-flash"),
             vision_route=get("VISION_ROUTE", "direct"),
             vision_enable=get("VISION_ENABLE", "true").lower() in _TRUE,
             temperature=float(get("TEMPERATURE", "0.8")),

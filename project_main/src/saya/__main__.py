@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import logging
 import socket
-import sys
 import threading
 import urllib.parse
 from pathlib import Path

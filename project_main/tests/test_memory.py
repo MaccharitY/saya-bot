@@ -27,7 +27,6 @@ class MemoryTestCase(unittest.TestCase):
             topics_per_session=2,
             members_kept=3,
             members_with_note=2,
-            recent_inject=5,
             topic_gap_minutes=30,
         )
         self.addCleanup(self.memory.close)

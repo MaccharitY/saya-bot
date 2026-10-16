@@ -1,11 +1,15 @@
 """看图（FR-5）。
 
-**接口是稳定的**：`Vision.describe(image, question, route=...)` 返回统一的 `VisionResult`。
-现在只实现路线 A（主模型多模态直接看图）；
-`delegated`（路线 B）与 `hybrid`（路线 C）会**明确报"未实现"**，但接口与 meta 字段已经留好 ——
-将来补上时，pipeline 与埋点一行都不用改。
+**接口是稳定的**：`Vision.describe_many(images, question)` 返回统一的 `VisionResult`，
+三条路线共用同一组 `meta` 字段，所以埋点与实验聚合不必区分路线。
 
-路线定义见 `pre/12-experiment-design.md`（pre 已暂停，定义仍然有效）。
+三条路线都已实现：
+
+    direct     主模型多模态直接看图
+    delegated  图片完全不进主模型，专用 CV 模型出文字
+    hybrid     专用 CV 模型画编号框（Set-of-Mark）+ 主模型推理
+
+路线定义见 `pre/12-experiment-design.md`。
 """
 
 from __future__ import annotations
@@ -17,7 +21,6 @@ import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from saya.domain import ImageRef
 from saya.services.cv_tools import CvTools, CvToolsError

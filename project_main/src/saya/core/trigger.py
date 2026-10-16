@@ -29,7 +29,7 @@ from dataclasses import dataclass
 
 from saya.config import Config
 from saya.core.roles import Roles
-from saya.domain import DEFAULT_GROUP_POLICY, IncomingMessage
+from saya.domain import IncomingMessage
 
 WINDOW_SECONDS = 60.0
 DEDUP_MEMORY = 256
@@ -146,6 +146,3 @@ class Trigger:
         while history and now - history[0] > WINDOW_SECONDS:
             history.popleft()
         return len(history) >= limit
-
-
-DEFAULT_POLICY_FALLBACK = DEFAULT_GROUP_POLICY  # 便于测试与文档引用

@@ -42,8 +42,12 @@ DEFAULT_MESSAGES_PER_SESSION = 50  # 每个会话精确保留多少条
 DEFAULT_TOPICS_PER_SESSION = 20  # 每个会话保留多少个话题概述
 DEFAULT_MEMBERS_KEPT = 300  # 成员榜保留多少个
 DEFAULT_MEMBERS_WITH_NOTE = 100  # 前多少名保留摘要
-DEFAULT_RECENT_INJECT = 10  # 注入提示词时带最近几条
 DEFAULT_TOPIC_GAP_MINUTES = 30  # 隔多久算新话题
+DEFAULT_RECENT = 20  # `recent()` 不给 limit 时的条数
+
+# ⚠️ **"注入时带几条"不归这里管** —— 那是 `core/context.py` 按字数预算定的
+# （`RECENT_FETCH` 取候选，再按预算裁）。这里只管**存储**侧的裁剪。
+# 以前这里有个 `recent_inject` 参数，现在注入早就不看它了，名字骗人，已删。
 
 
 def session_key(message: IncomingMessage) -> str | None:
@@ -137,7 +141,6 @@ class Memory:
         topics_per_session: int = DEFAULT_TOPICS_PER_SESSION,
         members_kept: int = DEFAULT_MEMBERS_KEPT,
         members_with_note: int = DEFAULT_MEMBERS_WITH_NOTE,
-        recent_inject: int = DEFAULT_RECENT_INJECT,
         topic_gap_minutes: int = DEFAULT_TOPIC_GAP_MINUTES,
     ) -> None:
         self._path = Path(path)
@@ -145,7 +148,6 @@ class Memory:
         self._topics_per_session = topics_per_session
         self._members_kept = members_kept
         self._members_with_note = members_with_note
-        self._recent_inject = recent_inject
         self._topic_gap = timedelta(minutes=topic_gap_minutes)
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -348,8 +350,7 @@ class Memory:
 
     # ---- 读取（注入用）----
 
-    def recent(self, session: str, limit: int | None = None) -> list[RecentMessage]:
-        limit = limit or self._recent_inject
+    def recent(self, session: str, limit: int = DEFAULT_RECENT) -> list[RecentMessage]:
         rows = self._db.execute(
             "SELECT qq, name, text, at, from_bot FROM messages"
             " WHERE session = ? ORDER BY id DESC LIMIT ?",
