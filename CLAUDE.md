@@ -76,6 +76,8 @@ saya_bot/
 
 ## 怎么继续
 
+0. **要发版/验收** → 直接看根目录的 [`ACCEPTANCE-v0.1.0.md`](ACCEPTANCE-v0.1.0.md)，
+   里面有能照着跑的命令和逐条打勾的清单。
 1. 读 `docs/00-requirements-baseline.md` 搞清楚要交付什么、以及**明确不做什么**。
 2. 读 `docs/01-architecture.md`，注意标着 **【待确认】** 的条目——那些是**没拍板的**，别当既成事实。
 3. 读 `docs/02-roadmap.md` 找到当前里程碑和下一个任务。
