@@ -11,15 +11,41 @@
 
 ## 清单
 
-### `start_saya.bat` —— 一键启动 / **重启**（Windows 双击）
+### `start_saya.bat` —— 一键启动 / **重启**（Windows 双击，在 `tools/` 里）
 
-你平时就用这个。它会转去调 WSL 里的 `start_saya.sh`，并传 `--restart`。
+它转去调 WSL 里的 `start_saya.sh`，并传 `--restart`（双击这个按钮的意思就是
+"给我一个跑着的机器人"）。
 
-⚠️ **这个文件里一个非 ASCII 字符都不能有。** cmd.exe 解析含中文的 UTF-8 `.bat` 时
-会**从行中间断开**，把后半句当命令去执行（实测报过
-`'…双击就没用了。）' is not recognized as an internal or external command`）。
-中文提示一律由 WSL 那边的脚本输出 —— 那里是 UTF-8 的正常环境。
-行尾也必须是 CRLF。
+> 👉 **要启停 + 改设置，用仓库根目录的 `saya_bot_controller.bat`**（见下面那条）。
+> 这个是"只管把它拉起来"的。
+
+⚠️ **两个 `.bat` 通用的硬约束**（`project_main/tests/test_launchers.py` 钉着）：
+
+1. **一个非 ASCII 字符都不能有。** cmd.exe 解析含中文的 UTF-8 `.bat` 时会
+   **从行中间断开**，把后半句当命令去执行（实测报过
+   `'…双击就没用了。）' is not recognized as an internal or external command`）。
+   中文提示一律由 WSL 那边输出。行尾必须是 **CRLF**。
+2. **不许有 `for /f`。** ⚠️ 这条是 2026-10-16 实测撞出来的：反引号形式的
+   `for /f ... in (\`wsl ...\`)` **会吞掉控制台的 stdin** ——
+   机器人和命令台都起来了、横幅也打了，**但敲进去的命令一条都没反应**。
+   原来这里是拿 `for /f` 调 `wslpath` 转路径的，现在不用了：
+   **WSL 会继承 cmd 的当前目录**，一句 `cd /d "%~dp0.."` 就够了。
+
+### `saya_bot_controller.bat` —— **常驻控制台**（仓库根目录，Windows 双击）
+
+**为什么放在根目录**：它是**双击就用**的入口，不该让人先 `cd`
+再想起命令叫什么。放在根目录一眼就能看见。
+
+双击它 = 在 WSL 里打开 `tools/panel.py`，**就在这个窗口里**启停机器人、改设置：
+
+```
+start / end / restart / status / quit   +   全部设置命令
+```
+
+`end` 和 `restart` 要打 `y` 确认。机器人**在跑**时设置命令直接送进它的 stdin
+（当场生效）；**没在跑**就写 `.env`。
+
+细节见下面 `panel.py` 那条。`.bat` 本身的写法约束见上面。
 
 ### `start_saya.sh` —— 启动 / 重启（WSL 侧）
 

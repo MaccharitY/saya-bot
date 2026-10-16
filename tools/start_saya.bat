@@ -14,15 +14,23 @@ rem !! ASCII ONLY IN THIS FILE. Do not add non-ASCII characters -- cmd.exe
 rem    misparses UTF-8 .bat files that contain them, splitting lines in the
 rem    middle and trying to run the tail as a command. All Chinese messages
 rem    come from the shell script on the WSL side.
+rem
+rem !! NO "for /f" IN THIS FILE. A backquoted `for /f` command SWALLOWS THE
+rem    CONSOLE'S STDIN -- measured 2026-10-16: the bot started and printed its
+rem    banner, but every command typed into it was ignored. We do not need it:
+rem    WSL inherits cmd's working directory, so "cd /d %~dp0.." is enough.
+rem    (This used to convert the path with wslpath in a `for /f`.)
+rem ============================================================
 setlocal
 
-set "LOCALDIR=%~dp0.."
-set "WSLDIR="
-for /f "usebackq delims=" %%i in (`wsl -d Ubuntu wslpath -a "%LOCALDIR%" 2^>nul`) do set "WSLDIR=%%i"
+rem %~dp0 is tools\ ; the repo root is its parent.
+rem WSL inherits this as its starting directory.
+cd /d "%~dp0.."
 
-if "%WSLDIR%"=="" (
+where wsl >nul 2>nul
+if errorlevel 1 (
     echo.
-    echo Cannot resolve the path inside WSL. Please check:
+    echo WSL is not installed or not on PATH. Please check:
     echo   1. WSL and an Ubuntu distro are installed
     echo   2. "wsl -d Ubuntu" works in a Windows terminal
     echo.
@@ -31,7 +39,7 @@ if "%WSLDIR%"=="" (
 )
 
 title saya_bot
-wsl -d Ubuntu -e bash -lc "bash '%WSLDIR%/tools/start_saya.sh' --restart"
+wsl -d Ubuntu -e bash -lc "exec bash tools/start_saya.sh --restart"
 
 echo.
 echo saya_bot exited.

@@ -35,6 +35,7 @@ QQ 群聊里以**个人账号**身份运行的对话机器人，核心模型 Dee
 saya_bot/
 ├─ CLAUDE.md               ← 本文件
 ├─ README.md               ← 人看的概览
+├─ saya_bot_controller.bat ← **双击就用**：启停机器人 + 改设置（常驻控制台）
 ├─ .gitignore / .env.example
 ├─ docs/                   ← 工程文档（都在这）
 │  ├─ 00-requirements-baseline.md   需求基线：做什么/不做什么/验收标准
@@ -81,12 +82,17 @@ saya_bot/
 
 ## 怎么继续
 
-0. **要发版/验收** → 直接看根目录的 [`ACCEPTANCE.md`](ACCEPTANCE.md)，
+0. **要启停机器人 / 改设置** → 双击仓库根目录的 `saya_bot_controller.bat`（Windows），
+   或在 WSL 里 `python3 tools/panel.py`：`start` / `end` / `restart` / `status`
+   ＋ 全部设置命令，一个窗口搞定。架构见 `docs/01-architecture.md` **ADR-022**。
+   ⚠️ 命令分散在几个前端里，**用户不会记得哪个住在哪儿** ——
+   不认识时要**指路**，不能只说"没这个命令"。
+1. **要发版/验收** → 直接看根目录的 [`ACCEPTANCE.md`](ACCEPTANCE.md)，
    里面有能照着跑的命令和逐条打勾的清单。
-1. 读 `docs/00-requirements-baseline.md` 搞清楚要交付什么、以及**明确不做什么**。
-2. 读 `docs/01-architecture.md`，注意标着 **【待确认】** 的条目——那些是**没拍板的**，别当既成事实。
-3. 读 `docs/02-roadmap.md` 找到当前里程碑和下一个任务。
-4. 需求侧有任何含糊，**问项目所有者**（他不是专业开发者，宁可问也别猜）。
+2. 读 `docs/00-requirements-baseline.md` 搞清楚要交付什么、以及**明确不做什么**。
+3. 读 `docs/01-architecture.md`，注意标着 **【待确认】** 的条目——那些是**没拍板的**，别当既成事实。
+4. 读 `docs/02-roadmap.md` 找到当前里程碑和下一个任务。
+5. 需求侧有任何含糊，**问项目所有者**（他不是专业开发者，宁可问也别猜）。
 
 ## 本区身份提醒
 
