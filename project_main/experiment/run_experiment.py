@@ -88,6 +88,25 @@ def grade(answer: str, keywords: list[str]) -> bool | None:
     return all(keyword.lower() in lowered for keyword in keywords)
 
 
+def thinking_banner(config: Config) -> str:
+    """把思考模式明明白白打在启动横幅上。
+
+    ⚠️ **思考模式下 temperature 不生效**（DeepSeek 官方 API 行为）。而这个实验的
+    全部对照都建立在"固定温度"上 —— 开着思考模式还宣称控制了温度，等于骗自己。
+    所以这里不能只在日志里提一句，得摆在最显眼的地方。
+    """
+    effort = (config.reasoning_effort or "").strip().lower()
+    if effort in ("", "none", "off", "disabled"):
+        return f"思考模式：关（reasoning_effort={effort or '未设'}）—— temperature 生效"
+    return (
+        f"思考模式：开（reasoning_effort={effort}）\n"
+        f"  ⚠️ 此时 **temperature 被服务端无视**，配置里的 "
+        f"{config.vision_temperature} 不起作用。\n"
+        f"  ⚠️ 思考 token 按**输出**计价，延迟也会明显变长。\n"
+        f"  → 要做温度对照，请把 SAYA_REASONING_EFFORT 设成 none。"
+    )
+
+
 def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
     image_path = (images_dir / item["file"]).resolve()
     if not image_path.is_file():
@@ -193,6 +212,7 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
     print(f"  测试集 {len(items)} 条")
     print(f"  会跑的路线 {routes}（每条都会把所有图过一遍）")
     print(f"  模型 {config.llm_model} @ {config.llm_base_url}")
+    print("  " + thinking_banner(config).replace("\n", "\n  "))
 
     missing = [item for item in items if not (images_dir / item["file"]).is_file()]
     print(f"  图片：{len(items) - len(missing)} 张找得到，{len(missing)} 张找不到")
@@ -261,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         model=config.llm_model,
         price_in=config.price_in,
         price_out=config.price_out,
+        reasoning_effort=config.reasoning_effort,
     )
 
     tools = None
@@ -270,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
     baseline = environment_baseline(config.llm_base_url)
     print(f"环境基线：DNS 解析 {baseline['dns_ms']} ms（{baseline['host']}）")
     print(f"测试集 {len(items)} 条，路线 {args.routes}，模型 {config.llm_model}")
+    print(thinking_banner(config))
 
     records: list[dict] = []
     try:
@@ -301,8 +323,13 @@ def main(argv: list[str] | None = None) -> int:
         handle.write(json.dumps({"kind": "environment_baseline", **baseline}, ensure_ascii=False) + "\n")
         handle.write(
             json.dumps(
-                {"kind": "run_meta", "model": config.llm_model, "routes": args.routes,
-                 "temperature": config.vision_temperature},
+                {
+                    "kind": "run_meta",
+                    "model": config.llm_model,
+                    "routes": args.routes,
+                    "temperature": config.vision_temperature,
+                    "reasoning_effort": config.reasoning_effort,
+                },
                 ensure_ascii=False,
             )
             + "\n"

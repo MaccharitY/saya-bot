@@ -122,6 +122,9 @@ class Config:
     vision_enable: bool
     temperature: float
     vision_temperature: float
+    # 思考模式强度：none 关闭思考；low / high / max 开启（官方默认即 high）
+    # ⚠️ 开着思考模式时 **temperature 会被服务端无视** —— 见 llm.py 的说明
+    reasoning_effort: str
     trigger_keywords: tuple[str, ...]
     reply_probability: float
     rate_limit_per_group_per_min: int
@@ -175,6 +178,7 @@ class Config:
             temperature=float(get("TEMPERATURE", "0.8")),
             # 看图任务要的是「事实描述」，温度压低以减少编造
             vision_temperature=float(get("VISION_TEMPERATURE", "0.2")),
+            reasoning_effort=get("REASONING_EFFORT", "high").strip().lower(),
             trigger_keywords=_split_csv(get("TRIGGER_KEYWORDS")),
             reply_probability=float(get("REPLY_PROBABILITY", "0.1")),
             rate_limit_per_group_per_min=int(get("RATE_LIMIT_PER_GROUP_PER_MIN", "5")),

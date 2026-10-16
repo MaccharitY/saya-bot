@@ -74,6 +74,7 @@ def build_llm(config: Config) -> LLMClient:
         model=config.llm_model,
         price_in=config.price_in,
         price_out=config.price_out,
+        reasoning_effort=config.reasoning_effort,
     )
 
 
@@ -204,6 +205,14 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     print(f"  模型     : {config.llm_model} @ {config.llm_base_url}")
     print(f"  看图路线 : {config.vision_route}（可选：{' / '.join(ALL_ROUTES)}）")
     print(f"  温度     : 对话 {config.temperature} / 看图 {config.vision_temperature}")
+    effort = (config.reasoning_effort or "").strip().lower()
+    if effort in ("", "none", "off", "disabled"):
+        print(f"  思考模式 : 关（reasoning_effort={effort or '未设'}）")
+    else:
+        print(
+            f"  思考模式 : 开 —— reasoning_effort={effort}"
+            f"（⚠️ 此时 temperature 不生效，延迟与输出费用都会涨）"
+        )
     print(f"  默认群策略: {config.group_default_policy}（每群可单独覆盖）")
     if config.group_policies:
         for group_id, policy in sorted(config.group_policies.items()):

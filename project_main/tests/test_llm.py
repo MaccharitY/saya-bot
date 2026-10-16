@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import unittest
 from pathlib import Path
@@ -169,6 +170,78 @@ class CostTest(unittest.TestCase):
             [text_message("user", "hi")]
         )
         self.assertEqual(result.cost, 3.0)
+
+
+class ReasoningEffortTest(unittest.TestCase):
+    """思考模式强度（2026-10-16 加的）。
+
+    ⚠️ 这里守的是一个**静默失效**：思考模式下 temperature 会被服务端无视。
+    参数照样发出去、服务端照收，但根本不看 —— 如果不喊一声，
+    "我们固定了温度"这句话就是假的，而实验数据不会自己告诉你。
+    """
+
+    def setUp(self) -> None:
+        self.transport = FakeTransport(fake_response(text="在的"))
+        self._logger = logging.getLogger("saya.llm")
+        self._records: list[logging.LogRecord] = []
+
+        class Capture(logging.Handler):
+            def emit(inner, record: logging.LogRecord) -> None:
+                self._records.append(record)
+
+        self._handler = Capture(level=logging.WARNING)
+        self._logger.addHandler(self._handler)
+        self._logger.setLevel(logging.WARNING)
+
+    def tearDown(self) -> None:
+        self._logger.removeHandler(self._handler)
+
+    def warnings(self) -> list[str]:
+        return [r.getMessage() for r in self._records if r.levelno >= logging.WARNING]
+
+    def test_effort_is_sent_when_configured(self):
+        client = make_client(self.transport, reasoning_effort="high")
+        client.chat([{"role": "user", "content": "在吗"}])
+        self.assertEqual(self.transport.calls[0]["payload"]["reasoning_effort"], "high")
+
+    def test_effort_is_omitted_when_not_configured(self):
+        """没配就**不传这个键** —— 别替服务端决定默认值。"""
+        client = make_client(self.transport)
+        client.chat([{"role": "user", "content": "在吗"}])
+        self.assertNotIn("reasoning_effort", self.transport.calls[0]["payload"])
+
+    def test_none_means_thinking_is_off(self):
+        client = make_client(self.transport, reasoning_effort="none")
+        self.assertFalse(client.thinking)
+
+    def test_high_means_thinking_is_on(self):
+        self.assertTrue(make_client(self.transport, reasoning_effort="high").thinking)
+
+    def test_unset_means_thinking_is_off(self):
+        self.assertFalse(make_client(self.transport).thinking)
+
+    def test_temperature_no_op_is_warned_about(self):
+        client = make_client(self.transport, reasoning_effort="high")
+        client.chat([{"role": "user", "content": "在吗"}], temperature=0.8)
+
+        self.assertTrue(
+            any("temperature 不生效" in text for text in self.warnings()),
+            "思考模式下温度失效这件事必须喊出来",
+        )
+
+    def test_the_warning_is_said_once_not_every_call(self):
+        """每次都喊就成噪音了，喊一次够了。"""
+        client = make_client(self.transport, reasoning_effort="high")
+        for _ in range(5):
+            client.chat([{"role": "user", "content": "在吗"}], temperature=0.8)
+
+        hits = [t for t in self.warnings() if "temperature 不生效" in t]
+        self.assertEqual(len(hits), 1)
+
+    def test_no_warning_when_thinking_is_off(self):
+        client = make_client(self.transport, reasoning_effort="none")
+        client.chat([{"role": "user", "content": "在吗"}], temperature=0.8)
+        self.assertEqual(self.warnings(), [])
 
 
 class RealRequestShapeTest(unittest.TestCase):

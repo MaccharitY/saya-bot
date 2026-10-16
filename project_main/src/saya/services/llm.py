@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
@@ -23,6 +24,8 @@ from saya.services import net
 
 JSON = dict[str, Any]
 Transport = Callable[[str, dict[str, str], JSON, float], JSON]
+
+logger = logging.getLogger("saya.llm")
 
 
 class LLMError(RuntimeError):
@@ -73,6 +76,7 @@ class LLMClient:
         timeout: float = 60.0,
         price_in: float = 0.0,
         price_out: float = 0.0,
+        reasoning_effort: str | None = None,
         transport: Transport | None = None,
     ) -> None:
         if not api_key:
@@ -83,11 +87,18 @@ class LLMClient:
         self._timeout = timeout
         self._price_in = price_in
         self._price_out = price_out
+        self._reasoning_effort = (reasoning_effort or "").strip().lower()
+        self._temperature_ignored_warned = False
         self._transport = transport or _urllib_transport
 
     @property
     def model(self) -> str:
         return self._model
+
+    @property
+    def thinking(self) -> bool:
+        """开着思考模式吗。⚠️ 开着的时候 temperature 会被服务端**无视**。"""
+        return self._reasoning_effort not in ("", "none", "off", "disabled")
 
     def chat(
         self,
@@ -106,6 +117,9 @@ class LLMClient:
             payload["tools"] = list(tools)
         if tool_choice is not None:
             payload["tool_choice"] = tool_choice
+        if self._reasoning_effort:
+            payload["reasoning_effort"] = self._reasoning_effort
+            self._warn_temperature_once(temperature)
 
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -115,6 +129,23 @@ class LLMClient:
         data = self._transport(self._endpoint, headers, payload, self._timeout)
         latency_ms = int((time.monotonic() - started) * 1000)
         return _parse_result(data, latency_ms, self._price_in, self._price_out)
+
+    def _warn_temperature_once(self, temperature: float) -> None:
+        """⚠️ **思考模式下 temperature 不生效**（见 DeepSeek 官方 API 文档）。
+
+        这是个**静默失效**：参数照样发出去，服务端照收，但根本不看。
+        所以配置里写着"固定温度 0.8"的实验，在思考模式下其实没有任何温度控制 ——
+        这种坑必须在第一次就喊出来，不能等对数据的时候才发现。
+        """
+        if self._temperature_ignored_warned or not self.thinking:
+            return
+        self._temperature_ignored_warned = True
+        logger.warning(
+            "思考模式（reasoning_effort=%s）下 temperature 不生效 —— "
+            "发出去的 %.2f 会被服务端无视。要做温度对照实验请先把它设成 none。",
+            self._reasoning_effort,
+            temperature,
+        )
 
 
 def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout: float) -> JSON:
