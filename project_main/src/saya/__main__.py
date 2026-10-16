@@ -74,6 +74,7 @@ def build_llm(config: Config) -> LLMClient:
         model=config.llm_model,
         price_in=config.price_in,
         price_out=config.price_out,
+        price_cache_hit=config.price_cache_hit,
         reasoning_effort=config.reasoning_effort,
     )
 
@@ -234,7 +235,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     else:
         print(
             f"  思考模式 : 开 —— reasoning_effort={effort}"
-            f"（⚠️ 此时 temperature 不生效，延迟与输出费用都会涨）"
+            f"（[!] 此时 temperature 不生效，延迟与输出费用都会涨）"
         )
     print(f"  默认群策略: {config.group_default_policy}（每群可单独覆盖）")
     if config.group_policies:
@@ -247,13 +248,23 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     if allowed:
         print(f"  可私聊它的人: {len(allowed)} 个（主人/管理/白名单），其余私聊一律不理")
     else:
-        print("  ⚠️ 可私聊它的人: **一个都没配** —— 现在任何人私聊它都会被忽略")
+        print("  [!] 可私聊它的人: **一个都没配** —— 现在任何人私聊它都会被忽略")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
+    # ⚠️ 价格要显出来：三档里少填一档会**静默**把成本算错（ADR-020），
+    # 而 0 在配置文件里看起来和"没填"一模一样。
+    prices = (config.price_in, config.price_cache_hit, config.price_out)
+    if any(prices):
+        print(
+            f"  计价     : 输入 {config.price_in} / 命中 {config.price_cache_hit}"
+            f" / 输出 {config.price_out} 元每百万 token"
+        )
+    else:
+        print("  计价     : [!] 三档价都是 0 —— 埋点里的成本会恒为 0")
     print(f"  数据目录 : {config.data_dir}")
 
     persona, persona_path = load_configured_persona(config)
     if persona is DEFAULT_PERSONA:
-        print(f"  人格     : ⚠️ 没读到 {persona_path} —— 现在用的是内置占位人格")
+        print(f"  人格     : [!] 没读到 {persona_path} —— 现在用的是内置占位人格")
     else:
         print(f"  人格     : {persona_path}（{len(persona.description)} 字）")
     print(f"  长期记忆 : {'开' if config.notebook_enabled else '关'}")
@@ -302,7 +313,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
             else:
                 try:
                     names = [tool.name for tool in tools.list_tools()]
-                    print(f"✓ 附属就绪：{tools.server_info.get('name', '?')}，提供工具 {names}")
+                    print(f"√ 附属就绪：{tools.server_info.get('name', '?')}，提供工具 {names}")
                 finally:
                     tools.close()
 
@@ -311,7 +322,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
         probe = build_adapter(config)
         try:
             host, port = probe.start()
-            print(f"✓ 端口可用：http://{host}:{port}{config.onebot_event_path}")
+            print(f"√ 端口可用：http://{host}:{port}{config.onebot_event_path}")
             print("  （把上面这个地址填进 NapCat 的「HTTP 上报」）")
         except AdapterError as exc:
             if is_our_own_bot(config):
@@ -320,7 +331,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
                 # 结果就是这个一键启动按钮**没法重启一个正在跑的机器人**，
                 # 还甩给用户一句"自检没过，先把它修好"。实测就是这么卡住的。
                 print(
-                    f"✓ 端口被**本项目已经在跑的那个实例**占着"
+                    f"√ 端口被**本项目已经在跑的那个实例**占着"
                     f"（http://{config.onebot_listen_host}:"
                     f"{config.onebot_listen_port}{config.onebot_event_path}）"
                 )
@@ -345,7 +356,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
             )
             result = client.chat([text_message("user", "只回复两个字：在的")])
             print(
-                f"✓ 模型回了：{result.text!r}"
+                f"√ 模型回了：{result.text!r}"
                 f"（{result.tokens_in}+{result.tokens_out} tokens，{result.latency_ms} ms）"
             )
         except LLMError as exc:

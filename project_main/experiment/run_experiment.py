@@ -36,6 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saya.config import Config  # noqa: E402
+from saya.console import keep_console_from_crashing  # noqa: E402
 from saya.domain import ImageRef  # noqa: E402
 from saya.services.cv_tools import CvToolsError, start_cv_tools  # noqa: E402
 from saya.services.llm import LLMClient, LLMError  # noqa: E402
@@ -134,6 +135,11 @@ def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
             "tokens_out": result.tokens_out,
             "latency_ms": result.latency_ms,
             "cost": result.cost,
+            # ⚠️ **必须当场记**：这几个数只在响应里有，跑完就再也买不回来了。
+            # 报告里"成本"那一栏的正确性全靠它（命中价与未命中价差一两个数量级）。
+            "cache_hit_tokens": result.cache_hit_tokens,
+            "cache_miss_tokens": result.cache_miss_tokens,
+            "reasoning_tokens": result.reasoning_tokens,
         }
     except (VisionError, LLMError, CvToolsError) as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -187,6 +193,14 @@ def summarize(records: list[dict]) -> str:
             )
         if tokens:
             lines.append(f"  token 平均 {statistics.mean(tokens):.0f}（in+out）")
+        hits = [r.get("cache_miss_tokens", 0) for r in ok if r.get("cache_miss_tokens")]
+        if hits:
+            total_hit = sum(r.get("cache_hit_tokens", 0) for r in ok)
+            total_miss = sum(hits)
+            lines.append(
+                f"  输入 cache 命中 {total_hit}/{total_hit + total_miss}"
+                f" = {total_hit / (total_hit + total_miss):.0%}（未命中按 PRICE_IN 计价）"
+            )
         if cost:
             lines.append(f"  累计成本 {cost:.4f} 元")
 
@@ -217,7 +231,7 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
     missing = [item for item in items if not (images_dir / item["file"]).is_file()]
     print(f"  图片：{len(items) - len(missing)} 张找得到，{len(missing)} 张找不到")
     for item in missing[:5]:
-        print(f"    ✗ {item['file']}")
+        print(f"    × {item['file']}")
 
     by_tier: dict[str, int] = {}
     for item in items:
@@ -227,15 +241,15 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
     if any(route in ("delegated", "hybrid") for route in routes):
         print("\n  → 试着启动附属（专用 CV 模型）…")
         if not config.cv_mcp_command.strip():
-            print("    ✗ 没配 SAYA_CV_MCP_COMMAND，delegated / hybrid 跑不了")
+            print("    × 没配 SAYA_CV_MCP_COMMAND，delegated / hybrid 跑不了")
             return 1
         try:
             tools = start_cv_tools(config.cv_mcp_command)
         except CvToolsError as exc:
-            print(f"    ✗ 附属起不来：{exc}")
+            print(f"    × 附属起不来：{exc}")
             return 1
         try:
-            print(f"    ✓ 附属就绪：{tools.server_info.get('name', '?')}")
+            print(f"    √ 附属就绪：{tools.server_info.get('name', '?')}")
             print(f"      提供工具：{[t.name for t in tools.list_tools()]}")
         finally:
             tools.close()
@@ -281,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
         model=config.llm_model,
         price_in=config.price_in,
         price_out=config.price_out,
+        price_cache_hit=config.price_cache_hit,
         reasoning_effort=config.reasoning_effort,
     )
 
@@ -339,8 +354,8 @@ def main(argv: list[str] | None = None) -> int:
                     handle.flush()
 
                     mark = (
-                        "✓" if record.get("correct")
-                        else ("✗" if record.get("correct") is False else "·")
+                        "√" if record.get("correct")
+                        else ("×" if record.get("correct") is False else "·")
                     )
                     note = record.get("error", "")[:40]
                     print(
@@ -357,4 +372,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # ⚠️ 这个必须加：跑到一半因为一个字符崩掉 = **钱白花**（调用已经发出去了）
+    keep_console_from_crashing()
     raise SystemExit(main())

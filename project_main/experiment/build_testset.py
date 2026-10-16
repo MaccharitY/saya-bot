@@ -159,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {tier:<10} {count}")
     print(f"\n清单：{manifest}")
     print(f"图片：{images_dir}（{len(list(images_dir.iterdir()))} 个文件）")
-    print("\n⚠️ 没有 OCR（文字识别）层 —— COCO 不含文字标注，这一层得另找来源。")
+    print("\n[!] 没有 OCR（文字识别）层 —— COCO 不含文字标注，这一层得另找来源。")
     return 0
 
 

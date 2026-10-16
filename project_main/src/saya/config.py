@@ -157,6 +157,8 @@ class Config:
     self_id: int | None
     price_in: float
     price_out: float
+    # 输入分两档：命中缓存比未命中便宜一两个数量级。只填 PRICE_IN 会把成本算高。
+    price_cache_hit: float
     dns_cache_ttl: float
     cv_mcp_command: str
     memory_enabled: bool
@@ -212,6 +214,7 @@ class Config:
             self_id=_optional_int(get("SELF_ID")),
             price_in=float(get("PRICE_IN", "0")),
             price_out=float(get("PRICE_OUT", "0")),
+            price_cache_hit=float(get("PRICE_CACHE_HIT", "0")),
             dns_cache_ttl=float(get("DNS_CACHE_TTL", "1800")),
             cv_mcp_command=get("CV_MCP_COMMAND"),
             memory_enabled=get("MEMORY_ENABLED", "true").lower() in _TRUE,

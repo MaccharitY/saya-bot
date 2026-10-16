@@ -16,6 +16,7 @@ from saya.services.llm import (  # noqa: E402
     LLMClient,
     LLMError,
     ToolCall,
+    _cache_split,
     _urllib_transport,
     estimate_cost,
     image_block,
@@ -30,14 +31,17 @@ def fake_response(
     tool_calls: list[dict] | None = None,
     tokens_in: int = 100,
     tokens_out: int = 20,
+    usage: dict | None = None,
 ) -> dict:
     message: dict = {"role": "assistant", "content": text}
     if tool_calls is not None:
         message["tool_calls"] = tool_calls
+    counted = {"prompt_tokens": tokens_in, "completion_tokens": tokens_out}
+    counted.update(usage or {})
     return {
         "model": "deepseek-flash",
         "choices": [{"index": 0, "message": message}],
-        "usage": {"prompt_tokens": tokens_in, "completion_tokens": tokens_out},
+        "usage": counted,
     }
 
 
@@ -173,6 +177,91 @@ class CostTest(unittest.TestCase):
             [text_message("user", "hi")]
         )
         self.assertEqual(result.cost, 3.0)
+
+
+class CacheAccountingTest(unittest.TestCase):
+    """输入缓存命中 / 未命中的记账（2026-10-16 加的）。
+
+    ⚠️ 这一组守的是**跑完就补不回来的数据**。命中价与未命中价差一两个数量级，
+    而"这一问命中了多少"只写在**响应**里 —— 落盘时漏掉，那次付费实验就白跑了。
+    所以这里同时测两件事：**记得对不对**，以及**记不到时往哪边偏**（偏保守）。
+    """
+
+    def test_reads_deepseek_native_fields(self):
+        usage = {"prompt_tokens": 1000, "prompt_cache_hit_tokens": 800, "prompt_cache_miss_tokens": 200}
+        self.assertEqual(_cache_split(usage, 1000), (800, 200))
+
+    def test_falls_back_to_openai_style_details(self):
+        usage = {"prompt_tokens": 1000, "prompt_tokens_details": {"cached_tokens": 600}}
+        self.assertEqual(_cache_split(usage, 1000), (600, 400))
+
+    def test_missing_cache_fields_means_all_miss(self):
+        """读不到就**整段按未命中算** —— 未命中更贵，宁可算高不算低。"""
+        self.assertEqual(_cache_split({"prompt_tokens": 1000}, 1000), (0, 1000))
+
+    def test_hit_never_exceeds_total_input(self):
+        """服务端数据不合常理时也别算出负数或超过总量。"""
+        usage = {"prompt_cache_hit_tokens": 9999, "prompt_cache_miss_tokens": 0}
+        self.assertEqual(_cache_split(usage, 1000), (1000, 0))
+
+    def test_hit_tokens_are_priced_separately(self):
+        # 高峰价：未命中 2 元/M、命中 0.04 元/M、输出 8 元/M
+        cost = estimate_cost(
+            1_000_000, 0, 2.0, 8.0, cache_hit_tokens=900_000, price_cache_hit=0.04
+        )
+        self.assertEqual(cost, 0.236)  # 100k×2 + 900k×0.04（不看缓存则是 2.0，差 8.5 倍）
+
+    def test_no_cache_arg_is_the_upper_bound(self):
+        """不传命中数 = 全按未命中 = 上界。这是有意的默认值。"""
+        self.assertEqual(estimate_cost(1_000_000, 0, 2.0, 8.0), 2.0)
+
+    def test_reasoning_tokens_are_inside_completion_tokens(self):
+        """⚠️ 思考 token 是 `completion_tokens` 的**子集**（2026-10-16 实测：56 里含 54）。
+
+        这里钉住**不重复计费**：56 个输出就按 56 算，不管其中多少是思考。
+        叠一遍就是双倍计 —— 而它看起来"更细致"，很容易被误当成"更准确"。
+        """
+        transport = FakeTransport(
+            fake_response(
+                tokens_in=0,
+                tokens_out=56,
+                usage={"completion_tokens_details": {"reasoning_tokens": 54}},
+            )
+        )
+        client = make_client(transport, price_in=0.0, price_cache_hit=0.0, price_out=8.0)
+        result = client.chat([text_message("user", "hi")])
+        self.assertEqual(result.reasoning_tokens, 54)
+        self.assertEqual(result.tokens_out, 56)
+        self.assertEqual(result.cost, round(56 * 8.0 / 1_000_000, 6))
+
+    def test_result_carries_the_split_and_reasoning(self):
+        transport = FakeTransport(
+            fake_response(
+                tokens_in=1000,
+                tokens_out=300,
+                usage={
+                    "prompt_cache_hit_tokens": 700,
+                    "prompt_cache_miss_tokens": 300,
+                    "completion_tokens_details": {"reasoning_tokens": 250},
+                },
+            )
+        )
+        result = make_client(transport).chat([text_message("user", "hi")])
+        self.assertEqual(result.cache_hit_tokens, 700)
+        self.assertEqual(result.cache_miss_tokens, 300)
+        self.assertEqual(result.reasoning_tokens, 250)
+
+    def test_client_prices_the_split(self):
+        transport = FakeTransport(
+            fake_response(
+                tokens_in=1_000_000,
+                tokens_out=0,
+                usage={"prompt_cache_hit_tokens": 900_000, "prompt_cache_miss_tokens": 100_000},
+            )
+        )
+        client = make_client(transport, price_in=2.0, price_cache_hit=0.04, price_out=8.0)
+        result = client.chat([text_message("user", "hi")])
+        self.assertEqual(result.cost, 0.236)
 
 
 class ReasoningEffortTest(unittest.TestCase):

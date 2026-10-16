@@ -138,6 +138,21 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(config.self_id, 99999)
         self.assertEqual(config.price_in, 1.5)
 
+    def test_cache_hit_price_parsed(self):
+        config = Config.from_env(
+            dotenv_path=write_env("SAYA_PRICE_CACHE_HIT=0.04\n", self.dir)
+        )
+        self.assertEqual(config.price_cache_hit, 0.04)
+
+    def test_missing_cache_hit_price_defaults_to_zero(self):
+        """⚠️ 默认 0 意味着**命中那部分被算成免费**，也就是成本偏低。
+
+        这个默认值是往低算的方向，所以 `--check` 把三档价显出来（ADR-020）——
+        少了那一行，少填一个键在配置文件里和"填了 0"长得一模一样。
+        """
+        config = Config.from_env(dotenv_path=write_env("SAYA_PRICE_IN=2\n", self.dir))
+        self.assertEqual(config.price_cache_hit, 0.0)
+
     def test_bad_group_policy_gives_clear_error(self):
         path = write_env("SAYA_GROUP_POLICIES=123456789:乱写的\n", self.dir)
         with self.assertRaises(ConfigError) as ctx:

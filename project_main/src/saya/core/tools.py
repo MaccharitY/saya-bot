@@ -129,6 +129,10 @@ class ToolRun:
     cost: float
     rounds: int
     calls: tuple[str, ...] = ()
+    # 同理累加：每一轮的缓存命中都是单独的事实，只留总数就对不上账了
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
+    reasoning_tokens: int = 0
 
 
 def run_with_tools(
@@ -147,16 +151,20 @@ def run_with_tools(
     specs = toolbox.specs() or None
 
     tokens_in = tokens_out = latency_ms = 0
+    cache_hit = cache_miss = reasoning = 0
     cost = 0.0
     calls: list[str] = []
     rounds = 0
 
     def account(result: ChatResult) -> None:
-        nonlocal tokens_in, tokens_out, latency_ms, cost
+        nonlocal tokens_in, tokens_out, latency_ms, cost, cache_hit, cache_miss, reasoning
         tokens_in += result.tokens_in
         tokens_out += result.tokens_out
         latency_ms += result.latency_ms
         cost += result.cost
+        cache_hit += result.cache_hit_tokens
+        cache_miss += result.cache_miss_tokens
+        reasoning += result.reasoning_tokens
 
     result = client.chat(history, tools=specs, temperature=temperature)
 
@@ -193,4 +201,7 @@ def run_with_tools(
         cost=round(cost, 6),
         rounds=rounds,
         calls=tuple(calls),
+        cache_hit_tokens=cache_hit,
+        cache_miss_tokens=cache_miss,
+        reasoning_tokens=reasoning,
     )

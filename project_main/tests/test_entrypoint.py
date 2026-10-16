@@ -91,6 +91,41 @@ class RunCheckTest(unittest.TestCase):
 
         self.assertNotIn(secret, buffer.getvalue())
 
+    def test_prices_are_shown(self):
+        """⚠️ 三档价必须显出来。
+
+        少填一档会**静默**把成本算错（ADR-020），而 `0` 在配置文件里
+        和"这个键压根没填"长得一模一样 —— 不显示就没人会发现。
+        """
+        import io
+        from contextlib import redirect_stdout
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            run_check(
+                make_config(
+                    llm_api_key="", price_in=2.0, price_cache_hit=0.04, price_out=8.0
+                )
+            )
+
+        output = buffer.getvalue()
+        for price in ("2.0", "0.04", "8.0"):
+            self.assertIn(price, output)
+
+    def test_all_zero_prices_are_flagged(self):
+        import io
+        from contextlib import redirect_stdout
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            run_check(
+                make_config(
+                    llm_api_key="", price_in=0.0, price_cache_hit=0.0, price_out=0.0
+                )
+            )
+
+        self.assertIn("三档价都是 0", buffer.getvalue())
+
     def test_onebot_port_probe_reports_address(self):
         import io
         from contextlib import redirect_stdout

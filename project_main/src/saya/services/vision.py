@@ -56,6 +56,10 @@ class VisionResult:
     tokens_out: int
     latency_ms: int
     cost: float
+    # 跟着 ChatResult 一起上来：这几个是**当次调用的事实**，报告的成本核算要用
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
+    reasoning_tokens: int = 0
 
     @classmethod
     def from_chat(cls, result: ChatResult, *, route: str) -> VisionResult:
@@ -67,6 +71,9 @@ class VisionResult:
             tokens_out=result.tokens_out,
             latency_ms=result.latency_ms,
             cost=result.cost,
+            cache_hit_tokens=result.cache_hit_tokens,
+            cache_miss_tokens=result.cache_miss_tokens,
+            reasoning_tokens=result.reasoning_tokens,
         )
 
 

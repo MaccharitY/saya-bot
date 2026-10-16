@@ -71,6 +71,16 @@ class ChatResult:
     latency_ms: int
     cost: float
     raw: JSON
+    # ⚠️ 这三个是**这次调用当时才有的事实**，事后再也拿不回来。
+    # 价格可以重抄、成本可以重算，但"这一问命中了多少缓存"只存在于**响应**里 ——
+    # 不记，跑完那次实验就永久丢了，要补只能重跑（重花钱）。
+    # 缓存命中价与未命中价差一两个数量级，报告的"成本"一栏全靠它。
+    cache_hit_tokens: int = 0
+    cache_miss_tokens: int = 0
+    # ⚠️ `reasoning_tokens` 是 `tokens_out` 的**子集**，不是额外的一笔
+    # （2026-10-16 实测：completion_tokens=56，其中 reasoning_tokens=54）。
+    # 它只用来回答"这次输出里有多少是思考"，**绝不能再加进成本** —— 加一遍就是双倍计。
+    reasoning_tokens: int = 0
 
     @property
     def wants_tools(self) -> bool:
@@ -87,6 +97,7 @@ class LLMClient:
         timeout: float = 60.0,
         price_in: float = 0.0,
         price_out: float = 0.0,
+        price_cache_hit: float = 0.0,
         reasoning_effort: str | None = None,
         retries: int = DEFAULT_RETRIES,
         retry_delay: float = RETRY_DELAY,
@@ -100,6 +111,7 @@ class LLMClient:
         self._timeout = timeout
         self._price_in = price_in
         self._price_out = price_out
+        self._price_cache_hit = price_cache_hit
         self._reasoning_effort = (reasoning_effort or "").strip().lower()
         self._retries = max(0, retries)
         self._retry_delay = max(0.0, retry_delay)
@@ -163,7 +175,9 @@ class LLMClient:
             latency_ms = int((time.monotonic() - started) * 1000)
             if attempt:
                 logger.info("重试第 %d 次成功", attempt)
-            return _parse_result(data, latency_ms, self._price_in, self._price_out)
+            return _parse_result(
+                data, latency_ms, self._price_in, self._price_out, self._price_cache_hit
+            )
 
         raise LLMError("重试完了还是失败")  # 到不了这儿，循环里要么 return 要么 raise
 
@@ -226,7 +240,13 @@ def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout:
     return result
 
 
-def _parse_result(data: JSON, latency_ms: int, price_in: float, price_out: float) -> ChatResult:
+def _parse_result(
+    data: JSON,
+    latency_ms: int,
+    price_in: float,
+    price_out: float,
+    price_cache_hit: float = 0.0,
+) -> ChatResult:
     choices = data.get("choices") or []
     if not choices:
         raise LLMError(f"响应里没有 choices：{str(data)[:300]}")
@@ -246,6 +266,8 @@ def _parse_result(data: JSON, latency_ms: int, price_in: float, price_out: float
     usage = data.get("usage") or {}
     tokens_in = int(usage.get("prompt_tokens") or 0)
     tokens_out = int(usage.get("completion_tokens") or 0)
+    cache_hit, cache_miss = _cache_split(usage, tokens_in)
+    reasoning = int((usage.get("completion_tokens_details") or {}).get("reasoning_tokens") or 0)
 
     return ChatResult(
         text=(message.get("content") or "").strip(),
@@ -254,18 +276,72 @@ def _parse_result(data: JSON, latency_ms: int, price_in: float, price_out: float
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         latency_ms=latency_ms,
-        cost=estimate_cost(tokens_in, tokens_out, price_in, price_out),
+        cost=estimate_cost(
+            tokens_in,
+            tokens_out,
+            price_in,
+            price_out,
+            cache_hit_tokens=cache_hit,
+            price_cache_hit=price_cache_hit,
+        ),
         raw=data,
+        cache_hit_tokens=cache_hit,
+        cache_miss_tokens=cache_miss,
+        reasoning_tokens=reasoning,
     )
 
 
-def estimate_cost(tokens_in: int, tokens_out: int, price_in: float, price_out: float) -> float:
+def _cache_split(usage: JSON, tokens_in: int) -> tuple[int, int]:
+    """从 `usage` 里取出「输入中命中缓存 / 未命中」的 token 数。
+
+    DeepSeek 原生字段是 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`；
+    OpenAI 兼容层走 `prompt_tokens_details.cached_tokens`。两个都读。
+
+    **读不到就返回 `(0, tokens_in)`** —— 即整段输入按未命中算。方向是保守的：
+    未命中比命中贵得多，宁可把成本算高，也不要凭空报一个低数字。
+    """
+    details = usage.get("prompt_tokens_details") or {}
+    raw_hit = usage.get("prompt_cache_hit_tokens")
+    if raw_hit is None:
+        raw_hit = details.get("cached_tokens")
+    if raw_hit is None:
+        return 0, tokens_in
+
+    hit = max(0, min(int(raw_hit), tokens_in))
+    raw_miss = usage.get("prompt_cache_miss_tokens")
+    miss = tokens_in - hit if raw_miss is None else max(0, int(raw_miss))
+    return hit, miss
+
+
+def estimate_cost(
+    tokens_in: int,
+    tokens_out: int,
+    price_in: float,
+    price_out: float,
+    *,
+    cache_hit_tokens: int = 0,
+    price_cache_hit: float = 0.0,
+) -> float:
     """费用（元）。price_* 的单位是「元 / 百万 token」。
 
     ⚠️ 价格表要你自己从官网抄进 `.env` —— 代码里**不写死任何价格数字**，
     写死了会过期，而且会让报告里的成本核算失去依据。
+
+    ⚠️ **输入是两档价**：命中缓存比未命中便宜一两个数量级（实测 0.02 vs 1 元/M）。
+    `tokens_in` 是**总输入**，`cache_hit_tokens` 是其中命中的那部分。
+    不传 `cache_hit_tokens` 就是全按未命中算 —— 那是**上界**，不会低估。
+    同理 `price_cache_hit` 不填（0）会把命中部分算成免费，也是往低算的方向，
+    所以两个都要填：**只填 `SAYA_PRICE_IN` 会高估，只填命中价会低估。**
+
+    ⚠️ `tokens_out` 要传 `completion_tokens` 的**原值**：思考 token 已经含在里面了
+    （实测 56 里含 54），**不要把 `reasoning_tokens` 再加一遍**。
     """
-    return round(tokens_in / 1_000_000 * price_in + tokens_out / 1_000_000 * price_out, 6)
+    hit = max(0, min(cache_hit_tokens, tokens_in))
+    miss = tokens_in - hit
+    return round(
+        (miss * price_in + hit * price_cache_hit + tokens_out * price_out) / 1_000_000,
+        6,
+    )
 
 
 # ---- 消息成形的工具函数（对 OpenAI 兼容格式的封装，别处不要手写这些结构）----
