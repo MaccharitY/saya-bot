@@ -261,7 +261,7 @@ class Supervisor:
         who = f"PID {stray}" if stray else "PID 拿不到"
         return Outcome(
             lines=(
-                f"端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）——",
+                f"端口 {self.listen_port()} 上有一个没人管的实例（{who}）——",
                 "多半是上次这个窗口被关掉时留下的，它占着端口会让新的起不来。",
             ),
             confirm="takeover",
@@ -303,7 +303,7 @@ class Supervisor:
             if stray is not None:
                 who = f"PID {stray}" if stray else "PID 拿不到"
                 return _say(
-                    f"没在管机器人。端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）。",
+                    f"没在管机器人。端口 {self.listen_port()} 上有一个没人管的实例（{who}）。",
                     "敲 restart（或 start）可以接管它。",
                 )
             return _say("没在跑。敲 start 起它。")
@@ -375,7 +375,7 @@ class Supervisor:
         if name == "quit":
             return Outcome(
                 confirm="quit",
-                question="退出控制台？**机器人也会一起停**（这个窗口管着它的命）。 [y/N]",
+                question="退出控制台？机器人也会一起停（这个窗口管着它的命）。 [y/N]",
             )
 
         # 其余全归管理命令
@@ -401,12 +401,11 @@ USAGE = "\n".join(
         "  end              停掉它            ← 要确认",
         "  restart          重启（用现在这份代码）← 要确认",
         "  status           在跑吗、跑了多久",
-        "  quit             退出控制台（**机器人一起停**）← 要确认",
+        "  quit             退出控制台（机器人一起停）← 要确认",
         "",
-        "⚠️ 这个窗口**管着机器人的命**：它一关，机器人就停。",
-        "   （所以它同时是监视器和控制器，见 docs/01 ADR-026）",
+        "[!] 这个窗口管着机器人的命：它一关，机器人就停。",
         "",
-        "设置命令（和机器人终端里、tools/config.py 是同一套）：",
+        "设置命令（和机器人自己终端里那套完全一样）：",
         "  show                       看现在是什么样",
         "  group <群号> <策略>         设某个群的策略（写 - 就移出表）",
         "  default <策略>              没列出的群默认怎么办",
@@ -508,7 +507,7 @@ BANNER = """
  saya 控制台。敲 help 看命令。
  start / end / restart / status + 全部设置命令
  end / restart / quit 要打 y 确认
- ⚠️ 这个窗口管着机器人的命：它一关，机器人就停。
+ [!] 这个窗口管着机器人的命：它一关，机器人就停。
 ─────────────────────────────────────────────"""
 
 
@@ -516,7 +515,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="saya_bot 控制台：启停 + 改设置")
     parser.add_argument("--env", help=".env 的路径（默认 project_main/.env）")
     parser.add_argument(
-        "--start-script", help="换个启动脚本（**只给测试用**，默认 tools/start_saya.sh）"
+        "--start-script", help="换个启动脚本（测试用）"
     )
     parser.add_argument(
         "command", nargs="*", help="不给就进交互模式；给了就跑一条命令然后退出"

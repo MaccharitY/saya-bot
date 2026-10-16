@@ -208,12 +208,16 @@ class RuntimeStatusTest(EnvFixture):
         """⚠️ 在机器人自己的终端里敲 `start`，只说"没这个命令"会让人以为功能没做。
 
         实测就这么撞上的：用户敲了三次 `status`，因为没人告诉他命令在哪。
+
+        ⚠️ 而且指路要指**使用者认识的东西** —— 跟他说双击
+        `saya_bot_controller.bat`，不是仓库里的 `tools/panel.py`
+        （那个路径对他等于没说）。
         """
         console = self.make()
         for command in ("start", "restart"):
             result = console.handle(command)
             self.assertFalse(result.ok)
-            self.assertIn("panel.py", result.text, f"{command} 该指路到 panel.py")
+            self.assertIn("saya_bot_controller", result.text, f"{command} 该指路到那个双击文件")
 
     def test_help_mentions_status(self):
         console = self.make(status=lambda: ["x"])

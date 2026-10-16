@@ -108,7 +108,7 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
     lines.append(f"  管理员       {','.join(admins) or '（没配）'}   [{len(admins)}/{MAX_ADMINS}]")
     lines.append(f"  白名单       {','.join(friends) or '（没配）'}   [{len(friends)}/{MAX_FRIENDS}]")
     if not (owner or admins or friends):
-        lines.append("  [!] 一个都没配 —— **任何人私聊它都会被忽略**")
+        lines.append("  [!] 一个都没配 —— 任何人私聊它都会被忽略")
 
     lines.append("")
     lines.append("== 触发参数 ==")
@@ -285,7 +285,7 @@ COMMANDS: dict[str, tuple[str, object]] = {
 USAGE = "\n".join(
     ["命令（直接敲，不用加前缀）："]
     + [f"  {name:<9} {summary}" for name, (summary, _) in COMMANDS.items()]
-    + ["", "策略：", policy_list(), "", "改完**立刻生效**，同时写回 .env。"]
+    + ["", "策略：", policy_list(), "", "改完立刻生效，同时写回 .env。"]
 )
 
 

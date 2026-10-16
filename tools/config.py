@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.command:
-        print("没给命令。`--help` 看有哪些。")
+        print("没给命令。--help 看有哪些。")
         return 2
 
     env = EnvFile(path)

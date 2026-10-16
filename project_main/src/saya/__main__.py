@@ -252,7 +252,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
     if allowed:
         print(f"  可私聊它的人: {len(allowed)} 个（主人/管理/白名单），其余私聊一律不理")
     else:
-        print("  [!] 可私聊它的人: **一个都没配** —— 现在任何人私聊它都会被忽略")
+        print("  [!] 可私聊它的人: 一个都没配 —— 现在任何人私聊它都会被忽略")
     print(f"  埋点     : {config.trace_path}（启用={config.trace_enabled}）")
     # ⚠️ 价格要显出来：三档里少填一档会**静默**把成本算错（ADR-020），
     # 而 0 在配置文件里看起来和"没填"一模一样。
@@ -335,7 +335,7 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
                 # 结果就是这个一键启动按钮**没法重启一个正在跑的机器人**，
                 # 还甩给用户一句"自检没过，先把它修好"。实测就是这么卡住的。
                 print(
-                    f"√ 端口被**本项目已经在跑的那个实例**占着"
+                    f"√ 端口被本项目已经在跑的那个实例占着"
                     f"（http://{config.onebot_listen_host}:"
                     f"{config.onebot_listen_port}{config.onebot_event_path}）"
                 )
@@ -472,7 +472,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 fresh = Config.from_env(dotenv_path=env_file or DEFAULT_ENV_FILE)
             except ConfigError as exc:
-                return [f"  [!] 新设置没通过校验，**仍按旧的跑**：{exc}"]
+                return [f"  [!] 新设置没通过校验，仍按旧的跑：{exc}"]
             pipeline.reconfigure(fresh)
             live["config"] = fresh
             return []

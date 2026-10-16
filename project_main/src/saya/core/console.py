@@ -41,10 +41,11 @@ SUPERVISOR_ONLY = frozenset({"start", "restart"})
 BANNER = """
 ─────────────────────────────────────────────
  命令台就绪。敲 help 看有哪些命令。
- 改完**立刻生效**，同时写回 .env（下次启动还是它）。
+ 改完立刻生效，同时写回 .env（下次启动还是它）。
  例：show            admin add 10086
      group 123 silent    rate 3
- 另：status 看它跑了多久；start / restart 在 tools/panel.py 那个控制台里
+ 另：status 看它跑了多久；start / restart 在命令行台里
+     （就是双击 saya_bot_controller.bat 出来的那个窗口）
 ─────────────────────────────────────────────"""
 
 
@@ -78,8 +79,13 @@ class Console:
         # 用户会以为功能没做 —— 实测就是这么撞上的，所以直接指路。
         if word in SUPERVISOR_ONLY:
             return Result(
-                lines=(f"{word!r} 是外面那个控制台（tools/panel.py）的命令 —— "
-                       f"它要另起/替换进程，机器人自己做不到。",),
+                # ⚠️ 指路要指**使用者认识的东西**（他双击的那个文件），
+                # 不是仓库内部的路径 —— 那对他来说等于没说。
+                lines=(
+                    f"{word!r} 得在外面那个控制台里敲"
+                    f"（就是双击 saya_bot_controller.bat 出来的窗口）—— "
+                    f"它要另起或替换进程，机器人自己做不到。",
+                ),
                 ok=False,
             )
 
@@ -120,7 +126,7 @@ class Console:
             except Exception as exc:  # noqa: BLE001
                 # ⚠️ 换配置失败**绝不能**把机器人搞停：文件已经写好了，
                 # 但内核手里还是旧的 —— 这个不一致必须说出来，不能吞掉。
-                lines.append(f"{_PREFIX}[!] 配置已写进文件，但**没能当场生效**：{exc}")
+                lines.append(f"{_PREFIX}[!] 配置已写进文件，但没能当场生效：{exc}")
                 lines.append(f"{_PREFIX}    重启一次就好：bash tools/start_saya.sh --restart")
             if risky:
                 lines.append(

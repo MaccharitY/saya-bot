@@ -39,23 +39,39 @@ def unencodable(text: str, encoding: str = "gbk") -> list[int]:
 
 
 def printed_strings(path: Path) -> list[tuple[int, str]]:
-    """用 AST 找出所有 `print(...)` 里的字符串字面量。
+    """挑出**会出现在屏幕上**的字符串字面量。
 
     按文本行匹配是不够的：`print(` 和它要打印的字符常常不在同一行
     （`--check` 那次崩溃就跨了三行）。AST 不受换行影响。
+
+    ⚠️ **光看 `print(...)` 也不够** —— 2026-10-16 栽了两次：
+    `thinking_banner()` 的 emoji 在 `return` 里、`POLICY_HELP` 的在字典里、
+    `USAGE` / `BANNER` 的在模块级常量里。它们都不在 `print` 的参数里，
+    却照样会打到屏幕上。
+    所以这里连**会变成界面文本的调用和常量**一起收。
     """
     tree = ast.parse(path.read_text(encoding="utf-8"))
     found: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if not (isinstance(func, ast.Name) and func.id == "print"):
-            continue
-        for inner in ast.walk(node):
-            if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
-                found.append((inner.lineno, inner.value))
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = getattr(func, "id", None) or getattr(func, "attr", None)
+            if name in _TEXT_CALLS:
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+                        found.append((inner.lineno, inner.value))
+        elif isinstance(node, ast.Assign):
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            if any(t.id in _TEXT_CONSTANTS for t in targets):
+                for inner in ast.walk(node.value):
+                    if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+                        found.append((inner.lineno, inner.value))
     return found
+
+
+# 会产出"给人看的文本"的调用与常量（见上面那段说明）
+_TEXT_CALLS = {"print", "Result", "Outcome", "_say", "_fail"}
+_TEXT_CONSTANTS = {"BANNER", "USAGE"}
 
 
 def source_files() -> list[Path]:
@@ -105,6 +121,30 @@ class ConsoleOutputIsEncodableTest(unittest.TestCase):
         self.assertEqual(unencodable("√ × ·"), [])
         self.assertTrue(unencodable("⚠️"))
         self.assertTrue(unencodable("✓✗▶⟦⟧"))
+
+    def test_the_scanner_covers_more_than_print(self):
+        """⚠️ 扫描器不能只看 `print(...)` —— 同类栽过三次了：
+
+        - `thinking_banner()` 的 emoji 在 `return` 里
+        - `POLICY_HELP` 的在**字典**里
+        - `USAGE` / `BANNER` 的在**模块级常量**里
+
+        它们都不在 `print` 的参数里，却照样打到屏幕上。
+        这条拿一段合成源码钉住"常量和界面调用也算"。
+        """
+        import tempfile
+
+        source = (
+            "BANNER = '\\u26a0\\ufe0f 常量里的也得查'\n"
+            "def f():\n"
+            "    return _say('界面调用里的')\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sample.py"
+            path.write_text(source, encoding="utf-8")
+            hits = printed_strings(path)
+        self.assertEqual(len(hits), 2, hits)
+        self.assertTrue(any(unencodable(text) for _, text in hits))
 
 
 class ConsoleTextFromHelpersTest(unittest.TestCase):

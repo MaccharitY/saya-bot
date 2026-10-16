@@ -211,7 +211,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
     add = lines.append
 
     if data.missing_file:
-        add("⚠️ 结果文件里缺 `file` 字段 —— 聚类分析**退化成了题目级**。")
+        add("⚠️ 结果文件里缺 file 字段 —— 聚类分析退化成了题目级。")
         add("   重跑一次执行器（它现在会写 file），否则下面的区间是偏窄的。")
         add("")
 
@@ -221,7 +221,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
     add("")
 
     # ---- 准确率：按路线 × 层 ----
-    add("■ 准确率（95% 区间用**聚类**自助法；失败按不正确计入）")
+    add("■ 准确率（95% 区间用聚类自助法；失败按不正确计入）")
     tiers = ["counting", "small", "fine", "common"]
     header = f"  {'层':<10}" + "".join(f"{r:>18}" for r in routes)
     add(header)
@@ -245,11 +245,11 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
         lo, hi = ci(boot)
         cells.append(f"{point:.2f} [{lo:.2f},{hi:.2f}]".rjust(18))
     add(f"  {'全部':<10}" + "".join(cells))
-    add("  ⚠️ '全部'只作描述，**不是主指标** —— 各层预期方向相反，合并会互相抵消")
+    add("  ⚠️ '全部'只作描述，不是主指标 —— 各层预期方向相反，合并会互相抵消")
     add("")
 
     # ---- 确证族 ----
-    add(f"■ 确证族：{confirm_tier} 层的两两比较（Holm 校正；预注册见 pre/13 第 6 节）")
+    add(f"■ 确证族：{confirm_tier} 层的两两比较（Holm 校正；比哪几条是事先定好的）")
     pvalues: dict[str, float] = {}
     cells: list[tuple[str, float, tuple[float, float], tuple[int, int]]] = []
     for index, a in enumerate(routes):
@@ -273,7 +273,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
     add("")
 
     # ---- 探索层 ----
-    add("■ 其余各层（**探索性，生成假设用** —— 只报效应量与区间，不报 p）")
+    add("■ 其余各层（探索性，生成假设用 —— 只报效应量与区间，不报 p）")
     for tier in tiers:
         if tier == confirm_tier:
             continue
@@ -307,7 +307,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
             f"P95 {percentile(vals, 0.95):>7.0f}   "
             f"端到端 P50 {percentile(walls, 0.5):>7.0f}  "
             f"输出 token 中位 {percentile(outs, 0.5):>6.0f}")
-    add("  ⚠️ 报延迟必须同时报输出 token：长回答自然慢，不报就没法比（pre/12 第 6 节）")
+    add("  ⚠️ 报延迟必须同时报输出 token：长回答自然慢，不报就没法比")
     add("")
 
     # ---- 成本与失败 ----
@@ -320,7 +320,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
         hit = sum(r.get("cache_hit_tokens", 0) for r in rows)
         add(f"  {route:<10} 失败 {failed}/{len(rows)} = {failed/max(1,len(rows)):.0%}   "
             f"累计 {cost:.4f} 元   输入 {tin} token（命中缓存 {hit}）")
-    add("  ⚠️ API 边际成本与本地算力摊销**分列不合并**（pre/12 第 7 节）")
+    add("  ⚠️ API 边际成本与本地算力摊销分列不合并 —— 两者不是一回事，不能相加")
     add("")
 
     # ---- 设计效应 ----
@@ -335,7 +335,7 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
     if warm:
         add(f"■ 预热：{warm[0].get('steps')}")
     else:
-        add("■ 预热：**没有记录** —— 冷启动可能污染了 B/C 的首题延迟（pre/13 §3.2）")
+        add("■ 预热：没有记录 —— 冷启动可能污染了 B/C 的首题延迟")
     for meta in data.meta:
         if meta.get("kind") == "run_meta":
             add(f"■ 运行：模型 {meta.get('model')}  提交 {meta.get('git_sha')}  "
