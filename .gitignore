@@ -35,6 +35,16 @@ project_main/logs/
 project_main/media/
 pre/requirement/tmp/
 
+# ---- 抓下来的第三方文本语料 ----
+# 剧情全文是别人的作品，且由脚本可重复生成（tools/fetch_arcaea_corpus.py），
+# 所以落盘保留、不进这个公开仓库。人格正文（saya.md / saya-lore.md）是**我们写的**，
+# 不在此列，照常进仓库。
+project_main/persona/corpus/
+
+# 项目所有者提供的 Arcaea 剧情原件（txt / epub / 截图）。
+# 同样是第三方作品，且是原始素材而非产出 —— 本地留好，不进公开仓库。
+stories/
+
 # ---- 模型权重（几 MB 到几百 MB，可重下） ----
 *.pt
 *.pth
