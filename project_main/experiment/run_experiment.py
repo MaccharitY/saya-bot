@@ -101,9 +101,9 @@ def thinking_banner(config: Config) -> str:
         return f"思考模式：关（reasoning_effort={effort or '未设'}）—— temperature 生效"
     return (
         f"思考模式：开（reasoning_effort={effort}）\n"
-        f"  ⚠️ 此时 **temperature 被服务端无视**，配置里的 "
+        f"  [!] 此时 **temperature 被服务端无视**，配置里的 "
         f"{config.vision_temperature} 不起作用。\n"
-        f"  ⚠️ 思考 token 按**输出**计价，延迟也会明显变长。\n"
+        f"  [!] 思考 token 按**输出**计价，延迟也会明显变长。\n"
         f"  → 要做温度对照，请把 SAYA_REASONING_EFFORT 设成 none。"
     )
 

@@ -93,6 +93,43 @@ class ConsoleOutputIsEncodableTest(unittest.TestCase):
         self.assertTrue(unencodable("✓✗▶⟦⟧"))
 
 
+class ConsoleTextFromHelpersTest(unittest.TestCase):
+    """⚠️ 静态扫描**够不着**的一类：函数返回的字符串，最后被 print 出来。
+
+    真实撞到过：`thinking_banner()` 返回的横幅里有 emoji。按 `print(...)` 扫字面量
+    扫不到它（`⚠️` 在 `return` 里，不在 `print` 的参数里），于是干跑时输出成了 `??`。
+
+    静态分析跟不了"这个字符串最后会流去哪"，所以这类就**直接调用看结果**。
+    """
+
+    @staticmethod
+    def _config(**overrides):
+        from dataclasses import replace
+
+        from saya.config import Config
+
+        base = Config.from_env(dotenv_path=Path("不存在的文件.env"))
+        return replace(base, **overrides)
+
+    @staticmethod
+    def _banner(config) -> str:
+        sys.path.insert(0, str(PROJECT_MAIN / "experiment"))
+        try:
+            from run_experiment import thinking_banner
+        finally:
+            sys.path.pop(0)
+        return thinking_banner(config)
+
+    def test_thinking_banner_is_encodable(self):
+        banner = self._banner(self._config(reasoning_effort="high"))
+        self.assertEqual(unencodable(banner), [], f"横幅里有 GBK 编不出的字符：{banner!r}")
+        self.assertIn("temperature", banner)
+
+    def test_non_thinking_banner_is_encodable(self):
+        banner = self._banner(self._config(reasoning_effort="none"))
+        self.assertEqual(unencodable(banner), [], f"横幅里有 GBK 编不出的字符：{banner!r}")
+
+
 class GuardTest(unittest.TestCase):
     """兜底本身：只改 errors，不改 encoding。"""
 
