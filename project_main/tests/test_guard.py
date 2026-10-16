@@ -174,18 +174,60 @@ class ToolMarkupLeakTest(unittest.TestCase):
 
     def test_the_real_leak_is_caught(self):
         text, reason = screen_output(LEAKED_DSML)
-        self.assertEqual(reason, "工具调用标记泄露")
-        self.assertNotIn("DSML", text, "标记一个字符都不许漏出去")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+        for marker in ("DSML", "invoke", "parameter", "moegirl"):
+            self.assertNotIn(marker, text, "标记一个字符都不许漏出去")
 
     def test_fullwidth_bar_variant(self):
         """上游可能用全角竖线 `｜`（U+FF5C），别只认半角。"""
         _, reason = screen_output("<｜｜｜DSML｜｜｜tool_calls>")
-        self.assertEqual(reason, "工具调用标记泄露")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
 
     def test_generic_tool_call_variant(self):
         """别家格式（`<tool_call>`）也一起挡了 —— 换个上游不用重改。"""
         _, reason = screen_output('<tool_call>{"name":"search"}</tool_call>')
-        self.assertEqual(reason, "工具调用标记泄露")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+
+    # ---- ⚠️ 下面这几条全部来自 2026-10-16 的独立评审：都是**实测能绕过去**的形态 ----
+
+    def test_many_bars_do_not_slip_through(self):
+        """⚠️ 原来限了 `{0,6}` 个分隔符 —— **第 7 个全角竖线就整段放行**（实测）。
+
+        分隔符有几个这件事没有语义，限个数纯属给自己挖坑。
+        """
+        _, reason = screen_output("<" + "｜" * 9 + "DSML| | invoke>")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+
+    def test_zero_width_space_does_not_slip_through(self):
+        """⚠️ **Python 的 `\\s` 不匹配零宽空格** —— U+200B 属于 Cf 类，不是空白。
+        所以 `<tool_calls>`（中间夹一个）原来能原样漏出去。
+
+        ⚠️ 这里用 `chr(0x200B)` 拼，**不直接在源码里敲那个字符** ——
+        敲进去这行看起来就是 `<tool_calls>`，谁也看不出它为什么特殊。
+        """
+        _, reason = screen_output("<" + chr(0x200B) + "tool_calls>")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+
+    def test_html_entity_form_does_not_slip_through(self):
+        """⚠️ `&lt;tool_calls&gt;` 原来也放行 —— 检测前要把实体还原。"""
+        _, reason = screen_output("&lt;tool_calls&gt;")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+
+    def test_other_peoples_tag_names_are_covered(self):
+        for tag in ("<function_calls>", "<antml:invoke>", "<dsml>"):
+            _, reason = screen_output(tag)
+            self.assertTrue(reason.startswith("工具调用标记泄露"), tag)
+
+    def test_closing_tags_are_covered_too(self):
+        """⚠️ 闭标签是 `</…>`，`<` 后面紧跟斜杠 —— 分隔符类里得有它。
+
+        漏了的话"按行剔"会把半句闭标签留在正文里（整条替换时看不出来，
+        改成按行剔之后立刻暴露）。
+        """
+        _, reason = screen_output("</| |DSML| | invoke>")
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+
+    # ---- 但不能矫枉过正 ----
 
     def test_normal_reply_is_not_touched(self):
         for good in ("在的，怎么了？", "图里有三只猫。", "我查了一下，没找到。", "1+1=2"):
@@ -193,8 +235,22 @@ class ToolMarkupLeakTest(unittest.TestCase):
             self.assertEqual(text, good)
             self.assertIsNone(reason, f"误伤了正常回复：{good!r}")
 
-    def test_fallback_is_a_sentence_not_a_marker(self):
-        """替换掉之后要像**人说的话**，不能又是一串标记。"""
+    def test_only_the_offending_line_is_dropped(self):
+        """⚠️ **不要整条换掉。**
+
+        回复里只有一行带了标记（比如在聊 XML），以前**整条**会被换成一句
+        没有任何信息的兜底。真正要防的只是标记本身，别的行该留给用户。
+        """
+        text, reason = screen_output(
+            '在的。\nXML 里这样写：<parameter name="x">值</parameter> 就行'
+        )
+        self.assertTrue(reason.startswith("工具调用标记泄露"))
+        self.assertIn("在的。", text, "没带标记的行要留下")
+        self.assertNotIn("parameter", text)
+
+    def test_a_reply_that_is_all_markup_falls_back_to_a_sentence(self):
+        """整条都是标记时就没得发了，退回一句人话 ——
+        静默不回比一句话更让人困惑。"""
         text, _ = screen_output(LEAKED_DSML)
         self.assertTrue(text.startswith("（") and text.endswith("）"))
         self.assertFalse(has_tool_markup(text))

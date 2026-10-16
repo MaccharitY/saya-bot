@@ -157,18 +157,67 @@ _PROMPT_LEAK_MIN_CHARS = 24
 #
 # 分隔符是 `｜`（全角竖线）还是 `|` 取决于上游怎么吐，中间还可能夹空格，
 # 所以这里**不写死某一种格式**，只认"尖括号开头 + 少量竖线/空白 + 标记名"。
+# ⚠️ **零宽字符与其它格式字符**（Unicode 的 Cf 类）。
+# 模型有时会往标记里夹一个 —— 实测 `<tool_calls>`（中间一个零宽空格）
+# 能原样漏过去，因为 **Python 的 `\s` 不匹配 U+200B**（那是 Cf，不是空白）。
+#
+# ⚠️ 必须写成 `\uXXXX` 转义，**不能在源码里直接敲那几个字符** ——
+# 它们本来就是看不见的，直接敲进去这行读起来就是空的，谁也维护不了。
+_INVISIBLE = re.compile("[\u200b-\u200f\u2060-\u206f\ufeff]")
+
+# ⚠️ **HTML 实体**：另一种实测能绕过去的写法（`&lt;tool_calls&gt;`）。
+_ENTITIES = (("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'), ("&#39;", "'"))
+
+# 标记名。比原来那四个宽 —— 加上别家的写法和 `antml`。
+# ⚠️ 原来只认 `DSML|tool_calls?|invoke|parameter`，于是 `<function_calls>` 直接漏了。
+_MARKER_NAMES = ("dsml", "tool_call", "function_call", "antml", "invoke", "parameter")
+
+# 尖括号（**可带一个闭合斜杠**）+ 一串**任意长度**的分隔符 + 标记名。
+#
+# ⚠️ 原来这里是 `{0,6}` —— **7 个全角竖线就绕过去了**（实测）。
+# 分隔符有多少个这件事没有语义，限个数纯属给自己挖坑。
+#
+# ⚠️ 斜杠也是踩出来的：闭标签写成 `</| |DSML| | invoke>`，`<` 后面紧跟 `/`，
+# 不在分隔符类里就整行匹配不上。以前整条回复一起替换，所以看不出来；
+# 改成"按行剔"之后立刻就露了 —— 那半句闭标签会被原样留下。
 _TOOL_MARKUP = re.compile(
-    r"<[｜|\s]{0,6}(DSML|tool_calls?\b|invoke\b|parameter\b)",
+    r"</?[|｜│┃❘\s]*(" + "|".join(_MARKER_NAMES) + r")",
     re.IGNORECASE,
 )
 
-# 命中时不发原文，改发这句。**不能装作没发生** —— 静默不回比一句话更让人困惑。
+# 整条剔干净之后就没得发了，改发这句。**不能装作没发生** ——
+# 静默不回比一句话更让人困惑。
 _TOOL_MARKUP_FALLBACK = "（刚才那条没组成句子，你再说一次？）"
+
+
+def _normalized(text: str) -> str:
+    """把"绕检测"的写法还原成朴素形态 —— **只用于判断，不改要发出去的字**。"""
+    for entity, char in _ENTITIES:
+        text = text.replace(entity, char)
+    return _INVISIBLE.sub("", text)
 
 
 def has_tool_markup(text: str) -> bool:
     """这段文本里有没有工具调用标记。`tools.py` 摘掉工具后也用它复核。"""
-    return bool(_TOOL_MARKUP.search(text))
+    return bool(_TOOL_MARKUP.search(_normalized(text)))
+
+
+def strip_tool_markup(text: str) -> str:
+    """把含工具调用标记的**行**整行剔掉，返回剩下的正文。
+
+    ⚠️ **不要"整条回复换掉"。** 原来一命中就把整条换成一句兜底 ——
+    于是「XML 里这样写：<parameter name="x">值</parameter> 就行」这种
+    **正常句子**也被整条吃掉，用户拿到一句没有任何信息的提示。
+    而真正要防的只是**标记本身**，不是整条回复。
+
+    按行剔是对的：DSML 泄漏**是逐行的**（每个标记自己占一行），
+    整行丢掉既不会漏，也不会把别的内容切碎。剔干净了就退回兜底那句。
+
+    判断用归一化后的文本，**返回的是原文** —— 不能因为查了一下就把
+    用户看到的字改掉（`&lt;` 变成 `<` 那种）。
+    """
+    kept = [line for line in text.splitlines() if not _TOOL_MARKUP.search(_normalized(line))]
+    return "\n".join(kept).strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +231,12 @@ def wrap_untrusted(text: str) -> str:
 
     这是分区隔离的**唯一入口** —— 任何群友文本进提示词之前都必须过这里，
     不要手工拼字符串，否则迟早有人漏掉一处。
+
+    ⚠️ **"迟早"已经来过了**（2026-10-16 独立评审）：`services/vision.py` 的
+    路线 B/C 把**从群友发的图里读出来的字**直接拼进了提示词，没走这里。
+    一张写着「忽略以上规则」的图就能把指令送进可信区，而 `detect_injection`
+    又只看消息正文，连一条可疑埋点都不会产生。
+    新增任何"把外部文本放进提示词"的路径时，**先想这里**。
 
     内部先过 `_neutralize`，所以**正文里不可能再出现定界符**。
     """
@@ -244,10 +299,17 @@ def screen_output(reply: str, *, system_prompt: str = "") -> tuple[str, str | No
         if pattern.search(reply):
             return f"[已拦截：回复中疑似包含{name}]", name
 
-    # 工具调用标记：**当没说完处理**，别把标记发给群友。
+    # 工具调用标记：**别把标记发给群友**。
     # 上游还会再拦一道（tools.py 摘工具时会叮嘱模型别输出这个格式），
-    # 这里是最后一道 —— 万一漏过来，宁可换一句话也不能原样发出去。
+    # 这里是最后一道。
+    #
+    # ⚠️ **只剔掉带标记的那几行，不整条换掉。** 原来一命中就把整条回复
+    # 换成一句兜底 —— 于是「XML 里这样写：<parameter …> 就行」这种正常句子
+    # 也被整条吃掉，用户拿到一句没有任何信息的提示。真正要防的只是标记本身。
     if has_tool_markup(reply):
+        cleaned = strip_tool_markup(reply)
+        if cleaned:
+            return cleaned, "工具调用标记泄露（已剔除该行）"
         return _TOOL_MARKUP_FALLBACK, "工具调用标记泄露"
 
     if system_prompt:

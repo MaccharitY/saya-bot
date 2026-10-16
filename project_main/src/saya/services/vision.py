@@ -22,6 +22,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from saya.core.guard import wrap_untrusted
 from saya.domain import ImageRef
 from saya.services.cv_tools import CvTools, CvToolsError
 from saya.services.llm import JSON, ChatResult, LLMClient, image_block, text_block
@@ -233,9 +234,17 @@ class Vision:
                 "role": "user",
                 "content": (
                     f"{question}\n\n"
-                    "以下是对图片的分析结果。**你并没有直接看到这张图**，"
+                    "以下是对图片的分析结果。你并没有直接看到这张图，"
                     "只能依据这些结果回答；结果里没有的信息就是不知道，不要脑补。\n"
-                    f"{evidence}"
+                    # ⚠️⚠️ **必须包进不可信区。** 这些字是**从群友发的图里读出来的**
+                    # （OCR / 附属输出），和群友直接说的话一样不可控 ——
+                    # 一张写着「忽略以上规则」的图，就能把指令送进提示词。
+                    # 而系统的防注入主力恰恰是**分区隔离**（见 guard.py）：
+                    # 它靠"区块外的文字才是程序说的"来区分可信与否，
+                    # 所以**漏包一处 = 那处文字自动获得"程序说的"身份**。
+                    # 以前这里就是直接拼进去的 —— 而 `detect_injection` 又只查
+                    # `message.text`，图上写的注入连一条埋点都不会产生。
+                    f"{wrap_untrusted(evidence)}"
                 ),
             }
         )
@@ -285,7 +294,11 @@ class Vision:
 
         if notes:
             blocks.append(
-                text_block("附属在图上标出的编号与类别（编号画在框的左上角）：\n" + "\n".join(notes))
+                text_block(
+                    "附属在图上标出的编号与类别（编号画在框的左上角）：\n"
+                    # ⚠️ 同上：这些类别名是从图里来的，一样要包进不可信区
+                    + wrap_untrusted("\n".join(notes))
+                )
             )
 
         messages: list[JSON] = []
