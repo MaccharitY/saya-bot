@@ -25,8 +25,11 @@ manifest 格式（一行一条，或一个 JSON 数组）：
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import logging
 import statistics
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -44,6 +47,40 @@ from saya.services.vision import ALL_ROUTES, Vision, VisionError  # noqa: E402
 
 # __file__ = project_main/experiment/run_experiment.py → parents[1] = project_main
 DEFAULT_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+
+logger = logging.getLogger(__name__)
+
+
+def _sha256(path: Path) -> str:
+    """文件**内容**的哈希。
+
+    ⚠️ 复现要记哈希不是记路径：同一个路径下的 manifest 换了内容，
+    路径完全看不出来。pre/13 第 7 节。
+    """
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _git_sha() -> str:
+    """当前提交。工作区不干净时追加 `-dirty` —— 那说明结果对不上任何一个提交。"""
+    repo = Path(__file__).resolve().parents[1]
+    try:
+        sha = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        if not sha:
+            return ""
+        dirty = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return f"{sha}-dirty" if dirty else sha
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -115,6 +152,10 @@ def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
             "id": item["id"],
             "tier": item.get("tier", ""),
             "route": vision.route,
+            # ⚠️ `file` 是**聚类分析的重抽样单位**（pre/13 §3.3）：
+            # 同一张图会被 2–3 道题复用，题目因此不独立。
+            # 记录里不带它，事后只能从 id 里反推 —— 那是脆的。
+            "file": item.get("file", ""),
             "error": f"图片不存在：{image_path}",
             "answer": "",
             "correct": None,
@@ -148,6 +189,8 @@ def run_one(vision: Vision, item: dict, *, images_dir: Path) -> dict:
         "id": item["id"],
         "tier": item.get("tier", ""),
         "route": vision.route,
+        # ⚠️ 聚类分析的重抽样单位（pre/13 §3.3），必须落盘
+        "file": item.get("file", ""),
         "question": item["question"],
         "answer": answer,
         "correct": grade(answer, item.get("expect_keywords") or []),
@@ -260,12 +303,70 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
     return 0 if not missing else 1
 
 
+def warm_up(
+    visions: dict[str, Vision],
+    tools,
+    item: dict,
+    *,
+    images_dir: Path,
+    cache_dir: Path,
+) -> dict:
+    """跑前的预热 —— **结果全部丢弃**，只为把冷启动代价挤出去。
+
+    ⚠️ 不预热有多严重（**本项目实测，不是理论**）：本地 CV 首次 `detect`
+    **17441 ms**（含权重下载 + CUDA 初始化），热态 **31 ms** —— **差 560 倍**。
+    那一条会落在路线 B / C 的第一道题上，而**延迟正是本实验的主指标之一**。
+    模型端点同理：第一次调用还要付 DNS 冷启动。
+
+    ⚠️ 试跑时踩过：不预热，干跑横幅上的警告会变成 `??`；
+    这里每一步都各自 try —— **预热失败不该把整个实验拦下来**，
+    但要把失败**记进结果文件**，否则"预热过了"就是一句空话。
+
+    返回的记录写进结果文件的开头，这样"到底预热没有"事后可查。
+    """
+    image = (images_dir / item["file"]).resolve()
+    record: dict = {"kind": "warmup", "image": item["file"], "steps": {}}
+
+    if tools is not None:
+        annotated = cache_dir / "annotated" / "_warmup.png"
+        annotated.parent.mkdir(parents=True, exist_ok=True)
+        for name, call in (
+            ("detect", lambda: tools.detect(image)),
+            ("read_text", lambda: tools.ocr(image)),
+            ("annotate", lambda: tools.annotate(image, annotated)),
+        ):
+            try:
+                call()
+                record["steps"][name] = "ok"
+            except Exception as exc:  # 预热不该拦下实验，但要留下证据
+                record["steps"][name] = f"{type(exc).__name__}: {exc}"
+                logger.warning("预热步骤 %s 失败：%s", name, exc)
+
+    # 模型端点：跑一条最短的路（不调工具的 direct），只为把连接与 DNS 烤热
+    first_route = next(iter(visions))
+    try:
+        visions[first_route].describe_many(
+            [ImageRef(url=str(image), local_path=str(image))], item["question"]
+        )
+        record["steps"]["model"] = "ok"
+    except Exception as exc:
+        record["steps"]["model"] = f"{type(exc).__name__}: {exc}"
+        logger.warning("预热模型调用失败：%s", exc)
+
+    return record
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="三条视觉路线的对照实验")
     parser.add_argument("--manifest", required=True, help="测试集清单")
     parser.add_argument("--out", required=True, help="结果写到哪（jsonl）")
     parser.add_argument("--routes", nargs="+", default=list(ALL_ROUTES), choices=list(ALL_ROUTES))
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（冒烟用）")
+    parser.add_argument(
+        "--no-warmup",
+        action="store_true",
+        help="跳过跑前预热。⚠️ 只在调试时用 —— 冷启动会让 B/C 首题延迟高两个数量级",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -330,6 +431,17 @@ def main(argv: list[str] | None = None) -> int:
                         "routes": args.routes,
                         "temperature": config.vision_temperature,
                         "reasoning_effort": config.reasoning_effort,
+                        # ⚠️ 复现三件套：**内容哈希**（路径相同内容可能不同）、
+                        # 代码 SHA（工作区要干净）、跑的时间窗（关系计价时段，见 pre/13 3.6）
+                        "manifest": str(manifest_path),
+                        "manifest_sha256": _sha256(manifest_path),
+                        "items": len(items),
+                        "git_sha": _git_sha(),
+                        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                        # 计价三档：报告里要写明用的是哪一套（高峰/空闲）
+                        "price_in": config.price_in,
+                        "price_cache_hit": config.price_cache_hit,
+                        "price_out": config.price_out,
                     },
                     ensure_ascii=False,
                 )
@@ -337,16 +449,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             handle.flush()
 
-            for route in args.routes:
-                vision = Vision(
+            cache_dir = Path(config.data_dir) / "images"
+            visions = {
+                route: Vision(
                     client,
-                    cache_dir=Path(config.data_dir) / "images",
+                    cache_dir=cache_dir,
                     route=route,
                     temperature=config.vision_temperature,
                     tools=tools,
                 )
-                for index, item in enumerate(items, start=1):
-                    record = run_one(vision, item, images_dir=images_dir)
+                for route in args.routes
+            }
+
+            if not args.no_warmup:
+                print("\n→ 预热（结果丢弃，不进统计）…")
+                warm = warm_up(
+                    visions, tools, items[0], images_dir=images_dir, cache_dir=cache_dir
+                )
+                handle.write(json.dumps(warm, ensure_ascii=False) + "\n")
+                handle.flush()
+                print(f"  预热：{warm['steps']}")
+
+            # ⚠️ **逐条轮转**，不是按路线分块（pre/13 §3.1）。
+            # 理由**不是**缓存 —— 那条查证后不成立（实验不传 system_prompt，
+            # 没有可复用的长前缀）。真正的理由是**时间上的均衡**：
+            # 分块跑时三条路线落在不同的时间段，服务端负载 / 网络 / 模型热更新
+            # 都会**整条路线**地摊到某一组头上。轮转让它们在时间上交织。
+            # 附带好处：中途崩了不至于只有一条路线有完整数据、根本没法对比。
+            for index, item in enumerate(items, start=1):
+                for route in args.routes:
+                    record = run_one(visions[route], item, images_dir=images_dir)
                     record["experiment_tag"] = config.experiment_tag
                     records.append(record)
 
