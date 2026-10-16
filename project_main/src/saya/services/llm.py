@@ -27,9 +27,20 @@ Transport = Callable[[str, dict[str, str], JSON, float], JSON]
 
 logger = logging.getLogger("saya.llm")
 
+DEFAULT_RETRIES = 2  # 网络层失败时最多再试几次（**不含 4xx** —— 那是明确答复，重试无意义）
+RETRY_DELAY = 0.8  # 首次重试前等多久，之后翻倍
+
 
 class LLMError(RuntimeError):
-    """调用模型失败。信息要够，方便在群里/日志里排查。"""
+    """调用模型失败。信息要够，方便在群里/日志里排查。
+
+    `retryable` 说明**再试一次有没有意义**：连不上、超时、5xx 是瞬时的，
+    重试常常就好了；4xx 和"返回的不是 JSON"是明确答复，重试只是浪费时间。
+    """
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +88,8 @@ class LLMClient:
         price_in: float = 0.0,
         price_out: float = 0.0,
         reasoning_effort: str | None = None,
+        retries: int = DEFAULT_RETRIES,
+        retry_delay: float = RETRY_DELAY,
         transport: Transport | None = None,
     ) -> None:
         if not api_key:
@@ -88,6 +101,8 @@ class LLMClient:
         self._price_in = price_in
         self._price_out = price_out
         self._reasoning_effort = (reasoning_effort or "").strip().lower()
+        self._retries = max(0, retries)
+        self._retry_delay = max(0.0, retry_delay)
         self._temperature_ignored_warned = False
         self._transport = transport or _urllib_transport
 
@@ -125,10 +140,32 @@ class LLMClient:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        started = time.monotonic()
-        data = self._transport(self._endpoint, headers, payload, self._timeout)
-        latency_ms = int((time.monotonic() - started) * 1000)
-        return _parse_result(data, latency_ms, self._price_in, self._price_out)
+
+        # ⚠️ **一次失败就放弃，在群里表现就是"机器人没反应"。**
+        # 这台机器的网络本来就时不时抽一下（见 services/net.py 记的那些 DNS 问题），
+        # 实测撞过：萌娘百科查成功了，紧接着再调模型生成回复时来一发
+        # `SSL: UNEXPECTED_EOF_WHILE_READING` —— 用户看到的就是它突然不理人。
+        # 所以对**瞬时**失败重试；明确答复（4xx、返回的不是 JSON）不重试，那是浪费时间。
+        delay = self._retry_delay
+        for attempt in range(self._retries + 1):
+            started = time.monotonic()
+            try:
+                data = self._transport(self._endpoint, headers, payload, self._timeout)
+            except LLMError as exc:
+                if attempt >= self._retries or not getattr(exc, "retryable", False):
+                    raise
+                logger.warning(
+                    "模型调用失败（第 %d 次），%.1fs 后重试：%s", attempt + 1, delay, exc
+                )
+                time.sleep(delay)
+                delay *= 2
+                continue
+            latency_ms = int((time.monotonic() - started) * 1000)
+            if attempt:
+                logger.info("重试第 %d 次成功", attempt)
+            return _parse_result(data, latency_ms, self._price_in, self._price_out)
+
+        raise LLMError("重试完了还是失败")  # 到不了这儿，循环里要么 return 要么 raise
 
     def _warn_temperature_once(self, temperature: float) -> None:
         """⚠️ **思考模式下 temperature 不生效**（见 DeepSeek 官方 API 文档）。
@@ -160,12 +197,15 @@ def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout:
             body = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
-        raise LLMError(f"模型返回 HTTP {exc.code}：{detail}") from exc
+        # 5xx 是**服务端自己出问题**，多半是一时的；4xx 是我们发错了，重试没意义
+        raise LLMError(
+            f"模型返回 HTTP {exc.code}：{detail}", retryable=exc.code >= 500
+        ) from exc
     except urllib.error.URLError as exc:
         # 连不上时清一次 DNS 缓存：万一缓存里的 IP 已失效（CDN 轮换），
         # 清掉让下次重新解析，比一直撞同一个死 IP 好
         net.clear()
-        raise LLMError(f"连不上模型端点（{url}）：{exc.reason}") from exc
+        raise LLMError(f"连不上模型端点（{url}）：{exc.reason}", retryable=True) from exc
     except OSError as exc:
         # ⚠️ 这条不能少：**卡住不动而超时**抛的是 `TimeoutError`，
         # 它是 `OSError` 但**不是** `URLError` —— 只捕 URLError 的话它会裸穿出去。
@@ -173,7 +213,9 @@ def _urllib_transport(url: str, headers: dict[str, str], payload: JSON, timeout:
         # 机器人埋点里写一句"未捕获的异常"（看不出是连不上模型），
         # 实验则直接中断、把已经花掉钱的结果全丢在内存里。
         net.clear()
-        raise LLMError(f"与模型端点通信失败（{url}）：{type(exc).__name__}: {exc}") from exc
+        raise LLMError(
+            f"与模型端点通信失败（{url}）：{type(exc).__name__}: {exc}", retryable=True
+        ) from exc
 
     try:
         result = json.loads(body)

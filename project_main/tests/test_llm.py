@@ -277,6 +277,83 @@ class TransportErrorTest(unittest.TestCase):
             self.call(urllib.error.URLError("名字解析失败"))
 
 
+class RetryTest(unittest.TestCase):
+    """⚠️ **一次网络抖动不该让机器人"突然不理人"。**
+
+    实测撞过（2026-10-16）：萌娘百科查成功了，紧接着再调模型生成回复时来一发
+    `SSL: UNEXPECTED_EOF_WHILE_READING` —— 用户看到的就是它忽然不回话。
+    这台机器的网络本来就时不时抽一下，所以瞬时的要重试。
+    """
+
+    def make(self, errors, *, retries: int = 2):
+        calls: list[dict] = []
+
+        def transport(url, headers, payload, timeout):
+            calls.append(payload)
+            if len(calls) <= len(errors):
+                raise errors[len(calls) - 1]
+            return fake_response(text="在的")
+
+        client = make_client(transport, retries=retries, retry_delay=0.0)
+        return client, calls
+
+    def send(self, client):
+        return client.chat([{"role": "user", "content": "在吗"}])
+
+    def test_transient_failure_is_retried_and_succeeds(self):
+        client, calls = self.make([LLMError("连接断了", retryable=True)])
+        self.assertEqual(self.send(client).text, "在的")
+        self.assertEqual(len(calls), 2)
+
+    def test_a_4xx_answer_is_not_retried(self):
+        """4xx 是**明确答复**，重试只是浪费时间（多半是 key 或参数错了）。"""
+        client, calls = self.make([LLMError("HTTP 400", retryable=False)])
+        with self.assertRaises(LLMError):
+            self.send(client)
+        self.assertEqual(len(calls), 1)
+
+    def test_gives_up_after_the_configured_retries(self):
+        client, calls = self.make([LLMError("一直断", retryable=True)] * 5, retries=2)
+        with self.assertRaises(LLMError):
+            self.send(client)
+        self.assertEqual(len(calls), 3, "1 次首发 + 2 次重试")
+
+    def test_retries_can_be_turned_off(self):
+        client, calls = self.make([LLMError("断了", retryable=True)], retries=0)
+        with self.assertRaises(LLMError):
+            self.send(client)
+        self.assertEqual(len(calls), 1)
+
+
+class TransportRetryabilityTest(unittest.TestCase):
+    """**重试循环得知道哪些错才值得重试** —— 光有循环没用。"""
+
+    def call(self, error: Exception) -> LLMError:
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(LLMError) as caught:
+                _urllib_transport("https://example.invalid/x", {}, {}, 1.0)
+        return caught.exception
+
+    def test_timeout_is_retryable(self):
+        self.assertTrue(self.call(TimeoutError("timed out")).retryable)
+
+    def test_connection_reset_is_retryable(self):
+        self.assertTrue(self.call(ConnectionResetError("reset")).retryable)
+
+    def test_url_error_is_retryable(self):
+        self.assertTrue(self.call(urllib.error.URLError("名字解析失败")).retryable)
+
+    def test_server_error_is_retryable(self):
+        error = urllib.error.HTTPError(
+            "https://x", 503, "busy", {}, None
+        )
+        self.assertTrue(self.call(error).retryable)
+
+    def test_client_error_is_not_retryable(self):
+        error = urllib.error.HTTPError("https://x", 401, "bad key", {}, None)
+        self.assertFalse(self.call(error).retryable)
+
+
 class RealRequestShapeTest(unittest.TestCase):
     """payload 必须能被 json 序列化 —— 免得踩到不可序列化对象的坑。"""
 
