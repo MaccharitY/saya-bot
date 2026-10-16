@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saya-bot"
-version = "0.0.1"
+version = "0.1.1"
 description = "QQ 群聊对话机器人（DeepSeek 核心）+ 多模态/工具编排路线对照实验平台"
 requires-python = ">=3.11"
 # M0/M1 刻意零依赖，只用标准库 —— 见 docs/02 路线图。
