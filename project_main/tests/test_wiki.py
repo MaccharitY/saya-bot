@@ -276,6 +276,65 @@ class LocalCorpusTest(unittest.TestCase):
 
         self.assertEqual(LocalCorpus(self.dir).read("../secret.txt"), "")
 
+    def test_search_finds_terms_that_only_appear_in_the_body(self):
+        """⚠️ 回归：以前只搜摘要与关键词，**正文里的词一个也搜不到**。
+
+        实测就是靠这条把「无垢花园」这类只在正文出现的词捞回来的 ——
+        而那恰恰是最常被问到的那些词。
+        """
+        (self.dir / "01.txt").write_text("正文里提到了无垢花园这个词。", encoding="utf-8")
+        (self.dir / "index.json").write_text(
+            json.dumps(
+                [{"title": "第一章", "file": "01.txt", "summary": "无关摘要", "keywords": "无关"}],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        results = LocalCorpus(self.dir).search("无垢花园")
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("无垢花园", results[0][1])
+
+    def test_excerpt_jumps_to_the_match_when_it_is_deep_in_the_text(self):
+        """命中点在很后面时要从命中处截 —— 否则模型拿到开头，找不到它问的东西。"""
+        (self.dir / "01.txt").write_text("铺垫" * 800 + "关键的那句话" + "尾声" * 800, encoding="utf-8")
+        (self.dir / "index.json").write_text(
+            json.dumps([{"title": "第一章", "file": "01.txt", "summary": "", "keywords": ""}],
+                       ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        _, excerpt = LocalCorpus(self.dir, max_chars=300).search("关键的那句话")[0]
+
+        self.assertIn("关键的那句话", excerpt)
+
+    def test_duplicate_chapters_prefer_the_chinese_only_version(self):
+        """同一章有母本与中英对照两版时只留一份。
+
+        对照版篇幅约为母本的三倍，给模型看一眼的用途上又贵又没必要；
+        两版都返回也会让结果显得乱七八糟。
+        """
+        (self.dir / "cn.txt").write_text("中文母本：咲弥在这里。", encoding="utf-8")
+        (self.dir / "bi.txt").write_text("Saya is here. 咲弥在这里。", encoding="utf-8")
+        (self.dir / "index.json").write_text(
+            json.dumps(
+                [
+                    {"title": "18-1", "file": "cn.txt", "summary": "", "keywords": "",
+                     "source": "剧情母本（中文）", "chars": 10},
+                    {"title": "18-1", "file": "bi.txt", "summary": "", "keywords": "",
+                     "source": "B站 5.9 主线（中英对照）", "chars": 26},
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        results = LocalCorpus(self.dir).search("咲弥")
+
+        self.assertEqual(len(results), 1, "同一个章节号不该出现两次")
+        self.assertEqual(results[0][0]["file"], "cn.txt")
+
     def test_broken_index_degrades_quietly(self):
         (self.dir / "index.json").write_text("{不是 JSON", encoding="utf-8")
         corpus = LocalCorpus(self.dir)

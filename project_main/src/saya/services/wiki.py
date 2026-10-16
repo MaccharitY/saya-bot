@@ -287,14 +287,19 @@ def _trim(text: str, max_chars: int) -> str:
 class LocalCorpus:
     """抓下来存在本地的剧情文本，优先于在线查询。
 
-    在线查是**慢且不稳**的（见上面那段断连率），而剧情全文本来就不长，
+    在线查是**慢且不稳**的，而剧情全文本来就不长，
     存一份在本地又快又能翻得更深。索引由抓取脚本生成。
+
+    **正文也进内存**：整个语料 30 余万字，全读一遍实测约 12 ms ——
+    换来的是"能搜正文"而不只是"搜摘要"。这一点很重要：
+    搜摘要会漏掉大量只在正文里出现过的词（实测「命运之书」就漏了）。
     """
 
     def __init__(self, directory: Path | str, *, max_chars: int = 1200) -> None:
         self.directory = Path(directory)
         self.max_chars = max_chars
         self._docs: list[JSON] | None = None
+        self._bodies: dict[str, str] = {}
 
     @property
     def available(self) -> bool:
@@ -303,6 +308,7 @@ class LocalCorpus:
     def _load(self) -> list[JSON]:
         if self._docs is not None:
             return self._docs
+
         path = self.directory / "index.json"
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -310,38 +316,77 @@ class LocalCorpus:
             logger.warning("本地语料索引读不了（%s）：%s", path, exc)
             self._docs = []
             return self._docs
+
         self._docs = [doc for doc in data if isinstance(doc, dict)] if isinstance(data, list) else []
+        for doc in self._docs:
+            filename = str(doc.get("file", ""))
+            if filename and filename not in self._bodies:
+                self._bodies[filename] = self._read_file(filename)
+        logger.debug("本地语料已载入：%d 篇", len(self._docs))
         return self._docs
 
     def search(self, query: str, *, limit: int = 2) -> list[tuple[JSON, str]]:
-        """按字面重合度打分。**不引入分词器** —— 索引里本来就带关键词字段。
+        """按字面重合度打分。
 
-        中文没有空格，所以用"查询里每 2 个字组成的片段"当词用，
-        粗糙但够用，而且不依赖任何第三方库。
+        三路信号，从强到弱：**整串命中标题/摘要/关键词** > **整串命中正文** >
+        **2 字片段命中元数据**。最后那一路是兜底：中文没有词边界，
+        整串对不上时（换了说法、多个字）还能靠碎片捞回来。
         """
         docs = self._load()
-        if not docs or not query.strip():
+        query = query.strip()
+        if not docs or not query:
             return []
 
         grams = _grams(query)
         scored: list[tuple[int, JSON]] = []
         for doc in docs:
-            haystack = " ".join(
+            meta = " ".join(
                 str(doc.get(key, "")) for key in ("title", "summary", "keywords")
             )
-            score = sum(1 for gram in grams if gram in haystack)
-            if str(query) in haystack:
-                score += 5  # 整串命中，权重拉高
+            body = self._bodies.get(str(doc.get("file", "")), "")
+
+            score = 0
+            if query in meta:
+                score += 5
+            if query in body:
+                score += 3
+                score += min(body.count(query), 5)  # 出现得多更相关，但别让长文霸榜
+            score += sum(1 for gram in grams if gram in meta)
+
             if score:
                 scored.append((score, doc))
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        results: list[tuple[JSON, str]] = []
-        for _, doc in scored[:limit]:
-            results.append((doc, self.read(str(doc.get("file", "")))))
-        return results
+        picked = _dedupe_by_title(scored)[:limit]
+        return [
+            (doc, self._excerpt(str(doc.get("file", "")), query)) for _, doc in picked
+        ]
+
+    def _excerpt(self, filename: str, query: str) -> str:
+        """给模型看的正文片段。
+
+        命中点在开头就直接给开头；命中点在后面（正文被截断掉的那部分），
+        **就从命中处截一段** —— 否则模型拿到的是开头，找不到它问的东西。
+        """
+        body = self._bodies.get(filename, "")
+        limit = self.max_chars
+        if len(body) <= limit:
+            return body
+
+        at = body.find(query)
+        if at <= limit // 2:
+            return _trim(body, limit)
+
+        start = max(0, at - limit // 4)
+        excerpt = body[start : start + limit]
+        prefix = "…" if start else ""
+        return f"{prefix}{excerpt}…" if len(body) > start + limit else f"{prefix}{excerpt}"
 
     def read(self, filename: str, *, max_chars: int | None = None) -> str:
+        text = self._read_file(filename)
+        return _trim(text, max_chars or self.max_chars) if text else ""
+
+    def _read_file(self, filename: str) -> str:
         if not filename:
             return ""
         path = (self.directory / filename).resolve()
@@ -351,10 +396,9 @@ class LocalCorpus:
             logger.warning("语料文件名越出目录，已拒绝：%s", filename)
             return ""
         try:
-            text = path.read_text(encoding="utf-8")
+            return path.read_text(encoding="utf-8")
         except OSError:
             return ""
-        return _trim(text, max_chars or self.max_chars)
 
 
 def _grams(query: str) -> list[str]:
@@ -362,6 +406,33 @@ def _grams(query: str) -> list[str]:
     if len(cleaned) <= 2:
         return [cleaned] if cleaned else []
     return list({cleaned[index : index + 2] for index in range(len(cleaned) - 1)})
+
+
+def _dedupe_by_title(scored: list[tuple[int, JSON]]) -> list[tuple[int, JSON]]:
+    """同一个章节号有两个版本时只留一个。
+
+    实测有 7 章（`18-1`～`18-7`）同时存在**中文母本**与 **B 站中英对照版**，
+    后者篇幅约为前者的 3.4 倍。给模型看一眼的用途上，双语对照**又贵又没必要**，
+    而且同一条内容出现两次也会让结果显得乱七八糟。
+
+    → 留**纯中文那份**。对照版仍在 `corpus/` 里，要核对官方译名时直接去读就行。
+    """
+    best: dict[str, tuple[int, JSON]] = {}
+    for score, doc in scored:
+        title = str(doc.get("title", "")) or str(doc.get("file", ""))
+        current = best.get(title)
+        if current is None or _prefers(doc, current[1]):
+            best[title] = (score, doc)
+    return sorted(best.values(), key=lambda item: item[0], reverse=True)
+
+
+def _prefers(candidate: JSON, current: JSON) -> bool:
+    """候选该不该取代当前这份。同版本时取更短的那份。"""
+    candid_bilingual = "中英" in str(candidate.get("source", ""))
+    current_bilingual = "中英" in str(current.get("source", ""))
+    if candid_bilingual != current_bilingual:
+        return not candid_bilingual
+    return int(candidate.get("chars") or 0) < int(current.get("chars") or 0)
 
 
 # ---- 组装成给模型用的工具 ----

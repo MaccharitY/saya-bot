@@ -133,5 +133,66 @@ class BuildHistoryTest(ContextTestCase):
         self.assertIn("5 分钟前", text)
 
 
+class BudgetTest(ContextTestCase):
+    """预算怎么分（2026-10-16 修的）。
+
+    以前是**先拼好再整体从头砍** —— 于是被砍掉的恰恰是「当前话题」和
+    「说话人是谁」，而这两块是**每一轮都该在**的：它总得知道刚才在聊什么、
+    对面是谁，少看两条最近消息却无所谓。
+
+    现在的顺序：先留出话题与说话人（它们有硬上限，谁也挤不掉谁），
+    剩下的预算全给最近消息，并且**从最新往回装**。
+    """
+
+    def soak(self, count: int = 60, chunk: str = "很长的一串内容" * 12) -> None:
+        for index in range(count):
+            self.say(text=chunk, at=T0 + timedelta(seconds=index))
+
+    def test_topic_survives_a_flood_of_messages(self):
+        self.say()
+        topic = self.memory.current_topic("g:1")
+        self.memory.set_topic_summary(topic.id, "午饭", "大家在挑店")
+        self.soak()
+
+        text = self.build(group_message())
+        self.assertIn("午饭", text)
+        self.assertIn("大家在挑店", text)
+
+    def test_speaker_survives_a_flood_of_messages(self):
+        self.say(qq=111, name="甲")
+        self.memory.set_note(111, "喜欢音游，自称手残")
+        self.soak()
+
+        text = self.build(group_message(qq=111, name="甲"))
+        self.assertIn("正在说话的人", text)
+        self.assertIn("喜欢音游", text)
+
+    def test_the_newest_message_always_makes_it(self):
+        """从最新往回装 —— 被舍弃的永远是最旧的那几条。"""
+        self.soak()
+        self.say(text="最新这一句", at=T0 + timedelta(hours=1))
+
+        self.assertIn("最新这一句", self.build(group_message()))
+
+    def test_short_messages_fit_more_than_the_old_fixed_window(self):
+        """以前固定带 10 条。预算没变，只是不再浪费在"不够装也硬留位"上。"""
+        for index in range(40):
+            self.say(text="嗯", at=T0 + timedelta(seconds=index))
+
+        text = self.build(group_message())
+        lines = [line for line in text.splitlines() if line.startswith("甲：")]
+        self.assertGreater(len(lines), 10)
+
+    def test_block_never_exceeds_the_cap(self):
+        """⚠️ 回归：以前会超 —— 截断之后又追加了一句"已截断"的提示。"""
+        self.say()
+        topic = self.memory.current_topic("g:1")
+        self.memory.set_topic_summary(topic.id, "标题" * 30, "概述" * 200)
+        self.memory.set_note(111, "摘要" * 200)
+        self.soak()
+
+        self.assertLessEqual(len(self.build(group_message(qq=111, name="甲"))), MAX_CHARS)
+
+
 if __name__ == "__main__":
     unittest.main()
