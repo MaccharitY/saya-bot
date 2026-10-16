@@ -70,14 +70,14 @@ def read_ids(env_path: Path) -> dict[str, str]:
     只认数字够长的，避免把端口号、超时之类的当成人肉信息去满仓库找。
     """
     if not env_path.is_file():
-        print(f"⚠️ 读不到 {env_path} —— 没有它就没法知道要查什么。")
+        print(f"[!] 读不到 {env_path} —— 没有它就没法知道要查什么。")
         print("   指定一个：python tools/privacy_scan.py --env <路径>")
         raise SystemExit(2)
 
     try:
         text = env_path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        print(f"⚠️ {env_path} 不是 UTF-8，读不了。")
+        print(f"[!] {env_path} 不是 UTF-8，读不了。")
         raise SystemExit(2) from None
 
     ids: dict[str, str] = {}
@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         problems += current
         print("\n".join(current))
     else:
-        print("  ✓ 干净")
+        print("  √ 干净")
 
     if not args.current:
         print("\n② 全历史（改当前文件是不够的，历史会带上你写过的每个字）")
@@ -189,15 +189,15 @@ def main(argv: list[str] | None = None) -> int:
             if len(history) > 40:
                 print(f"  …还有 {len(history) - 40} 条")
         else:
-            print("  ✓ 干净")
+            print("  √ 干净")
 
     print()
     if problems:
-        print(f"❌ 共 {len(problems)} 处命中 —— **先清干净再推**。")
+        print(f"× 共 {len(problems)} 处命中 —— **先清干净再推**。")
         print("   改完当前文件还要重写历史（见 docs/05-progress-brief.md 第 7 节）。")
         return 1
 
-    print("✅ 没有发现泄露。")
+    print("√ 没有发现泄露。")
     return 0
 
 

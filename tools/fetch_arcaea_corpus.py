@@ -508,7 +508,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n章节总数 {len(all_chapters)}；新写入 {written}、跳过（已存在）{skipped}")
     print(f"合计 {total} 字符；" + "、".join(f"{k} {v} 章" for k, v in kinds.items()))
     for p in problems:
-        print("⚠️ " + p, file=sys.stderr)
+        print("[!] " + p, file=sys.stderr)
     print(f"索引：{outdir / 'index.json'} 与 {outdir / 'INDEX.md'}")
     return 0
 

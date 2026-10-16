@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saya.console import keep_console_from_crashing  # noqa: E402
 
 PROJECT_MAIN = Path(__file__).resolve().parents[1]
+REPO_ROOT = PROJECT_MAIN.parent
 
 
 def unencodable(text: str, encoding: str = "gbk") -> list[int]:
@@ -58,11 +59,24 @@ def printed_strings(path: Path) -> list[tuple[int, str]]:
 
 
 def source_files() -> list[Path]:
-    return sorted(
-        path
-        for path in PROJECT_MAIN.rglob("*.py")
-        if "__pycache__" not in path.parts and ".venv" not in path.parts
-    )
+    """`project_main/` 与**仓库根的 `tools/`**。
+
+    ⚠️ `tools/` 是 2026-10-16 补进来的：原来只扫 `project_main/`，
+    于是**我在 `tools/config.py` 里写 `print("⚠️ …")` 时它一声不吭** ——
+    而那个 `print` 在管道里会直接崩（截图里就撞到了）。
+    规则要成立就得覆盖**所有能被跑起来的地方**，不能只管一半。
+    """
+    roots = [PROJECT_MAIN, REPO_ROOT / "tools"]
+    found: list[Path] = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        found.extend(
+            path
+            for path in root.rglob("*.py")
+            if "__pycache__" not in path.parts and ".venv" not in path.parts
+        )
+    return sorted(found)
 
 
 class ConsoleOutputIsEncodableTest(unittest.TestCase):
