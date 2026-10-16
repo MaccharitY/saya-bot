@@ -171,6 +171,8 @@ class Config:
     wiki_enable: bool
     wiki_moegirl_api: str
     arcaea_corpus_dir: str
+    # 运行时命令台：在机器人自己的终端里敲命令改设置（立刻生效，见 core/console.py）
+    console_enabled: bool
 
     @classmethod
     def from_env(cls, dotenv_path: Path | None = None) -> Config:
@@ -224,6 +226,7 @@ class Config:
             wiki_enable=get("WIKI_ENABLE", "false").lower() in _TRUE,
             wiki_moegirl_api=get("WIKI_MOEGIRL_API", DEFAULT_MOEGIRL_API),
             arcaea_corpus_dir=get("ARCAEA_CORPUS_DIR", "./persona/corpus"),
+            console_enabled=get("CONSOLE_ENABLED", "true").lower() in _TRUE,
         )
 
     def require_api_key(self) -> str:

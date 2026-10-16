@@ -101,48 +101,36 @@ python tools/notes.py --db <路径> …  # 默认读 project_main/data/notebook.
 
 `forget` 只把记录标成失效、不再注入提示词 —— 留行是为了出问题时能回头看。
 
-### `config.py` —— 改机器人的设置（群策略 / 主人 / 管理员 / 白名单）
+### `config.py` —— **离线**改机器人的设置
 
-**为什么需要**：这些设置全在 `project_main/.env` 里，而那个文件**既有密钥、
-又有大段说明注释**。手工改很容易改坏 —— 多一个空格、少一个逗号，或者顺手把注释删了。
-改坏的后果分两种，**两种都很难一眼看出来**：值写错了，机器人**照旧跑但用的还是旧设置**
-（你以为改了）；文件写坏了，API key 一起没了。
+⚠️ **改完要重启才生效。** 不想重启就在**机器人自己那个跑着日志的终端**里敲同样的命令
+（那是 `core/console.py` 的运行时命令台，改完立刻生效）。
 
 ```bash
-python tools/config.py show                        # 看现在是什么样
-python tools/config.py group 123456789 mention     # 设某个群的策略
-python tools/config.py group 123456789 --del       # 移除某个群
-python tools/config.py default silent              # 没列出的群默认怎么办
-python tools/config.py owner 10001                 # 主人（只能一个）
-python tools/config.py admin add 20001             # 管理员（最多 3 个）
-python tools/config.py admin del 20001
-python tools/config.py friend add 30001            # 白名单（最多 15 个）
-python tools/config.py keyword set saya,咲弥        # keyword 模式用的词
-python tools/config.py prob 0.15                   # random 模式的概率
-python tools/config.py rate 3                      # 每群每分钟最多回几条
-python tools/config.py path                        # 只打印 .env 的路径
+python tools/config.py show                       # 看现在是什么样
+python tools/config.py group 123456789 mention    # 设某个群的策略
+python tools/config.py group 123456789 -          # 移除某个群
+python tools/config.py default silent             # 没列出的群默认怎么办
+python tools/config.py owner 10001                # 主人（只能一个）
+python tools/config.py admin add 20001            # 管理员（最多 3 个）
+python tools/config.py friend add 30001           # 白名单（最多 15 个）
+python tools/config.py keyword set saya,咲弥       # keyword 模式用的词
+python tools/config.py prob 0.15                  # random 模式的概率
+python tools/config.py rate 3                     # 每群每分钟最多回几条
 ```
 
-⚠️ **改完必须重启才生效** —— 配置是**启动时读一次**的（`bash tools/start_saya.sh --restart`）。
+**两个前端，一份后端**（前后端分离，ADR-022）：
 
-六种群策略：`silent`（不记不回）/ `mention`（记录但不被 @ 不回，**默认**）/
-`keyword`（命中词才回）/ `random`（按概率回）/ `always`（全回，会很吵）/
-`selective`（**尚未实现，会降级成 mention**）。
+| 层 | 在哪 | 职责 |
+|---|---|---|
+| 命令语义与校验 | `saya/manage.py` | **唯一一份**，返回结构化结果、不打印 |
+| 文件编辑 | `saya/envfile.py` | 改 `.env` 的那一行 |
+| 前端 | 这个脚本 / `core/console.py` / 将来的 web | 只负责读命令、显示结果 |
 
-**三个刻意的设计**：
-
-1. **只做外科手术式替换** —— 改哪一行就只动那一行，行尾注释、其余行、
-   **行尾符（LF/CRLF）全部原样保留**。写回时用 `newline=""`：
-   默认的通用换行会把 LF 翻成 CRLF，于是"只改一个值"却让整个文件 diff 一片红（实测撞过）。
-2. **写之前先备份**成 `.env.bak`（被 gitignore 覆盖），并在写盘时检查
-   **目标文件有没有被 git 忽略** —— 它装着 API key，`--env 别的名字` 就可能
-   绕开 `.gitignore` 的 `.env` / `.env.*` 规则。这不是假想：写这个工具的当天，
-   拿真 `.env` 复制出来做测试，副本名不匹配忽略规则，**差点把 key 提上去**。
-3. **键名一律写全**（`SAYA_OWNER_ID`），不搞"自动补 `SAYA_` 前缀"那套贴心约定 ——
-   只在一侧生效的隐式约定最容易坑人。
-
-配置校验（QQ 号、策略名、数量上限、概率范围）在写盘**之前**做，不合法就报错不动文件。
-`replace_key()` 可被 import 复用。
+**为什么文件编辑要单独一层**：`.env` 里**装着 API key**，谁都不该自己拼字符串去写它。
+那一层的三条规矩：只动目标行（注释、其余行、**行尾符**全保留）、
+写前先备份、写盘时检查**有没有被 git 忽略**（`--env 别的名字` 能绕开
+`.gitignore` 的 `.env` / `.env.*`，这条不是假想，见 ADR-022）。
 
 ### `fetch.py` —— 抓网页转文本
 

@@ -113,6 +113,21 @@ class Pipeline:
         self._tools = tools or ToolBox()
         self._roles = Roles.from_config(config)
 
+    def reconfigure(self, config: Config) -> None:
+        """换掉手里的配置 —— **换的是引用，不是冻结字段**（见 core/console.py）。
+
+        `Config` 是 `frozen=True` 的，谁都改不动；所以管理命令走
+        "重建一个新的、整体替换"这条路。并发上也安全：读的一方
+        要么看到旧的、要么看到新的，不会看到改到一半的配置。
+
+        ⚠️ **`Roles` 必须跟着重建。** 它是 `__init__` 里从 config 构好的
+        （身份判定只在这一处），不重建的话改了管理员名单要重启才生效 ——
+        而"不用重启"正是这个命令台存在的理由。
+        """
+        self._config = config
+        self._roles = Roles.from_config(config)
+        self._trigger.reconfigure(config)
+
     # ---- 主循环 ----
 
     def run(self) -> None:

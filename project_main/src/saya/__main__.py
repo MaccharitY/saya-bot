@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import socket
+import sys
 import threading
 import urllib.parse
 import urllib.request
@@ -19,7 +20,8 @@ from pathlib import Path
 from saya.adapter.base import Adapter, AdapterError
 from saya.adapter.mock import MockAdapter
 from saya.adapter.onebot11_http import OneBot11HttpAdapter
-from saya.config import Config
+from saya.config import Config, ConfigError
+from saya.core.console import BANNER, Console
 from saya.core.memory import Memory
 from saya.core.notebook import Notebook
 from saya.core.persona import DEFAULT_PERSONA, Persona, load_persona
@@ -410,6 +412,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"启动失败：{exc}")
         return 1
 
+    # 命令台：在**这个终端**里敲命令改设置，改完立刻生效（core/console.py）。
+    # 这也是 0.2.0 那个 web 管理页的前置 —— 命令语义全在 saya/manage.py，与前端无关。
+    if config.console_enabled:
+        print(BANNER)
+        Console(
+            env_path=env_file or DEFAULT_ENV_FILE,
+            apply=lambda: _reconfigure(pipeline, env_file or DEFAULT_ENV_FILE),
+        ).start(sys.stdin)
+
     try:
         pipeline.run()
     except KeyboardInterrupt:
@@ -417,6 +428,20 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         pipeline.stop()
     return 0
+
+
+def _reconfigure(pipeline: Pipeline, env_file: Path) -> list[str]:
+    """重读 `.env`，换掉内核手里的配置。返回要补说的话（正常是空的）。
+
+    ⚠️ **新设置没通过校验时，保留旧的继续跑** —— 不能因为一条手滑的命令
+    把群里正在用的机器人搞停。`Config` 冻结字段一个都不用捅：整个换掉。
+    """
+    try:
+        fresh = Config.from_env(dotenv_path=env_file)
+    except ConfigError as exc:
+        return [f"  [!] 新设置没通过校验，**仍按旧的跑**：{exc}"]
+    pipeline.reconfigure(fresh)
+    return []
 
 
 if __name__ == "__main__":

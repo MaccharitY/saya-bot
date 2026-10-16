@@ -60,6 +60,15 @@ class Trigger:
         self._answered: deque[str] = deque(maxlen=DEDUP_MEMORY)
         self._answered_set: set[str] = set()
 
+    def reconfigure(self, config: Config) -> None:
+        """换配置（群策略 / 关键词 / 概率 / 限流都从这里读）。
+
+        ⚠️ `Roles` 也要重建 —— 群策略里 `mention` 的判定用得上身份。
+        由 `Pipeline.reconfigure` 统一调用，别处不要单独调。
+        """
+        self._config = config
+        self._roles = Roles.from_config(config)
+
     # ---- 判定 ----
 
     def evaluate(self, message: IncomingMessage) -> TriggerDecision:
