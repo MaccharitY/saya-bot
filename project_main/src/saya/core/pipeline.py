@@ -133,7 +133,7 @@ class Pipeline:
     def run(self) -> None:
         """阻塞地跑，直到 `stop()` 被调用。"""
         logger.info(
-            "saya_bot 启动：adapter=%s 看图路线=%s 模型=%s 默认群策略=%s",
+            "saya_bot 启动：adapter=%s 视图模式=%s 模型=%s 默认群策略=%s",
             self._config.adapter,
             self._config.vision_route,
             self._config.llm_model,
@@ -143,7 +143,7 @@ class Pipeline:
             try:
                 self.handle(message)
             except Exception:  # noqa: BLE001 - 主循环必须活下来
-                logger.exception("处理消息时崩了，跳过这一条")
+                logger.exception("处理消息时异常，跳过本条")
                 self._trace.write(
                     self._event("error", {"error": "未捕获的异常，详见日志"}, message)
                 )
@@ -204,7 +204,7 @@ class Pipeline:
         if blocked:
             logger.warning("输出被拦下（%s）", blocked)
         if not safe_text.strip():
-            logger.info("生成结果为空，不回")
+            logger.info("生成结果为空，放弃回复")
             self._trace.write(self._event("error", {"error": "生成结果为空"}, message))
             return False
 
@@ -240,7 +240,7 @@ class Pipeline:
         try:
             self._memory.remember(message)
         except Exception:  # noqa: BLE001 - 记忆坏了不该让机器人不回话
-            logger.exception("写记忆失败，跳过这一条")
+            logger.exception("写记忆失败，跳过本条")
 
     def _remember_image(self, message: IncomingMessage) -> None:
         """群里的图**先存一份**，哪怕这一轮不喂给模型。

@@ -193,7 +193,7 @@ class LLMClient:
         self._temperature_ignored_warned = True
         logger.warning(
             "思考模式（reasoning_effort=%s）下 temperature 不生效 —— "
-            "发出去的 %.2f 会被服务端无视。要做温度对照实验请先把它设成 none。",
+            "发出去的 %.2f 会被服务端无视。温度对照实验请先设为 none。",
             self._reasoning_effort,
             temperature,
         )

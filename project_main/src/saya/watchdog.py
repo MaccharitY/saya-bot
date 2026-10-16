@@ -106,8 +106,8 @@ def watch_owner(
             time.sleep(interval)
             if not owner_is_alive(owner_pid):
                 logger.warning(
-                    "拉起我的那个进程（PID %d）已经不在了 —— 机器人跟着退出，"
-                    "免得留下没人管、又占着端口的实例",
+                    "控制台进程（PID %d）已退出 —— 本进程随之退出，"
+                    "避免留下未托管且占用端口的实例",
                     owner_pid,
                 )
                 try:
@@ -118,7 +118,7 @@ def watch_owner(
 
     thread = threading.Thread(target=loop, name="saya-watchdog", daemon=True)
     thread.start()
-    logger.info("已开始盯着拉起我的进程（PID %d）", owner_pid)
+    logger.info("监视控制台进程（PID %d）", owner_pid)
     return thread
 
 
@@ -141,14 +141,14 @@ def start_if_owned(
     interval: float = DEFAULT_INTERVAL,
     on_lost: Callable[[], None] | None = None,
 ) -> threading.Thread | None:
-    """环境变量里有 PID 才盯 —— 没有就是无头启动，不管。"""
+    """环境变量里有 PID 才监视 —— 没有就是无头启动，不管。"""
     raw = os.environ.get(OWNER_PID_ENV, "").strip()
     if not raw:
         return None
     try:
         pid = int(raw)
     except ValueError:
-        logger.warning("%s 不是数字（%r），不启用看护", OWNER_PID_ENV, raw)
+        logger.warning("%s 不是数字（%r），不启用监视", OWNER_PID_ENV, raw)
         return None
     if pid <= 0 or pid == os.getpid():
         return None

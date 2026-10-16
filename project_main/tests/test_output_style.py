@@ -32,15 +32,35 @@ PROJECT_MAIN = Path(__file__).resolve().parents[1]
 REPO_ROOT = PROJECT_MAIN.parent
 
 # 这些模块的字符串**会出现在屏幕上**
-SCREEN_MODULES = (
-    "project_main/src/saya/manage.py",
-    "project_main/src/saya/core/console.py",
-    "project_main/src/saya/__main__.py",
-    "project_main/experiment/analyze.py",
-    "project_main/experiment/run_experiment.py",
-    "tools/panel.py",
-    "tools/config.py",
-)
+def screen_modules() -> list[Path]:
+    """**全部** `.py` —— 因为日志散布在各个模块里。
+
+    ⚠️ 原来这里是一份**手写的 7 个文件名**，而那个名单是错的：
+    2026-10-16 要改的日志在 `watchdog.py` / `pipeline.py` / `core/tools.py` /
+    `services/llm.py` —— **一个都不在名单里**。
+    于是"加了防护"的那一轮其实**什么都没扫到**，而所有者是从屏幕上
+    先看见那句 `已开始盯着拉起我的进程` 的。
+
+    放宽到全部文件是安全的：`screen_strings()` 只挑**会出现在屏幕上的字符串**
+    （`print` / `logger.*` / `Outcome` / `Result` / `BANNER` / `USAGE`），
+    给模型的提示词、生成的 markdown 模板都不会被误伤。
+    """
+    roots = [PROJECT_MAIN / "src", REPO_ROOT / "tools", PROJECT_MAIN / "experiment"]
+    return sorted(
+        path
+        for root in roots
+        if root.is_dir()
+        for path in root.rglob("*.py")
+        if "__pycache__" not in path.parts
+    )
+
+
+def short(path: Path) -> str:
+    """报告里用相对仓库根的短路径，方便一眼看出是哪个文件。"""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
 
 # markdown 语法：终端里不会渲染，只会原样打出符号
 MARKDOWN = re.compile(r"\*\*|`")
@@ -51,6 +71,27 @@ INTERNAL = re.compile(r"(docs/\d|pre/\d|ADR-0|§|第\s*\d+\s*节)")
 TEXT_CALLS = {"print", "Result", "Outcome", "_say", "_fail"}
 # 模块级常量里装的也是一整段界面文本
 TEXT_CONSTANTS = {"BANNER", "USAGE"}
+# ⚠️ **日志也算"屏幕上的文本"** —— 用户天天在看它。
+# 这条是 2026-10-16 补的：上一版只收了 print / Outcome / BANNER，
+# 于是 `已开始盯着拉起我的进程（PID 18300）` 这种句子漏了过去 ——
+# 而所有者正是**从屏幕上看见它**才提的。
+LOG_METHODS = {"info", "warning", "error", "debug", "exception", "critical"}
+
+# ⚠️ **已经改掉的口语词黑名单** —— 别再回来。
+# 机器判不了"是不是口语"（那要靠人照 `docs/style.md` 过一遍），
+# 但**这几个词是我们逐个改过的**，回潮是真实风险，所以拦一道。
+# 加新词之前先想清楚：这是"这次改掉的具体词"，不是"所有口语词"的清单。
+_COLLOQUIAL = {
+    "盯着": "监视",
+    "拉起": "启动",
+    "崩了": "异常",
+    "摘掉": "移除",
+    "兜住": "拦截",
+    "收一次尾": "收尾",
+    "闭嘴": "静默",
+    "不开口": "静默",
+    "看图路线": "视图模式",
+}
 
 
 def module_docstring_ids(tree: ast.AST) -> set[int]:
@@ -75,7 +116,7 @@ def screen_strings(source: str) -> list[tuple[int, str]]:
         # ① print(...) / Result(...) / Outcome(...) 之类调用里的文本
         if isinstance(node, ast.Call):
             name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            if name in TEXT_CALLS:
+            if name in TEXT_CALLS or name in LOG_METHODS:
                 for inner in ast.walk(node):
                     if isinstance(inner, ast.Constant) and isinstance(inner.value, str) \
                        and id(inner) not in skip:
@@ -105,16 +146,13 @@ class ScreenTextStyleTest(unittest.TestCase):
 
     def test_no_markdown_on_screen(self):
         offenders: list[str] = []
-        for name in SCREEN_MODULES:
-            path = REPO_ROOT / name
-            if not path.is_file():
-                continue
+        for path in screen_modules():
             for lineno, text in screen_strings(path.read_text(encoding="utf-8")):
                 if MARKDOWN.search(text):
                     line = next(
                         (l for l in text.splitlines() if MARKDOWN.search(l)), text
                     )
-                    offenders.append(f"{name}:{lineno}  {line.strip()[:70]}")
+                    offenders.append(f"{short(path)}:{lineno}  {line.strip()[:70]}")
         self.assertEqual(
             offenders,
             [],
@@ -129,21 +167,45 @@ class ScreenTextStyleTest(unittest.TestCase):
         也不拦 `.env` 路径 —— 那些是使用者真要照着做的，得留着。
         """
         offenders: list[str] = []
-        for name in SCREEN_MODULES:
-            path = REPO_ROOT / name
-            if not path.is_file():
-                continue
+        for path in screen_modules():
             for lineno, text in screen_strings(path.read_text(encoding="utf-8")):
                 if INTERNAL.search(text):
                     line = next(
                         (l for l in text.splitlines() if INTERNAL.search(l)), text
                     )
-                    offenders.append(f"{name}:{lineno}  {line.strip()[:70]}")
+                    offenders.append(f"{short(path)}:{lineno}  {line.strip()[:70]}")
         self.assertEqual(
             offenders,
             [],
             "屏幕上打出了内部文档索引（那是给维护者查资料的）：\n  "
             + "\n  ".join(offenders),
+        )
+
+
+class ColloquialismTest(unittest.TestCase):
+    """⚠️ **已经改掉的口语词别再回来。**
+
+    「书面 vs 口语」**机器判不了** —— 那要靠人照着 `docs/style.md` 过一遍。
+    但下面这几个词是我们**逐个改过**的（所有者指出来的），回潮是真实风险。
+    ⚠️ 而且这条**连日志一起扫** —— 上一版漏了 `logger.*`，
+    那句「已开始盯着拉起我的进程」就是从屏幕上被看见的。
+    """
+
+    def test_the_list_is_not_empty(self):
+        self.assertTrue(_COLLOQUIAL)
+
+    def test_no_colloquialisms_on_screen(self):
+        offenders: list[str] = []
+        for path in screen_modules():
+            for lineno, text in screen_strings(path.read_text(encoding="utf-8")):
+                for bad, good in _COLLOQUIAL.items():
+                    if bad in text:
+                        first = text.strip().splitlines()[0][:50]
+                        offenders.append(f"{short(path)}:{lineno}  「{bad}」→「{good}」  {first}")
+        self.assertEqual(
+            offenders,
+            [],
+            "屏幕上又出现了改过的口语词：\n  " + "\n  ".join(offenders),
         )
 
 

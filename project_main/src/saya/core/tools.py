@@ -193,13 +193,13 @@ def run_with_tools(
             # `<| |DSML| | invoke name=...>`。
             # 所以这里还要**明说工具没了**（不说它不知道），并且复核结果
             # （复核只记日志，真正兜住的是 `guard.screen_output`）。
-            logger.info("工具轮次用尽（%d 轮），摘掉工具再收一次尾", rounds)
+            logger.info("工具轮次用尽（%d 轮），移除工具后收尾", rounds)
             history.append(text_message("user", _NO_TOOLS_NOTE))
             result = client.chat(history, temperature=temperature)
             account(result)
             if has_tool_markup(result.text):
                 logger.warning(
-                    "摘掉工具后模型仍在输出工具调用标记 —— 交给输出过滤兜住（%d 字）",
+                    "移除工具后模型仍在输出工具调用标记 —— 交由输出过滤拦截（%d 字）",
                     len(result.text),
                 )
             break
