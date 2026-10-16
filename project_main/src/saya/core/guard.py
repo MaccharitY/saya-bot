@@ -145,6 +145,31 @@ _SECRET_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 _PROMPT_LEAK_MIN_CHARS = 24
 
+# ⚠️ **工具调用标记**：模型想调工具、但工具已经不可用时，会把这类标记
+# **当普通文本吐出来**，然后被原样发进群里。
+#
+# 2026-10-16 实测撞到（真事，群友看见的）：工具轮次用尽后代码摘掉工具再问一次，
+# 模型仍想调工具，于是把整段 DSML 发了出去：
+#
+#     <| |DSML| | calls>
+#     <| |DSML| | invoke name="moegirl_lookup">
+#     <| |DSML| | parameter name="query" string="true">明日方舟 甘比诺…</| |DSML| | parameter>
+#
+# 分隔符是 `｜`（全角竖线）还是 `|` 取决于上游怎么吐，中间还可能夹空格，
+# 所以这里**不写死某一种格式**，只认"尖括号开头 + 少量竖线/空白 + 标记名"。
+_TOOL_MARKUP = re.compile(
+    r"<[｜|\s]{0,6}(DSML|tool_calls?\b|invoke\b|parameter\b)",
+    re.IGNORECASE,
+)
+
+# 命中时不发原文，改发这句。**不能装作没发生** —— 静默不回比一句话更让人困惑。
+_TOOL_MARKUP_FALLBACK = "（刚才那条没组成句子，你再说一次？）"
+
+
+def has_tool_markup(text: str) -> bool:
+    """这段文本里有没有工具调用标记。`tools.py` 摘掉工具后也用它复核。"""
+    return bool(_TOOL_MARKUP.search(text))
+
 
 @dataclass(frozen=True, slots=True)
 class GuardResult:
@@ -218,6 +243,12 @@ def screen_output(reply: str, *, system_prompt: str = "") -> tuple[str, str | No
     for name, pattern in _SECRET_RULES:
         if pattern.search(reply):
             return f"[已拦截：回复中疑似包含{name}]", name
+
+    # 工具调用标记：**当没说完处理**，别把标记发给群友。
+    # 上游还会再拦一道（tools.py 摘工具时会叮嘱模型别输出这个格式），
+    # 这里是最后一道 —— 万一漏过来，宁可换一句话也不能原样发出去。
+    if has_tool_markup(reply):
+        return _TOOL_MARKUP_FALLBACK, "工具调用标记泄露"
 
     if system_prompt:
         for fragment in _prompt_fragments(system_prompt):

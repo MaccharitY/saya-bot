@@ -19,10 +19,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from saya.core.guard import has_tool_markup
 from saya.services.llm import (
     ChatResult,
     LLMClient,
     assistant_tool_message,
+    text_message,
     tool_result_message,
 )
 
@@ -30,6 +32,13 @@ JSON = dict[str, Any]
 logger = logging.getLogger("saya.tools")
 
 DEFAULT_MAX_ROUNDS = 3  # 最多让模型连着调几轮工具
+
+# 轮次用尽、工具被摘掉时补的一句。**必须明说**：不说的话模型不知道自己
+# 已经没有工具了，会把工具调用标记当普通文本吐出来（见下面 run_with_tools）。
+_NO_TOOLS_NOTE = (
+    "（系统：工具接口现在不可用了，本轮无法再调用任何工具。"
+    "请只用上面已经拿到的信息直接回答；不要再输出任何工具调用格式。）"
+)
 MAX_TOOL_OUTPUT_CHARS = 2000  # 单个工具的返回给模型的上限
 
 
@@ -177,9 +186,22 @@ def run_with_tools(
         if rounds >= max_rounds:
             # 轮次用尽却还在要工具：**把工具摘掉**再问一次，逼它用手上已有的信息作答。
             # 不做这一步的话这里会返回空文本，用户看到的就是"发了消息没反应"。
+            #
+            # ⚠️ **光摘工具不够。** 摘掉之后模型仍可能"想调工具"，而这次没有
+            # tool_calls 这个出口了，它就把**工具调用标记当普通文本吐出来** ——
+            # 2026-10-16 实测，整段 DSML 被发进了群里，群友看见的就是一堆
+            # `<| |DSML| | invoke name=...>`。
+            # 所以这里还要**明说工具没了**（不说它不知道），并且复核结果
+            # （复核只记日志，真正兜住的是 `guard.screen_output`）。
             logger.info("工具轮次用尽（%d 轮），摘掉工具再收一次尾", rounds)
+            history.append(text_message("user", _NO_TOOLS_NOTE))
             result = client.chat(history, temperature=temperature)
             account(result)
+            if has_tool_markup(result.text):
+                logger.warning(
+                    "摘掉工具后模型仍在输出工具调用标记 —— 交给输出过滤兜住（%d 字）",
+                    len(result.text),
+                )
             break
 
         rounds += 1

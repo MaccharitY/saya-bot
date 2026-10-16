@@ -214,6 +214,22 @@ class RunWithToolsTest(unittest.TestCase):
         self.assertEqual(run.rounds, max_rounds)
         self.assertNotIn("tools", transport.calls[-1], "收尾那一轮不该再带工具")
 
+    def test_stripping_tools_also_tells_the_model_they_are_gone(self):
+        """⚠️ **光摘工具不够，还得说一声。**
+
+        不说的话模型不知道自己没工具了，就把**工具调用标记当普通文本吐出来** ——
+        2026-10-16 实测，整段 DSML 被发进了群里。
+        """
+        max_rounds = 2
+        script = [tool_response("echo", "{}") for _ in range(max_rounds + 1)]
+        script.append(text_response("硬着头皮答"))
+
+        _, transport, _ = self.run_it(script, ToolBox([echo_tool()]), max_rounds=max_rounds)
+
+        last_messages = transport.calls[-1]["messages"]
+        joined = " ".join(str(m.get("content", "")) for m in last_messages)
+        self.assertIn("工具接口现在不可用", joined)
+
     def test_callers_messages_are_not_mutated(self):
         original = [{"role": "user", "content": "你好"}]
         _, _, messages = self.run_it(

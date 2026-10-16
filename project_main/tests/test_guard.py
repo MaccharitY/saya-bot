@@ -20,6 +20,7 @@ from saya.core.guard import (  # noqa: E402
     UNTRUSTED_CLOSE,
     UNTRUSTED_OPEN,
     detect_injection,
+    has_tool_markup,
     screen_output,
     wrap_history,
     wrap_message,
@@ -149,6 +150,54 @@ class ScreenOutputTest(unittest.TestCase):
         prompt = "必须遵守：\n- 回复要短\n- 不确定就说不确定\n"
         _, reason = screen_output("我尽量回复要短一点", system_prompt=prompt)
         self.assertIsNone(reason)
+
+
+# ⚠️ 下面这段是**真事**：2026-10-16 它被整段发进了群里，群友看见的就是这一堆。
+# 不要"整理"成干净的样子 —— 它的价值就在于保有原样（那个 `| |` 的空格写法、
+# 全角/半角混用，都是当时真实吐出来的形态）。
+LEAKED_DSML = (
+    "<| |DSML| | calls>\n"
+    '<| |DSML| | invoke name="moegirl_lookup">\n'
+    '<| |DSML| | parameter name="query" string="true">'
+    "明日方舟 甘比诺 卡彭 抽烟 梗</| |DSML| | parameter>\n"
+    "</| |DSML| | invoke>\n"
+    "</| |DSML| | calls>"
+)
+
+
+class ToolMarkupLeakTest(unittest.TestCase):
+    """模型把**工具调用标记当普通文本**吐出来时，绝不能原样发给群友。
+
+    什么时候会发生：工具轮次用尽、工具被摘掉之后，模型还"想调工具" ——
+    这次没有 tool_calls 这个出口了，它就写成文本。
+    """
+
+    def test_the_real_leak_is_caught(self):
+        text, reason = screen_output(LEAKED_DSML)
+        self.assertEqual(reason, "工具调用标记泄露")
+        self.assertNotIn("DSML", text, "标记一个字符都不许漏出去")
+
+    def test_fullwidth_bar_variant(self):
+        """上游可能用全角竖线 `｜`（U+FF5C），别只认半角。"""
+        _, reason = screen_output("<｜｜｜DSML｜｜｜tool_calls>")
+        self.assertEqual(reason, "工具调用标记泄露")
+
+    def test_generic_tool_call_variant(self):
+        """别家格式（`<tool_call>`）也一起挡了 —— 换个上游不用重改。"""
+        _, reason = screen_output('<tool_call>{"name":"search"}</tool_call>')
+        self.assertEqual(reason, "工具调用标记泄露")
+
+    def test_normal_reply_is_not_touched(self):
+        for good in ("在的，怎么了？", "图里有三只猫。", "我查了一下，没找到。", "1+1=2"):
+            text, reason = screen_output(good)
+            self.assertEqual(text, good)
+            self.assertIsNone(reason, f"误伤了正常回复：{good!r}")
+
+    def test_fallback_is_a_sentence_not_a_marker(self):
+        """替换掉之后要像**人说的话**，不能又是一串标记。"""
+        text, _ = screen_output(LEAKED_DSML)
+        self.assertTrue(text.startswith("（") and text.endswith("）"))
+        self.assertFalse(has_tool_markup(text))
 
 
 class JapaneseTest(unittest.TestCase):
