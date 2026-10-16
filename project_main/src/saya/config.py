@@ -172,6 +172,9 @@ class Config:
     price_cache_hit: float
     dns_cache_ttl: float
     cv_mcp_command: str
+    # 专用 CV 模型的权重目录。⚠️ **只有附属子进程读得到它** —— 由
+    # `cv_tools.cv_subprocess_env()` 显式传下去（普通环境变量读不到 .env）。
+    cv_model_dir: str
     memory_enabled: bool
     # 人格正文从文件读，换角色不动代码。相对路径按 project_main/ 解析。
     persona_name: str
@@ -232,6 +235,7 @@ class Config:
             price_cache_hit=float(get("PRICE_CACHE_HIT", "0")),
             dns_cache_ttl=float(get("DNS_CACHE_TTL", "1800")),
             cv_mcp_command=get("CV_MCP_COMMAND"),
+            cv_model_dir=get("CV_MODEL_DIR"),
             memory_enabled=get("MEMORY_ENABLED", "true").lower() in _TRUE,
             persona_name=get("PERSONA_NAME", "咲弥"),
             persona_file=get("PERSONA_FILE", "./persona/saya.md"),

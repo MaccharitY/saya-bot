@@ -75,6 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     path = Path(args.env).resolve() if args.env else DEFAULT_ENV
 
+    # ⚠️ `command` 用的是 `argparse.REMAINDER`，所以**第一个位置参数之后出现的
+    # `--env` 会被当成命令的一部分吞掉** —— 于是 `config.py show --env 别处.env`
+    # 会**静默地**打印默认那个 .env 的内容（实测把真实群号/主人打了出来）。
+    # 与其假装支持，不如直接指出来；静默用错文件比报错危险得多。
+    if "--env" in args.command:
+        print("--env 要写在命令前面：python tools/config.py --env <路径> <命令>")
+        return 2
+
     if args.command and args.command[0] == "path":
         print(path)
         return 0
@@ -83,7 +91,13 @@ def main(argv: list[str] | None = None) -> int:
         print("没给命令。--help 看有哪些。")
         return 2
 
-    env = EnvFile(path)
+    try:
+        env = EnvFile(path)
+    except FileNotFoundError as exc:
+        # 另外两条前端（机器人命令台、面板）都把这个异常接成了"命令失败"，
+        # 这里以前是裸调 —— 缺 .env 时直接打一屏栈、exit 1。
+        print(str(exc))
+        return 2
     result: Result = run(env, " ".join(args.command))
     if result.lines:
         print(result.text)

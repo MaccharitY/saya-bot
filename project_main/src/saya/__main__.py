@@ -32,7 +32,7 @@ from saya.core.tools import ToolBox
 from saya.core.trigger import Trigger
 from saya.obs.trace import TraceWriter
 from saya.services.llm import LLMClient, LLMError, text_message
-from saya.services.cv_tools import CvToolsError, start_cv_tools
+from saya.services.cv_tools import CvToolsError, cv_subprocess_env, start_cv_tools
 from saya.services.net import install as install_dns_cache
 from saya.services.net import keep_warm
 from saya.services.vision import (
@@ -102,7 +102,9 @@ def build_pipeline(config: Config) -> Pipeline:
 
     tools = None
     if config.vision_route in NEEDS_TOOLS:
-        tools = start_cv_tools(config.cv_mcp_command)
+        tools = start_cv_tools(
+            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+        )
         log.info(
             "附属已就绪：%s（工具 %d 个）",
             tools.server_info.get("name", "?"),
@@ -312,7 +314,9 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
         else:
             print("\n→ 试着启动附属（专用 CV 模型）…")
             try:
-                tools = start_cv_tools(config.cv_mcp_command)
+                tools = start_cv_tools(
+            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+        )
             except CvToolsError as exc:
                 problems.append(f"附属启动失败：{exc}")
             else:

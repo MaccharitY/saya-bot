@@ -178,27 +178,68 @@ class KeywordFollowTest(unittest.TestCase):
             "trigger_keywords": ("咲弥",),
             "keyword_followup": 5,
             "keyword_followup_seconds": 600.0,
+            # ⚠️ **把限流调开**：这一组一个时钟刻里要回六七条，默认的每分钟 5 条
+            # 会让"第 5 条跟随"失败 —— 而失败原因是限流，不是跟随窗口。
+            # 那正是最难查的那种红灯：看着像被测对象坏了，其实是被别的机制挡的。
+            "rate_limit_per_group_per_min": 100,
         }
         options.update(overrides)
         return Trigger(base_config(**options), clock=clock or FakeClock())
 
+    def reply(self, trigger, message):
+        """模拟"真的回了"。
+
+        ⚠️ **额度是在这一刻才扣的**（`note_answered`），不在判定时扣 ——
+        判定说"该回"，但这条最后可能一个字都没发出去（模型超时 / 输出为空 /
+        被护栏整条替换）。见下面 `test_a_failed_reply_does_not_eat_the_quota`。
+        """
+        decision = trigger.evaluate(message)
+        if decision.respond:
+            trigger.note_answered(message, reason=decision.reason)
+        return decision
+
     def test_follows_the_next_messages_without_the_keyword(self):
         trigger = self.make()
-        self.assertTrue(trigger.evaluate(group_message("咲弥 这个怎么弄")).respond)
+        self.assertTrue(self.reply(trigger, group_message("咲弥 这个怎么弄")).respond)
         for index in range(5):
-            decision = trigger.evaluate(
-                group_message("那这个呢", message_id=f"f{index}")
-            )
+            decision = self.reply(trigger, group_message("那这个呢", message_id=f"f{index}"))
             self.assertTrue(decision.respond, f"第 {index + 1} 条应该跟随")
             self.assertEqual(decision.reason, "hit:keyword-follow")
 
-    def test_window_runs_out(self):
+    def test_window_runs_out_after_five_replies(self):
+        """⚠️ 额度由**真回出去的条数**消耗，不是"判定过几次"。"""
         trigger = self.make()
-        trigger.evaluate(group_message("咲弥 这个怎么弄"))
+        self.reply(trigger, group_message("咲弥 这个怎么弄"))
         for index in range(5):
-            trigger.evaluate(group_message("继续", message_id=f"f{index}"))
-        after = trigger.evaluate(group_message("还在吗", message_id="after"))
+            self.assertTrue(
+                self.reply(trigger, group_message("继续", message_id=f"f{index}")).respond
+            )
+        after = self.reply(trigger, group_message("还在吗", message_id="after"))
         self.assertFalse(after.respond, "五条之后就该重新叫它了")
+
+    def test_a_failed_reply_does_not_eat_the_quota(self):
+        """⚠️⚠️ 独立评审坐实的一条。
+
+        以前额度在**判定时**就扣：窗口剩 1 格 → 用户发一条 → 模型超时 /
+        输出为空 / 被护栏整条替换 → **额度没了、话也没回**，用户得重新叫一次，
+        而且不知道为什么（埋点里只留下一条 `hit:keyword-follow`）。
+        """
+        trigger = self.make(keyword_followup=1)
+        self.reply(trigger, group_message("咲弥 在吗"))
+
+        # 判定说"该回"，但这一条最后什么都没发出去 —— 不调 note_answered
+        first = trigger.evaluate(group_message("那这个呢", message_id="f1"))
+        self.assertTrue(first.respond)
+
+        again = self.reply(trigger, group_message("那这个呢", message_id="f2"))
+        self.assertTrue(again.respond, "上次没回成，额度不该被吃掉")
+
+    def test_the_triggering_message_does_not_eat_a_slot(self):
+        """**叫它的那一条自己不算「接下来的 N 条」里的一条。**"""
+        trigger = self.make(keyword_followup=1)
+        self.reply(trigger, group_message("咲弥 在吗"))     # 命中关键词，回了一条
+        following = self.reply(trigger, group_message("那这个呢", message_id="f1"))
+        self.assertTrue(following.respond, "窗口不该被触发消息自己吃掉")
 
     def test_only_the_person_who_called_it(self):
         """⚠️ 窗口挂在 (群号, 用户) 上 —— 别人说话既不消耗它，也蹭不到。"""
@@ -222,6 +263,29 @@ class KeywordFollowTest(unittest.TestCase):
         late = trigger.evaluate(group_message("今天天气不错", message_id="late"))
         self.assertFalse(late.respond, "超时了就不该再跟随")
 
+    def test_zero_seconds_means_no_time_limit(self):
+        """⚠️⚠️ 独立评审坐实的一条：**代码和文档说的是反话。**
+
+        `.env.example` 与 `config.py` 两处都写着 `0 = 不限时`，
+        而代码原来是 `seconds <= 0 → 把跟随整个关掉`。
+        照文档把秒数设成 0 求"永久跟随"的人，拿到的是**功能静默失效** ——
+        没有报错、没有日志，只能靠"它怎么又不理我了"发现。
+        """
+        clock = FakeClock()
+        trigger = self.make(clock=clock, keyword_followup_seconds=0)
+        self.reply(trigger, group_message("咲弥 在吗"))
+        clock.now += 100000          # 远超默认的 600 秒
+        still = self.reply(trigger, group_message("那这个呢", message_id="f1"))
+        self.assertTrue(still.respond, "0 是「不限时」，不是「关掉」")
+
+    def test_zero_count_still_turns_it_off(self):
+        """「关掉跟随」有它自己的开关：`keyword_followup=0`。"""
+        trigger = self.make(keyword_followup=0)
+        self.reply(trigger, group_message("咲弥 在吗"))
+        self.assertFalse(
+            trigger.evaluate(group_message("那这个呢", message_id="f1")).respond
+        )
+
     def test_hitting_the_keyword_again_resets_the_window(self):
         clock = FakeClock()
         trigger = self.make(clock=clock)
@@ -234,10 +298,24 @@ class KeywordFollowTest(unittest.TestCase):
         again = trigger.evaluate(group_message("接着问", message_id="f3"))
         self.assertTrue(again.respond, "重新叫过之后窗口应该从头算")
 
-    def test_zero_turns_it_off(self):
-        trigger = self.make(keyword_followup=0)
-        trigger.evaluate(group_message("咲弥 在吗"))
-        self.assertFalse(trigger.evaluate(group_message("那这个呢", message_id="f1")).respond)
+    def test_stale_windows_are_pruned(self):
+        """⚠️ 独立评审坐实的一条：`_following` 会**单调长大**。
+
+        原来的清理只发生在"同一个键下次被读到时" —— 说过一次关键词、
+        之后就再也不说话的人，条目**永远留着**。
+        （ADR-024 里写的「不会无限长大」那句是假的。）
+        """
+        clock = FakeClock()
+        trigger = self.make(clock=clock)
+        for index in range(50):
+            trigger.evaluate(
+                group_message("咲弥 在吗", message_id=f"k{index}", user_id=1000 + index)
+            )
+        self.assertEqual(len(trigger._following), 50)
+
+        clock.now += 100000          # 远超 600 秒的窗口
+        trigger.evaluate(group_message("咲弥 在吗", message_id="new", user_id=9999))
+        self.assertEqual(len(trigger._following), 1, "过期的窗口该被扫掉")
 
     def test_mention_policy_is_unaffected(self):
         """mention 群里每次 @ 都会回，不需要跟随 —— 别把窗口开到那边去。"""

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import shlex
+from collections.abc import Mapping
 from pathlib import Path
 
 from saya.services.mcp_client import McpError, McpStdioClient, McpTool
@@ -81,15 +82,37 @@ def split_command(command: str, *, posix: bool | None = None) -> list[str]:
     return argv if posix else [token.strip('"').strip("'") for token in argv]
 
 
-def start_cv_tools(command: str, *, timeout: float = 180.0) -> CvTools:
+def cv_subprocess_env(*, model_dir: str = "") -> dict[str, str]:
+    """附属子进程需要、而**普通环境变量送不到**的那些键，显式传下去。
+
+    ⚠️ 为什么需要这个口子：附属是通过 `subprocess` 起的，它的环境来自
+    `os.environ.copy()` —— 而 `.env` 只被读成一个 dict，**从来没写进
+    `os.environ`**。于是 `SAYA_CV_MODEL_DIR` 在 `.env` 里是个**死键**：
+    填了没有任何反应、也不报错（权重照样下到 `~/.cache/saya-cv`），
+    而 `run.py --check` 还会专门提示"未赋值键：SAYA_CV_MODEL_DIR"，
+    等于把人往这个坑里引。
+
+    新增"只有子进程才用得上"的配置键时，**要加到这里**，
+    否则它就是个摆设。
+    """
+    return {"SAYA_CV_MODEL_DIR": model_dir} if model_dir else {}
+
+
+def start_cv_tools(
+    command: str, *, timeout: float = 180.0, extra_env: Mapping[str, str] | None = None
+) -> CvTools:
     """按配置里的命令行启动附属并握手。
 
     command 形如 `"/home/me/venv/bin/python /path/to/cv_mcp/server.py"` ——
     用一个字符串而不是列表，是为了能直接写在 `.env` 里。
+
+    `extra_env` 是**从 Config 显式传下来**给附属子进程的环境变量。
+    普通环境变量在这里读不到 `.env` 里的值（`.env` 从没被写进 `os.environ`），
+    所以要传的键必须走这个口子，否则在 `.env` 里填了也是白填。
     """
     if not command.strip():
         raise CvToolsError("没有配置附属的命令（SAYA_CV_MCP_COMMAND），无法使用路线 delegated / hybrid")
 
-    client = McpStdioClient(split_command(command), timeout=timeout)
+    client = McpStdioClient(split_command(command), timeout=timeout, extra_env=extra_env)
     client.start()
     return CvTools(client)

@@ -299,6 +299,13 @@ def _cache_split(usage: JSON, tokens_in: int) -> tuple[int, int]:
 
     **读不到就返回 `(0, tokens_in)`** —— 即整段输入按未命中算。方向是保守的：
     未命中比命中贵得多，宁可把成本算高，也不要凭空报一个低数字。
+
+    ⚠️⚠️ **未命中的部分一律由 `tokens_in - hit` 推出来，不读上游的 miss 字段。**
+    原来两个字段都读、各自 clamp，于是 `hit + miss` 可以**不等于** `tokens_in`：
+    上游若返 `total=1000, hit=800, miss=300`，这里存下 `(800, 300)`，
+    而 `estimate_cost` 用的是 `1000 − 800 = 200` —— **存下来的数**和
+    **算钱用的数**成了两份。实验报告里的"输入缓存命中率"取的是存下来那两列，
+    于是它和成本那一栏对不上，而两个数看着都挺正常。
     """
     details = usage.get("prompt_tokens_details") or {}
     raw_hit = usage.get("prompt_cache_hit_tokens")
@@ -308,9 +315,7 @@ def _cache_split(usage: JSON, tokens_in: int) -> tuple[int, int]:
         return 0, tokens_in
 
     hit = max(0, min(int(raw_hit), tokens_in))
-    raw_miss = usage.get("prompt_cache_miss_tokens")
-    miss = tokens_in - hit if raw_miss is None else max(0, int(raw_miss))
-    return hit, miss
+    return hit, tokens_in - hit
 
 
 def estimate_cost(

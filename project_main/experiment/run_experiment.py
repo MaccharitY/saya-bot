@@ -43,7 +43,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saya.config import Config  # noqa: E402
 from saya.console import prepare_console  # noqa: E402
 from saya.domain import ImageRef  # noqa: E402
-from saya.services.cv_tools import CvToolsError, start_cv_tools  # noqa: E402
+from saya.services.cv_tools import (  # noqa: E402
+    CvToolsError,
+    cv_subprocess_env,
+    start_cv_tools,
+)
 from saya.services.llm import LLMClient, LLMError  # noqa: E402
 from saya.services.vision import ALL_ROUTES, Vision, VisionError  # noqa: E402
 
@@ -350,7 +354,9 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
             print("    × 没配 SAYA_CV_MCP_COMMAND，delegated / hybrid 跑不了")
             return 1
         try:
-            tools = start_cv_tools(config.cv_mcp_command)
+            tools = start_cv_tools(
+            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+        )
         except CvToolsError as exc:
             print(f"    × 附属起不来：{exc}")
             return 1
@@ -500,7 +506,9 @@ def main(argv: list[str] | None = None) -> int:
 
     tools = None
     if any(route in ("delegated", "hybrid") for route in args.routes):
-        tools = start_cv_tools(config.cv_mcp_command)
+        tools = start_cv_tools(
+            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+        )
 
     baseline = environment_baseline(config.llm_base_url)
     print(f"环境基线：DNS 解析 {baseline['dns_ms']} ms（{baseline['host']}）")

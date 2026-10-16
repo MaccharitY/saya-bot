@@ -215,7 +215,7 @@ class Pipeline:
                 text=safe_text,
             )
         )
-        self._trigger.note_answered(message)
+        self._trigger.note_answered(message, reason=decision.reason)
         self._remember_reply(message, safe_text)
         logger.info(
             "已回复 %s %s：%s",

@@ -20,7 +20,7 @@ import subprocess
 import threading
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from queue import Empty, Queue
 from typing import Any
@@ -52,11 +52,19 @@ class McpStdioClient:
         timeout: float = 120.0,
         client_name: str = "saya_bot",
         client_version: str = "0.1",
+        extra_env: Mapping[str, str] | None = None,
     ) -> None:
         self._command = list(command)
         self._timeout = timeout
         self._client_name = client_name
         self._client_version = client_version
+        # ⚠️ **上游 `.env` 里的值不会自动到子进程手上。** 子进程的环境来自
+        # `os.environ.copy()`，而 `.env` 只是被读成一个 dict、从来没写进
+        # `os.environ`。于是像 `SAYA_CV_MODEL_DIR` 这种"只有 server 才用得上"
+        # 的键，在 `.env` 里填了也**完全没用**，而且不报错 —— 权重照样下到
+        # 默认目录，`--check` 还会专门提示"这个键没赋值"，把人往坑里引。
+        # 所以由调用方把它从 Config 里**显式传进来**。
+        self._extra_env = dict(extra_env or {})
 
         self._process: subprocess.Popen[str] | None = None
         self._queue: Queue[Any] = Queue()
@@ -79,6 +87,7 @@ class McpStdioClient:
         # 非 Python 的 server 看到这两个变量也无害。
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        env.update(self._extra_env)
 
         try:
             self._process = subprocess.Popen(

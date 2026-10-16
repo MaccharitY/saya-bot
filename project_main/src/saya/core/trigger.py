@@ -34,6 +34,11 @@ from saya.domain import IncomingMessage
 WINDOW_SECONDS = 60.0
 DEDUP_MEMORY = 256
 
+# 跟随窗口的**硬上限**（条数，不是时间）。
+# ⚠️ 只在"秒数设成 0 = 不限时"时才用得上 —— 那种配置下没有"过期"可言，
+# 再不封顶就真的会长到天上去。正常配置（默认 600 秒）靠过期就够了。
+_FOLLOWING_MAX = 4096
+
 
 @dataclass(frozen=True, slots=True)
 class TriggerDecision:
@@ -139,15 +144,47 @@ class Trigger:
 
     def _open_follow_window(self, message: IncomingMessage) -> None:
         count = self._config.keyword_followup
-        if count > 0 and message.group_id is not None:
-            self._following[(message.group_id, message.user_id)] = (count, self._clock())
+        if count <= 0 or message.group_id is None:
+            return
+        now = self._clock()
+        self._prune_following(now)
+        self._following[(message.group_id, message.user_id)] = (count, now)
+
+    def _prune_following(self, now: float) -> None:
+        """把已经过期的跟随窗口清掉。
+
+        ⚠️ 原来的清理只在**同一个键下次被读到时**才发生 —— 说过一次关键词、
+        之后就再也不说话的人，条目会**永远留着**。ADR-024 里写的
+        "不会无限长大"那句是假的。量级很小（每条几十字节），但它是单调增长、
+        没有任何定期清理。开新窗口时顺手扫一遍就够了，不用起线程。
+        """
+        seconds = self._config.keyword_followup_seconds
+        if seconds > 0:
+            for key, (_, last_seen) in list(self._following.items()):
+                if now - last_seen > seconds:
+                    del self._following[key]
+        # 秒数设成 0（不限时）时没有"过期"可言，只能靠条数封顶
+        if len(self._following) > _FOLLOWING_MAX:
+            oldest = sorted(self._following.items(), key=lambda pair: pair[1][1])
+            for key, _ in oldest[: len(self._following) - _FOLLOWING_MAX]:
+                self._following.pop(key, None)
+
+    def _follow_expired(self, now: float, last_seen: float) -> bool:
+        """这个窗口超时了吗。
+
+        ⚠️ **`seconds <= 0` 是"不限时"，不是"关掉"。** 这是 `.env.example`
+        和 `config.py` 两处都写着的语义，而代码原来写的是
+        `seconds <= 0 → 直接返回 False`（把跟随整个关掉）—— **和文档说的是反话**。
+        照文档把秒数设成 0 求"永久跟随"的人，拿到的是功能静默失效，
+        而且没有任何报错或日志，只能靠"它怎么又不理我了"发现。
+
+        "关掉跟随"有 `SAYA_KEYWORD_FOLLOWUP=0` 那个开关，秒数不必再有一个。
+        """
+        seconds = self._config.keyword_followup_seconds
+        return seconds > 0 and now - last_seen > seconds
 
     def _within_follow_window(self, message: IncomingMessage) -> bool:
-        if message.group_id is None:
-            return False
-        limit = self._config.keyword_followup
-        seconds = self._config.keyword_followup_seconds
-        if limit <= 0 or seconds <= 0:
+        if message.group_id is None or self._config.keyword_followup <= 0:
             return False
 
         key = (message.group_id, message.user_id)
@@ -158,11 +195,14 @@ class Trigger:
         remaining, last_seen = state
         now = self._clock()
         # ⚠️ 超时也要清 —— 早上叫过它，晚上回来随口说五句话不该被它接话。
-        if remaining <= 0 or now - last_seen > seconds:
+        if remaining <= 0 or self._follow_expired(now, last_seen):
             del self._following[key]
             return False
 
-        self._following[key] = (remaining - 1, now)
+        # ⚠️⚠️ **判定时【不扣额度】。** 判定说"该回"，但这条消息最后可能一个
+        # 字都没发出去（模型超时 / 输出为空 / 被护栏整条替换）—— 扣了就是
+        # "额度没了、话也没回"，用户得重新叫一次，还不知道为什么。
+        # 真正的扣减在 `note_answered` 里，只对**真的发出去了的**跟随消息计数。
         return True
 
     # ---- 配置查询 ----
@@ -177,8 +217,14 @@ class Trigger:
 
     # ---- 状态 ----
 
-    def note_answered(self, message: IncomingMessage) -> None:
-        """记录"这条已经回了"。限流与去重都依赖它，回复成功后必须调用。"""
+    def note_answered(self, message: IncomingMessage, *, reason: str = "") -> None:
+        """记录"这条已经回了"。限流与去重都依赖它，回复成功后必须调用。
+
+        ⚠️ **跟随窗口的额度也在这里扣，不在判定时扣** —— 只有真的发出去了
+        才算消耗（理由见 `_within_follow_window`）。
+        而且只有 `hit:keyword-follow` 的那条才扣：**触发关键词的那条消息本身
+        不算"接下来的 N 条"里的一条**，否则窗口会凭空少一格。
+        """
         if message.message_id is not None:
             if len(self._answered) == self._answered.maxlen:
                 self._answered_set.discard(self._answered[0])
@@ -187,6 +233,13 @@ class Trigger:
 
         if message.source == "group" and message.group_id is not None:
             self._recent.setdefault(message.group_id, deque()).append(self._clock())
+
+        if reason == "hit:keyword-follow" and message.group_id is not None:
+            key = (message.group_id, message.user_id)
+            state = self._following.get(key)
+            if state is not None:
+                remaining, _ = state
+                self._following[key] = (remaining - 1, self._clock())
 
     def _rate_limited(self, group_id: int) -> bool:
         limit = self._config.rate_limit_per_group_per_min
