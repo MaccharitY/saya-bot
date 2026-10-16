@@ -264,6 +264,13 @@ class BadInputCannotPoisonTheEnvTest(EnvFixture):
             self.assertFalse(run(env, f"group {raw} mention").ok, raw)
 
     def test_group_accepts_a_real_number(self):
+        """⚠️ 这里的群号**必须是假的**。
+
+        写这个测试的时候顺手从 `.env` 抄了一个真群号进来，`privacy_scan.py`
+        当场扫出来了 —— 而这个项目**已经因为同一个理由重写过一次 git 历史**。
+        以后凡是要一个"像真的"号码，用 `123456789` 这类明确的占位符，
+        **永远不要从 `.env` 里复制。**
+        """
         env = EnvFile(self.path)
         result = run(env, "group 123456789 keyword")
         self.assertTrue(result.ok)
