@@ -233,9 +233,15 @@ class Supervisor:
         # ⚠️ **子进程的 stdout 是管道，不是终端** —— Python 会因此把 stdout
         # 改成**块缓冲**，于是机器人自己命令台的横幅和结果全卡在缓冲区里，
         # 面板这边一个字都看不到（表现就是"日志在滚、敲命令没反应"）。
-        # `PYTHONUNBUFFERED=1` 让它逐行出来。机器人自己那边也设了
+        # `PYTHONUNBUFFERED` 让它逐行出来。机器人自己那边也设了
         # `line_buffering`（那才是主修），这里再兜一道。
-        env = dict(os.environ, PYTHONUNBUFFERED="1")
+        #
+        # `SAYA_OWNER_PID` 是**反方向的检查**：告诉机器人"养你的是我"，
+        # 它就会盯着这个 PID —— 我这个窗口被直接叉掉（finally 跑不到）时，
+        # 它会自己退出，不会留下没人管又占着端口的实例。
+        env = dict(
+            os.environ, PYTHONUNBUFFERED="1", SAYA_OWNER_PID=str(os.getpid())
+        )
         argv = ["bash", str(self.start_script)] + (["--restart"] if take_over else [])
         self._child = subprocess.Popen(
             argv,

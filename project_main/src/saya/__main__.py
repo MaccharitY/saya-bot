@@ -44,6 +44,7 @@ from saya.services.vision import (
     Vision,
 )
 from saya.services.wiki import build_knowledge_tools
+from saya.watchdog import start_if_owned
 
 # __file__ = project_main/src/saya/__main__.py → parents[2] = project_main
 DEFAULT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -483,6 +484,12 @@ def main(argv: list[str] | None = None) -> int:
             status=lambda: _runtime_status(live["config"], started_at),
         ).start(sys.stdin)
 
+    # ⚠️ **反方向的检查**：如果我是被控制台（tools/panel.py）拉起的，
+    # 就盯着它 —— 那个窗口被**直接叉掉**时它的 finally 跑不到，
+    # 不盯着的话我会变成没人管、又占着端口的实例（撞过两次）。
+    # 无头启动时（start_saya.bat）环境变量不存在，这里什么都不做。
+    start_if_owned(on_lost=pipeline.stop)
+
     try:
         pipeline.run()
     except KeyboardInterrupt:
@@ -490,7 +497,6 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         pipeline.stop()
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
