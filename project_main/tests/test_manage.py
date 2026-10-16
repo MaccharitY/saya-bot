@@ -18,6 +18,7 @@ from pathlib import Path
 PROJECT_MAIN = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_MAIN / "src"))
 
+from saya.config import parse_dotenv  # noqa: E402
 from saya.core.console import Console  # noqa: E402
 from saya.envfile import EnvFile  # noqa: E402
 from saya.manage import MAX_ADMINS, run  # noqa: E402
@@ -222,6 +223,88 @@ class RuntimeStatusTest(EnvFixture):
     def test_help_mentions_status(self):
         console = self.make(status=lambda: ["x"])
         self.assertIn("status", console.handle("help").text)
+
+
+class BadInputCannotPoisonTheEnvTest(EnvFixture):
+    """⚠️ 全部来自 2026-10-16 的**独立评审**。
+
+    守的是同一件事：**改设置的时候提示一切正常，`.env` 里也写着，只有下次启动才炸**
+    （或者更糟 —— 值被静默地改成了别的意思）。这几条以前全是真的能发生的。
+    """
+
+    def test_bad_usage_returns_a_result_instead_of_raising(self):
+        """`admin` 少写参数曾抛 `AssertionError`。
+
+        ⚠️ 后果远不止"报个错"：`panel._loop` 不接异常，所以那一句会让
+        **整个控制台带栈消失**，而 `serve` 的 finally 会顺手把机器人停掉 ——
+        一句手滑的命令，把正在群里说话的机器人弄下线。
+
+        `manage` 全文件只有这一个命令会抛异常，所以这里逐个钉死。
+        """
+        for line in ("admin", "admin add", "admin x 1", "friend x 1", "admin add 1 2"):
+            result = run(EnvFile(self.path), line)
+            self.assertFalse(result.ok, f"{line!r} 应该失败")
+            self.assertTrue(result.lines, f"{line!r} 应该有话说")
+
+    def test_group_id_must_be_a_number(self):
+        """群号不校验 → `abc:mention` 一路写进 `.env`。
+
+        写的时候没人拦，而 `config._parse_group_policies` 读的时候才报错 ——
+        于是"改的时候一切正常，重启就起不来"，那台机器上已经中毒了。
+        """
+        env = EnvFile(self.path)
+        before = env.get("SAYA_GROUP_POLICIES")
+        result = run(env, "group abc mention")
+        self.assertFalse(result.ok)
+        self.assertEqual(env.get("SAYA_GROUP_POLICIES"), before)
+
+    def test_group_id_rejects_negative_and_zero(self):
+        env = EnvFile(self.path)
+        for raw in ("0", "-12345", "12a"):
+            self.assertFalse(run(env, f"group {raw} mention").ok, raw)
+
+    def test_group_accepts_a_real_number(self):
+        env = EnvFile(self.path)
+        result = run(env, "group 123456789 keyword")
+        self.assertTrue(result.ok)
+        self.assertEqual(env.get("SAYA_GROUP_POLICIES"), "111:mention,123456789:keyword")
+
+    def test_group_refuses_to_silently_drop_unreadable_entries(self):
+        """⚠️ 重写是"按解析结果整串生成"的，所以解析时悄悄跳过的条目会被**抹掉**。
+
+        以前 `parse_policies` 宽容、`config` 严格，于是 `show` 显示出一个
+        和实际加载结果不一致的视图，而改一次别的群就把坏条目无声删了 ——
+        这是数据丢失，不是容错。
+        """
+        with self.path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write("SAYA_GROUP_POLICIES=111:mention,222\n")
+        env = EnvFile(self.path)
+        result = run(env, "group 999 silent")
+        self.assertFalse(result.ok)
+        self.assertIn("222", result.text)
+        self.assertEqual(env.get("SAYA_GROUP_POLICIES"), "111:mention,222")
+
+    def test_show_reports_unreadable_entries(self):
+        with self.path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write("SAYA_GROUP_POLICIES=111:mention,222\n")
+        text = run(EnvFile(self.path), "show").text
+        self.assertIn("111", text)
+        self.assertIn("222", text)
+
+    def test_keyword_starting_with_hash_survives_a_restart(self):
+        """走完整条路：命令 → `.env` → 重新解析。以前最后一步是**空串**。"""
+        env = EnvFile(self.path)
+        self.assertTrue(run(env, "keyword set #话题").ok)
+        env.save()
+        self.assertEqual(
+            parse_dotenv(self.path.read_text(encoding="utf-8"))["SAYA_TRIGGER_KEYWORDS"],
+            "#话题",
+        )
+
+    def test_unknown_command_says_what_to_type(self):
+        """指路，不是只说"没有" —— 这条是所有者提过的（他敲了三次 status）。"""
+        text = run(EnvFile(self.path), "statuz").text
+        self.assertIn("help", text)
 
 
 if __name__ == "__main__":

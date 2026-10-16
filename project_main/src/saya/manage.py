@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from saya.domain import DEFAULT_GROUP_POLICY, GROUP_POLICIES
-from saya.envfile import EnvFile
+from saya.envfile import EnvFile, EnvValueError
 
 # 这两个上限写在 .env.example 里，改这里之前先改那边
 MAX_ADMINS = 3
@@ -61,14 +61,26 @@ def split_csv(raw: str | None) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
-def parse_policies(raw: str) -> dict[str, str]:
-    """和 `saya.config._parse_group_policies` 同样的格式：`群号:策略,群号:策略`。"""
+def parse_policies(raw: str) -> tuple[dict[str, str], list[str]]:
+    """解析 `群号:策略,群号:策略`。返回 `(认得的, 认不得的原样片段)`。
+
+    和 `saya.config._parse_group_policies` **同一套严格度** —— 那边是**报错**
+    的，这边要是"悄悄跳过"，`show` 就会显示出一个和实际加载结果不一致的视图，
+    而 `_write_policies` 按解析结果整串重写时还会把那一截**无声抹掉**。
+
+    ⚠️ 所以认不得的片段**必须原样留下来**给前端看，而不是丢掉。
+    """
     out: dict[str, str] = {}
+    bad: list[str] = []
     for part in split_csv(raw):
-        group_id, _, name = part.partition(":")
-        if group_id.strip() and name.strip():
-            out[group_id.strip()] = name.strip()
-    return out
+        group_raw, _, policy_raw = part.partition(":")
+        number = parse_qq(group_raw.strip())
+        policy = policy_raw.strip()
+        if number is not None and policy in GROUP_POLICIES:
+            out[str(number)] = policy
+        else:
+            bad.append(part)
+    return out, bad
 
 
 def parse_qq(raw: str) -> int | None:
@@ -96,11 +108,15 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
     lines = ["== 群 =="]
     default = env.get("SAYA_GROUP_DEFAULT_POLICY") or DEFAULT_GROUP_POLICY
     lines.append(f"  未列出群     {default:<10} {POLICY_HELP.get(default, '')}")
-    for group_id, name in sorted(parse_policies(env.get("SAYA_GROUP_POLICIES")).items()):
+    policies, unreadable = parse_policies(env.get("SAYA_GROUP_POLICIES"))
+    for group_id, name in sorted(policies.items(), key=lambda pair: int(pair[0])):
         lines.append(f"  {group_id:<12} {name:<10} {POLICY_HELP.get(name, '')}")
+    if unreadable:
+        lines.append(f"  [!] 读不出来：{','.join(unreadable)}")
+        lines.append("      这几条会让机器人启动失败，先用 group 命令改掉或删掉。")
 
     lines.append("")
-    lines.append("== 谁能私聊它 ==")
+    lines.append("== 可私聊用户 ==")
     owner = env.get("SAYA_OWNER_ID").strip()
     admins = split_csv(env.get("SAYA_ADMIN_IDS"))
     friends = split_csv(env.get("SAYA_FRIEND_ALLOWLIST"))
@@ -124,8 +140,20 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
 def cmd_group(env: EnvFile, args: list[str]) -> Result:
     if not args:
         return _fail("用法：group <群号> <策略>（策略写 - 表示把这个群移出表）")
-    group_id, rest = args[0], args[1:]
-    policies = parse_policies(env.get("SAYA_GROUP_POLICIES"))
+    # ⚠️ **群号必须在这里校验。** 不校验的话 `group abc mention` 会一路写进
+    # `.env`，而 `config._parse_group_policies` 读的时候才报错 ——
+    # 结果是"改的时候一切正常，重启就起不来"，且那台机器上已经中毒了。
+    number = parse_qq(args[0])
+    if number is None:
+        return _fail(f"群号只能是正整数，但你写的是 {args[0]!r}")
+    group_id, rest = str(number), args[1:]
+    policies, unreadable = parse_policies(env.get("SAYA_GROUP_POLICIES"))
+    if unreadable:
+        # 重写是"按解析结果整串生成"的，读不出来的那截会被抹掉 —— 宁可先不改
+        return _fail(
+            f"SAYA_GROUP_POLICIES 里有读不出来的条目：{','.join(unreadable)}\n"
+            f"这次重写会把它抹掉，所以先手工把它改对或删掉。"
+        )
 
     if rest and rest[0] in ("-", "del", "remove"):
         if group_id not in policies:
@@ -150,7 +178,9 @@ def cmd_group(env: EnvFile, args: list[str]) -> Result:
 
 
 def _write_policies(env: EnvFile, policies: dict[str, str]) -> None:
-    env.set("SAYA_GROUP_POLICIES", ",".join(f"{k}:{v}" for k, v in sorted(policies.items())))
+    # 按**数值**排，不是按字符串 —— 否则 "10" 会排在 "9" 前面
+    ordered = sorted(policies.items(), key=lambda pair: int(pair[0]))
+    env.set("SAYA_GROUP_POLICIES", ",".join(f"{k}:{v}" for k, v in ordered))
 
 
 def cmd_default(env: EnvFile, args: list[str]) -> Result:
@@ -176,7 +206,11 @@ def cmd_owner(env: EnvFile, args: list[str]) -> Result:
 
 def cmd_list(env: EnvFile, args: list[str], *, key: str, label: str, limit: int) -> Result:
     if len(args) != 2 or args[0] not in ("add", "del"):
-        raise AssertionError(f"{label} 的用法是 add|del <QQ>")
+        # ⚠️ 这里以前是 `raise AssertionError` —— 全文件**唯一**会抛异常的命令。
+        # `panel._loop` 没接异常，于是敲一句少写参数的 `admin` 就能让
+        # 控制台带栈消失，并顺手把机器人停掉（`serve` 的 finally 会收尾）。
+        # **用法写错是正常输入**，不是断言失败，必须走 `Result` 这条路。
+        return _fail(f"用法：{label} add|del <QQ 号>")
     action, raw = args
     value = parse_qq(raw)
     if value is None:
@@ -285,17 +319,26 @@ COMMANDS: dict[str, tuple[str, object]] = {
 USAGE = "\n".join(
     ["命令（无需前缀）："]
     + [f"  {name:<9} {summary}" for name, (summary, _) in COMMANDS.items()]
-    + ["", "策略：", policy_list(), "", "更改后立刻及长期生效（写入 .env）。"]
+    + ["", "策略：", policy_list(), "", "更改写入 .env。"]
 )
 
 
 def run(env: EnvFile, line: str) -> Result:
-    """把一行命令跑掉。**不认识命令不算错误**，只是提示一下。"""
+    """把一行命令跑掉。**不认识命令不算错误**，只是提示一下。
+
+    ⚠️ 这里是**唯一**该把异常转成 `Result` 的地方。前端只懂 `Result`
+    （终端加前缀、CLI 直接打、web 转 JSON），谁都不接异常 ——
+    漏一个出去就是"整块界面消失"。`EnvValueError` 是 `.env` 存不住那个值，
+    属于用户输入问题，照样转成一条可读的说明。
+    """
     parts = line.strip().split()
     if not parts:
         return Result()
     name, args = parts[0].lower(), parts[1:]
     entry = COMMANDS.get(name)
     if entry is None:
-        return _fail(f"没有 {name!r} 这个命令。敲 help 看有哪些。")
-    return entry[1](env, args)  # type: ignore[operator]
+        return _fail(f"没有 {name!r} 这个命令。输入 help 查看命令。")
+    try:
+        return entry[1](env, args)  # type: ignore[operator]
+    except EnvValueError as exc:
+        return _fail(str(exc))

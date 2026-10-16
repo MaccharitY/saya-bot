@@ -22,7 +22,13 @@ PROJECT_MAIN = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_MAIN / "src"))
 
 from saya.config import parse_dotenv  # noqa: E402
-from saya.envfile import EnvFile, inline_comment, replace_key  # noqa: E402
+from saya.envfile import (  # noqa: E402
+    EnvFile,
+    EnvValueError,
+    encode_value,
+    inline_comment,
+    replace_key,
+)
 
 # 合成内容：**没有任何真 key**，但形状和真 .env 一样（含行尾注释）
 SAMPLE_LF = (
@@ -171,5 +177,91 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(EnvFile(self.path).save(), ())
 
 
+class WriteSafetyTest(RoundTripTest):
+    """⚠️ 这一组全部来自 2026-10-16 的**独立评审**，每一条都真能把 `.env` 写坏。
+
+    共同点最要命：**写的时候提示一切正常，文件里看着也对，只有下次启动才炸。**
+    界面上完全看不出来 —— 所以每条都要有测试钉着。
+    """
+
+    def test_comment_reattachment_keeps_a_separating_space(self):
+        """⚠️ 注释回填时必须留一个空格，否则它**不再是注释**。
+
+        `.env` 里手写的 `SAYA_OWNER_ID=# 填你的 QQ 号`：那个 `#` 在第 0 位，
+        没有"前面的空白"可以让原实现往前吃。于是 `owner 10001` 把它拼成
+        `SAYA_OWNER_ID=10001# 填你的 QQ 号` —— 重读时 `#` 前面是 `1`，
+        整串都算值，`int()` 抛异常，**机器人起不来**。
+        """
+        self.assertTrue(inline_comment("# 说明").startswith(" "))
+        self.assertTrue(inline_comment("   # 说明").startswith(" "))
+
+    def test_commented_placeholder_survives_being_filled_in(self):
+        """上面那条的端到端版本：真的走一遍"占位注释 + 填值"。"""
+        with self.path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write("SAYA_OWNER_ID=# 填你的 QQ 号\n")
+        env = EnvFile(self.path)
+        env.set("SAYA_OWNER_ID", "10001")
+        env.save()
+        self.assertEqual(
+            parse_dotenv(self.path.read_text(encoding="utf-8"))["SAYA_OWNER_ID"], "10001"
+        )
+
+    def test_value_starting_with_hash_is_quoted(self):
+        """`keyword set #话题` 曾把关键词**写没**：重读时整段被当成行尾注释。
+
+        提示说"已设置"、文件里也确实写着，只有重启后它不回复 —— 静默失效。
+        """
+        env = EnvFile(self.path)
+        env.set("SAYA_TRIGGER_KEYWORDS", "#话题")
+        env.save()
+        self.assertEqual(
+            parse_dotenv(self.path.read_text(encoding="utf-8"))["SAYA_TRIGGER_KEYWORDS"],
+            "#话题",
+        )
+
+    def test_value_containing_space_hash_is_quoted(self):
+        env = EnvFile(self.path)
+        env.set("SAYA_TRIGGER_KEYWORDS", "saya # 这个也算")
+        env.save()
+        self.assertEqual(
+            parse_dotenv(self.path.read_text(encoding="utf-8"))["SAYA_TRIGGER_KEYWORDS"],
+            "saya # 这个也算",
+        )
+
+    def test_unencodable_value_raises_instead_of_writing_something_else(self):
+        """含引号**又**含 ` #` 的值没有安全写法。
+
+        `_strip_inline_comment` 不认转义，遇到开头的引号会取到**下一个**引号为止，
+        所以套引号会把尾部截掉。宁可当场拒绝，也不能写进去一个读出来是别的东西的值。
+        """
+        with self.assertRaises(EnvValueError):
+            encode_value('a "b" # c')
+
+    def test_bom_is_tolerated(self):
+        """⚠️ 记事本「UTF-8 with BOM」与 PowerShell 5.1 的
+        `Set-Content -Encoding UTF8` **都会写 BOM**。
+
+        用 `utf-8` 读的话它会并进**第一行的键名** —— 那一行的键谁都不认识，
+        而且**完全静默**（不报错，只是走默认值）。GBK 那条路有可读的报错，
+        BOM 这条路没有，属不对称。
+        """
+        bom_path = Path(self.dir.name) / "bom.env"
+        with bom_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            handle.write("SAYA_OWNER_ID=1001\nSAYA_ADMIN_IDS=2001\n")
+        env = EnvFile(bom_path)
+        self.assertEqual(env.get("SAYA_OWNER_ID"), "1001")
+        self.assertEqual(env.get("SAYA_ADMIN_IDS"), "2001")
+
+    def test_save_is_atomic_and_leaves_no_temp_file(self):
+        """⚠️ 直接 `open("w")` 会**先截断**，写到一半被打断就留下半截 `.env` ——
+        丢掉的可能是末尾那几行，其中就有 API key。所以走临时文件 + 原子改名。
+        """
+        env = EnvFile(self.path)
+        env.set("SAYA_OWNER_ID", "2002")
+        env.save()
+        self.assertFalse(self.path.with_name(self.path.name + ".tmp").exists())
+        self.assertIn("SAYA_LLM_API_KEY", self.path.read_text(encoding="utf-8"))
 
 
+if __name__ == "__main__":
+    unittest.main()

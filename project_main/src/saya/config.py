@@ -61,7 +61,12 @@ def load_env(dotenv_path: Path | None = None) -> dict[str, str]:
     env: dict[str, str] = {}
     if dotenv_path is not None and dotenv_path.is_file():
         try:
-            text = dotenv_path.read_text(encoding="utf-8")
+            # ⚠️ **utf-8-sig 而不是 utf-8**：记事本「UTF-8 with BOM」与
+            # PowerShell 5.1 的 `Set-Content -Encoding UTF8` 都会在开头写 BOM，
+            # 而用 utf-8 读的话 BOM 会并进**第一行的键名** —— 那一行的键
+            # 就谁都不认识了，且**完全静默**（不会报错，只会走默认值）。
+            # GBK 那条路有专门的可读报错，BOM 这条路没有，属不对称。
+            text = dotenv_path.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             # ⚠️ **不能静默用 errors="replace" 兜过去**：.env 里装的是密钥，
             # 悄悄替换掉几个字节，换来的可能是一个"看起来读到了但就是连不上"的 key，
