@@ -5,11 +5,6 @@
    于是 `sys.path` 上谁在前就导到谁，`from saya import ...` 会导到包而不是它。
    实测撞过一次，所以叫 `panel.py`。
 
-为什么需要它：以前每次动一下都要另开一个终端（启动一个、改设置一个、
-看日志又一个），而且改设置那个还是**离线**的（改完得重启才生效）。
-前后端分离之后（ADR-022）命令语义已经和前端无关了，所以可以有一个
-**常驻的控制台**把这些都收进来。
-
 用法（**在 WSL 里跑**，因为机器人也在 WSL 里）::
 
     python3 tools/panel.py
@@ -23,12 +18,28 @@
     show / group / admin / friend / keyword / prob / rate / help
                    —— 和机器人终端里、和 `tools/config.py` 是**同一套命令**
 
-**改设置的两种走法**（自动选，不用你操心）：
+**改设置的两种走法**（自动选）：
 
 - 机器人**在跑** → 命令直接送进它的 stdin，**当场生效**（走 `core/console.py`）
 - 机器人**没在跑** → 直接写 `.env`，下次启动生效
 
-⚠️ 这个脚本**在 WSL 里跑**：它要调 `tools/start_saya.sh`，那是个 bash 脚本。
+## ⚠️ 归属：这个前端**管着**机器人的命（ADR-026）
+
+允许"前端在跑、机器人停着"（`end` 之后就是这样）；
+**不允许"机器人在跑、前端没了"** —— 那就成了**无头后端**：
+没人看日志、没人接命令，端口还被占着，下次启动还起不来。实测撞过。
+
+所以：
+
+- **前端退出（`quit` / 关窗口 / 读到 EOF）一定带走机器人**
+- 启动时检查归属：
+  - 有**另一个控制台**在跑 → 提示一句、**自己退出**（两个一起敲会打架）
+  - 有**无头机器人**（端口被占但没人管）→ **问一句**，确认后接管（关掉它、起自己的）
+
+> **为什么终端前端要这样，web 不一样**：终端前端是**监视器 + 控制器**，
+> 伴随整个生命周期，人和它在同一个窗口里；web 可能被关掉而机器人继续跑。
+> 将来 web 存在时，**仍然会有一个终端前端在旁边跑着**。
+> （web 也可能从本地路由挪到真正的远程站点，那时更管不着进程。）
 
 零第三方依赖。`Supervisor` 可被 import 复用。
 """
@@ -37,7 +48,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -48,6 +61,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENV = REPO_ROOT / "project_main" / ".env"
 START_SCRIPT = REPO_ROOT / "tools" / "start_saya.sh"
+# 放在 data/ 下（整个目录都被 gitignore 覆盖），和机器人的运行期数据作伴
+LOCK_PATH = REPO_ROOT / "project_main" / "data" / "panel.lock"
 
 sys.path.insert(0, str(REPO_ROOT / "project_main" / "src"))
 
@@ -58,7 +73,6 @@ from saya.manage import run as run_manage  # noqa: E402
 PREFIX = "  "
 
 # 要确认才做的动作 —— 都不能一条命令就悔棋
-NEEDS_CONFIRM = {"end", "restart"}
 YES = {"y", "yes", "是", "确认", "好", "嗯"}
 
 
@@ -70,12 +84,58 @@ class Outcome:
     # 确认时给用户看的问题
     question: str = ""
     ok: bool = True
-    # 该退出控制台了（注意：**机器人照跑**，只有控制台退）
+    # 该退出控制台了（**会带走机器人**，见模块开头的归属说明）
     stop: bool = False
 
 
 def _say(*lines: str) -> Outcome:
     return Outcome(lines=lines)
+
+
+# ---------------------------------------------------------------- 进程探测
+
+def _pid_alive(pid: int) -> bool:
+    """这个进程还在吗。
+
+    ⚠️⚠️ **`os.kill(pid, 0)` 只在 POSIX 上是"检查存在"。**
+    Windows 上它**不是**空操作 —— 除 `CTRL_C_EVENT` / `CTRL_BREAK_EVENT` 之外的
+    任何 sig 都会让 `TerminateProcess` **真的把那个进程杀掉**。
+    这个面板只在 WSL 里跑（要调 bash / start_saya.sh），永远不该在 Windows 上执行，
+    但**测试是跑在 Windows 上的** —— 所以这道护栏必须有，
+    不能指望"它不会被调到"。
+    """
+    if os.name == "nt":  # pragma: no cover - 只在 Windows 上才走到
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # 存在，只是不归我们管 —— 那也算活着
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _port_open(port: int) -> bool:
+    """端口上有没有人在听。纯 socket，不依赖 `ss` 这类外部工具。"""
+    with socket.socket() as sock:
+        sock.settimeout(0.3)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _pid_on_port(port: int) -> int | None:
+    """谁在听这个端口。拿不到就返回 None（不代表没人听）。"""
+    try:
+        result = subprocess.run(
+            ["ss", "-tlnpH", f"sport = :{port}"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    found = re.search(r"pid=(\d+)", result.stdout)
+    return int(found.group(1)) if found else None
 
 
 class Supervisor:
@@ -86,16 +146,58 @@ class Supervisor:
         *,
         env_path: Path = DEFAULT_ENV,
         start_script: Path = START_SCRIPT,
+        lock_path: Path = LOCK_PATH,
         output=print,
     ) -> None:
         self.env_path = env_path
         # 可注入是为了**测试**：真跑 start_saya.sh 会拉起 NapCat、抢端口、
         # 动到正在跑的那个实例 —— 测试不该碰用户机器上的任何东西。
         self.start_script = start_script
+        self.lock_path = lock_path
         self._output = output
         self._child: subprocess.Popen | None = None
         self._started_at: float | None = None
         self._reader: threading.Thread | None = None
+
+    # ---- 归属锁 ----
+
+    def other_panel(self) -> int | None:
+        """另一个**还活着**的控制台。锁文件在但进程没了 = 上次没收干净，不算。"""
+        try:
+            pid = int(self.lock_path.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            return None
+        return pid if pid != os.getpid() and _pid_alive(pid) else None
+
+    def claim_lock(self) -> None:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self.lock_path.write_text(str(os.getpid()), encoding="ascii")
+
+    def release_lock(self) -> None:
+        try:
+            self.lock_path.unlink()
+        except OSError:
+            pass
+
+    # ---- 无头机器人 ----
+
+    def listen_port(self) -> int:
+        try:
+            return int(EnvFile(self.env_path).get("SAYA_ONEBOT_LISTEN_PORT") or 8080)
+        except (OSError, ValueError):
+            return 8080
+
+    def stray_bot(self) -> int | None:
+        """端口上有没有一个**不是我们子进程**的机器人。拿不到 PID 就返回 0。
+
+        ⚠️ 这就是"无头后端"：上一次控制台被关掉时留下的孤儿。
+        它占着端口，于是新的 `start` 会被 start_saya.sh 挡回来
+        （"已经有一个在跑了"）—— 实测撞过。
+        """
+        if self.running:
+            return None
+        port = self.listen_port()
+        return (_pid_on_port(port) or 0) if _port_open(port) else None
 
     # ---- 机器人进程 ----
 
@@ -103,7 +205,11 @@ class Supervisor:
     def running(self) -> bool:
         return self._child is not None and self._child.poll() is None
 
-    def start(self) -> Outcome:
+    def start(self, *, take_over: bool = False) -> Outcome:
+        """起机器人。`take_over=True` 时用 `--restart`，顺手清掉占着端口的那个。
+
+        ⚠️ 只有**用户确认过**才能 take_over —— 那会杀掉一个别人正在用的实例。
+        """
         if self.running:
             return _say(f"已经在跑了（PID {self._child.pid}）。要换代码用 restart。")
 
@@ -111,12 +217,13 @@ class Supervisor:
         #
         # ⚠️ **子进程的 stdout 是管道，不是终端** —— Python 会因此把 stdout
         # 改成**块缓冲**，于是机器人自己命令台的横幅和结果全卡在缓冲区里，
-        # 面板这边一个字都看不到（表现就是"本体指令正常、原前端指令异常"）。
-        # `PYTHONUNBUFFERED=1` 让它逐行出来。ADR-021 那条是"编码"，
-        # 这条是"缓冲"，同一类问题：**输出不接终端时也得能用**。
+        # 面板这边一个字都看不到（表现就是"日志在滚、敲命令没反应"）。
+        # `PYTHONUNBUFFERED=1` 让它逐行出来。机器人自己那边也设了
+        # `line_buffering`（那才是主修），这里再兜一道。
         env = dict(os.environ, PYTHONUNBUFFERED="1")
+        argv = ["bash", str(self.start_script)] + (["--restart"] if take_over else [])
         self._child = subprocess.Popen(
-            ["bash", str(self.start_script)],
+            argv,
             cwd=str(REPO_ROOT),
             env=env,
             stdin=subprocess.PIPE,
@@ -165,6 +272,14 @@ class Supervisor:
 
     def status(self) -> Outcome:
         if not self.running:
+            stray = self.stray_bot()
+            if stray is not None:
+                who = f"PID {stray}" if stray else "PID 拿不到"
+                return _say(
+                    f"这个控制台没在管机器人。",
+                    f"[!] 但端口 {self.listen_port()} 上有一个**没人管的**实例（{who}）——",
+                    "    它是上一次控制台被关掉时留下的。敲 restart 可以接管它。",
+                )
             return _say("没在跑。敲 start 起它。")
         elapsed = int(time.monotonic() - (self._started_at or time.monotonic()))
         minutes, seconds = divmod(elapsed, 60)
@@ -227,13 +342,15 @@ class Supervisor:
             )
         if name == "restart":
             return Outcome(
-                confirm="restart",
-                question="确定要重启吗？重启期间群里的消息它会漏掉。 [y/N]",
+                confirm="restart", question="确定要重启吗？重启期间群里的消息它会漏掉。 [y/N]"
             )
         if name == "status":
             return self.status()
         if name == "quit":
-            return Outcome(confirm="quit", question="退出控制台？（机器人会继续跑）[y/N]")
+            return Outcome(
+                confirm="quit",
+                question="退出控制台？**机器人也会一起停**（这个窗口管着它的命）。 [y/N]",
+            )
 
         # 其余全归管理命令
         return self.forward(line)
@@ -244,7 +361,10 @@ class Supervisor:
         if action == "restart":
             return self.restart()
         if action == "quit":
-            return Outcome(lines=("再见。（机器人还在跑）",), stop=True)
+            return Outcome(lines=("再见。",), stop=True)
+        if action == "takeover":
+            # 用户确认过要接管那个无头实例
+            return self.start(take_over=True)
         return Outcome()
 
 
@@ -255,7 +375,10 @@ USAGE = "\n".join(
         "  end              停掉它            ← 要确认",
         "  restart          重启（用现在这份代码）← 要确认",
         "  status           在跑吗、跑了多久",
-        "  quit             退出控制台（机器人继续跑）",
+        "  quit             退出控制台（**机器人一起停**）← 要确认",
+        "",
+        "⚠️ 这个窗口**管着机器人的命**：它一关，机器人就停。",
+        "   （所以它同时是监视器和控制器，见 docs/01 ADR-026）",
         "",
         "设置命令（和机器人终端里、tools/config.py 是同一套）：",
         "  show                       看现在是什么样",
@@ -272,10 +395,58 @@ USAGE = "\n".join(
 )
 
 
+def _read_answer(stream) -> str:
+    """读一行当 y/n 用。EOF 当成"没答应"。"""
+    for raw in stream:
+        return raw.strip().lower()
+    return ""
+
+
 def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
-    """读一行 → 处理 → 打印。**读到 EOF 就退出**（管道跑的时候会这样）。"""
-    pending: str | None = None
+    """启动检查 → 循环。**退出时一定带走机器人**（ADR-026）。
+
+    ⚠️ 读到 EOF 也算退出 —— 关窗口、管道断开、Ctrl+D 都会走到这儿。
+    不在这里收尾的话就会留下无头后端，实测撞过。
+    """
     output(BANNER)
+
+    # ① 已经有别的控制台了？**自己退出**，别两个一起敲。
+    other = sup.other_panel()
+    if other is not None:
+        output(f"{PREFIX}已经有一个控制台在跑（PID {other}）。")
+        output(f"{PREFIX}两个一起敲会打架，这个先退出了。")
+        return
+
+    sup.claim_lock()
+    try:
+        # ② **启动就报到一次** —— 不用先敲一下才知道现在什么状态。
+        for line in sup.status().lines:
+            output(f"{PREFIX}{line}")
+
+        # ③ 有个**没人管的**机器人在跑？问一句再接管。
+        stray = sup.stray_bot()
+        if stray is not None:
+            who = f"PID {stray}" if stray else "PID 拿不到"
+            output(f"{PREFIX}[!] 端口 {sup.listen_port()} 上有一个**没人管的**机器人（{who}）。")
+            output(f"{PREFIX}    多半是上次控制台被关掉时留下的（那样会占着端口，")
+            output(f"{PREFIX}    让 start 起不来）。接管它？会先关掉它、再用现在这份代码起一个。 [y/N]")
+            if _read_answer(stream) in YES:
+                for line in sup.start(take_over=True).lines:
+                    output(f"{PREFIX}{line}")
+            else:
+                output(f"{PREFIX}那就不动它。这个控制台不启动机器人。")
+        _loop(sup, stream, output)
+    finally:
+        # ⚠️ **不管怎么退出的**（quit / EOF / Ctrl+C / 抛异常），都要收尾：
+        # 停掉机器人 + 放掉锁。少做一步就是无头后端。
+        if sup.running:
+            for line in sup.stop().lines:
+                output(f"{PREFIX}{line}")
+        sup.release_lock()
+
+
+def _loop(sup: Supervisor, stream, output) -> None:
+    pending: str | None = None
     for raw in stream:
         line = raw.strip()
         if not line:
@@ -283,10 +454,7 @@ def serve(sup: Supervisor, stream=sys.stdin, output=print) -> None:
 
         if pending is not None:
             action, pending = pending, None
-            if line.lower() in YES:
-                outcome = sup.confirmed(action)
-            else:
-                outcome = _say("取消了。")
+            outcome = sup.confirmed(action) if line.lower() in YES else _say("取消了。")
         else:
             outcome = sup.handle(line)
 
@@ -303,7 +471,8 @@ BANNER = """
 ─────────────────────────────────────────────
  saya 控制台。敲 help 看命令。
  start / end / restart / status + 全部设置命令
- （end 和 restart 要打 y 确认）
+ end / restart / quit 要打 y 确认
+ ⚠️ 这个窗口管着机器人的命：它一关，机器人就停。
 ─────────────────────────────────────────────"""
 
 
@@ -323,7 +492,8 @@ def main(argv: list[str] | None = None) -> int:
         start_script=Path(args.start_script).resolve() if args.start_script else START_SCRIPT,
     )
 
-    # 非交互：跑一条就走（给脚本和测试用）
+    # 非交互：跑一条就走（给脚本和测试用）。**不碰机器人、也不占锁** ——
+    # 一条命令不该把别人的窗口踢掉。
     if args.command:
         outcome = sup.handle(" ".join(args.command))
         for text in outcome.lines:
@@ -333,7 +503,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2  # 需要确认的动作不在非交互模式下做
         return 0 if outcome.ok else 2
 
-    serve(sup)
+    try:
+        serve(sup)
+    except KeyboardInterrupt:
+        pass  # finally 里已经收尾了
     return 0
 
 
