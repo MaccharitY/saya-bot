@@ -92,7 +92,7 @@
 
 | 数据 | 位置 | 说明 |
 |---|---|---|
-| 记忆库 | `project_main/data/`（gitignore） | 具体形式见 ADR-006【待确认】 |
+| 记忆库 | `project_main/data/`（gitignore） | 见 ADR-006（已定：SQLite） |
 | 埋点 trace | `logs/trace.jsonl`（gitignore） | 一行一个 JSON，pre 侧可直接用 pandas 读 |
 | 实验原始数据 | `pre/experiments/`（**提交**） | 从 trace 提炼出的、可公开的对照数据 |
 | 配置 | 环境变量 / `.env` | 密钥只在这里 |

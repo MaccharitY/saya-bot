@@ -15,7 +15,8 @@ QQ 群聊里以**个人账号**身份运行的对话机器人，核心模型 Dee
 - 已有：**能跑的机器人** —— 真 QQ 接入（NapCat / OneBot v11 HTTP）、
   触发策略、防注入、记忆、三条看图路线、埋点、身份认知、长期记忆、知识源（萌娘百科）
 - 没有：人格正文（进行中）、选择性插嘴、记忆摘要自动生成
-- 测试：**360 个全过**，零第三方依赖（`cd project_main && python -m unittest discover -s tests`）
+- 测试：全部通过，零第三方依赖（`cd project_main && python -m unittest discover -s tests`）
+  —— 这里**不写具体条数**：数字天天变，写了就会腐烂，跑一下最准
 - 新增代码前先读 [`docs/05-progress-brief.md`](docs/05-progress-brief.md) —— 那是交接页
 - 最近更新：2026-10-16
 
