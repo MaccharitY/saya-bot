@@ -63,7 +63,15 @@ HTML 转纯文本、链接提取。遇到 PDF 会明确报错而不是输出乱�
 ### 抓取经验（2026-10-15 实测）
 
 **能抓**：arXiv、CVF Open Access（`openaccess.thecvf.com`）、**OpenAlex API**、`modelcontextprotocol.io`、
-GitHub、DeepSeek 官方文档（`api-docs.deepseek.com`）
+GitHub、DeepSeek 官方文档（`api-docs.deepseek.com`）、
+**B 站图文/专栏（`bilibili.com/opus/<id>`）** —— 见下
+
+> 💡 **B 站图文是服务端渲染的，正文直接在 HTML 里，`fetch.py` 能完整抓到**（实测 2026-10-16：
+> 单篇 5～8 万字，中英对照带注释，一字不少）。
+> 抓下来的文本会带页面外壳 —— `目录`、`分享至`、`微信扫一扫分享`、`投诉或建议`、
+> `给UP主投上硬币`、末尾的标签行与 `cvXXXXXXX`。用之前要剥掉。
+> ⚠️ 只适合**少量、按需**地读几篇公开文章；不要拿去批量爬。
+> 若遇到验证码或登录墙就停下 —— 那就是不该继续的信号。
 
 **抓不到**（反爬或本机问题，**不代表目标条目有问题**）：IEEE Xplore（返回空响应）、
 Semantic Scholar 网页、Semantic Scholar API（持续 429）、DBLP（本机 SSL 证书链问题）
