@@ -94,13 +94,23 @@ class ToolBox:
         try:
             output = tool.handler(parsed)
         except Exception as exc:  # noqa: BLE001 - 工具坏了不该带崩整条对话
-            logger.warning("工具 %s 执行失败：%s", name, exc)
+            logger.warning("工具 %s(%s) 执行失败：%s", name, _brief(arguments), exc)
             return f"工具「{name}」执行失败：{type(exc).__name__}: {exc}"
 
         text = str(output).strip() or "（这个工具没有返回内容）"
         if len(text) > MAX_TOOL_OUTPUT_CHARS:
             text = text[:MAX_TOOL_OUTPUT_CHARS] + "\n…（结果太长，已截断）"
+        # ⚠️ **参数一定要记。** 只记工具名和返回长度，出问题时根本不知道
+        # 它查的是什么 —— 实测撞过：6 次查询全返回"没找到"，
+        # 而日志里只看得到"返回 24 字"，完全无线索。
+        logger.info("工具 %s(%s) → %d 字", name, _brief(arguments), len(text))
         return text
+
+
+def _brief(arguments: str, limit: int = 60) -> str:
+    """把参数压成一行，给日志用。"""
+    flat = " ".join(str(arguments).split())
+    return flat if len(flat) <= limit else flat[:limit] + "…"
 
 
 @dataclass(frozen=True, slots=True)

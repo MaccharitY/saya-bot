@@ -29,7 +29,11 @@ MOEGIRL = "https://zh.moegirl.org.cn/api.php"
 
 
 class FakeFetch:
-    """假 transport：按理好的 action 返回预设内容，并记下每次请求的参数。"""
+    """假 transport：按理好的 action 返回预设内容，并记下每次请求的参数。
+
+    键可以是 `action`（如 `"query"`），也可以是 `"action:generator"`
+    （如 `"query:search"`）—— 后者优先，用来区分同一 action 下的不同搜索模式。
+    """
 
     def __init__(self, **by_action) -> None:
         self.by_action = by_action
@@ -40,27 +44,34 @@ class FakeFetch:
         self.calls.append(params)
 
         action = params.get("action", "")
-        if action not in self.by_action:
-            raise AssertionError(f"这个用例没预设 action={action!r} 的响应")
-        value = self.by_action[action]
-        if isinstance(value, Exception):
-            raise value
-        if callable(value):
-            return value(params)
-        return value
+        generator = params.get("generator")
+        key = f"{action}:{generator}" if generator else action
+
+        for candidate in (key, action):
+            if candidate in self.by_action:
+                value = self.by_action[candidate]
+                if isinstance(value, Exception):
+                    raise value
+                if callable(value):
+                    return value(params)
+                return value
+        raise AssertionError(f"这个用例没预设 {key!r} 的响应")
 
 
 def wiki(fetch, *, retries: int = 2) -> MediaWiki:
     return MediaWiki(MOEGIRL, label="测试维基", retries=retries, min_interval=0, fetch=fetch)
 
 
-def opensearch(*titles: str, urls=()) -> list:
-    return [
-        titles[0] if titles else "",
-        list(titles),
-        [""] * len(titles),
-        list(urls) or [f"https://zh.moegirl.org.cn/{t}" for t in titles],
-    ]
+def generated(*pages: tuple[str, str]) -> dict:
+    """generator 搜索的返回形状：标题 + `extract`，并带 `index` 表示相关性顺序。"""
+    return {
+        "query": {
+            "pages": [
+                {"pageid": i, "ns": 0, "title": title, "index": i, "extract": extract}
+                for i, (title, extract) in enumerate(pages, start=1)
+            ]
+        }
+    }
 
 
 def extracts(title: str, text: str) -> dict:
@@ -82,27 +93,51 @@ def wikitext(title: str, text: str) -> dict:
 
 
 class SearchTest(unittest.TestCase):
-    def test_reads_opensearch_results(self):
-        fetch = FakeFetch(opensearch=opensearch("初音未来", "初音未来(世界计划)"))
+    def test_uses_full_text_search_with_content_in_one_request(self):
+        """⚠️ **回归：以前只用前缀匹配，于是长一点的查询必然落空。**
+
+        实测：机器人换来换去查了六次全是空（每次只返回 24 字"没找到"），
+        把工具轮次耗光。根因是 `opensearch` 只做前缀匹配 ——
+        「小米15 eSIM」对不上任何标题前缀，而「eSIM」会匹配到
+        「Eliminator 小枫」这种毫不相干的东西。
+
+        `list=search` 是被萌娘禁了，但 **`generator=search` 没禁** —— 那是真全文检索。
+        """
+        fetch = FakeFetch(
+            **{"query:search": generated(("初音未来", "正文"), ("我去，初音未来！", "梗条目"))}
+        )
         hits = wiki(fetch).search("初音未来")
 
-        self.assertEqual([hit.title for hit in hits], ["初音未来", "初音未来(世界计划)"])
-        self.assertTrue(hits[0].url.startswith("https://"))
+        self.assertEqual([h.title for h in hits], ["初音未来", "我去，初音未来！"])
+        self.assertEqual(fetch.calls[0]["generator"], "search")
+        self.assertNotIn("list", fetch.calls[0], "别用被禁的 list=search")
 
-    def test_no_results_is_an_empty_tuple(self):
-        fetch = FakeFetch(opensearch=[[], [], [], []])
+    def test_falls_back_to_prefix_search(self):
+        """全文搜没结果时，退回前缀匹配再试一次。"""
+        fetch = FakeFetch(
+            **{
+                "query:search": generated(),
+                "query:prefixsearch": generated(("小米10至尊纪念版娘", "正文")),
+            }
+        )
+        hits = wiki(fetch).search("小米15")
+
+        self.assertEqual([h.title for h in hits], ["小米10至尊纪念版娘"])
+        self.assertEqual(
+            [c.get("generator") for c in fetch.calls], ["search", "prefixsearch"]
+        )
+
+    def test_no_results_at_all(self):
+        fetch = FakeFetch(**{"query:search": generated(), "query:prefixsearch": generated()})
         self.assertEqual(wiki(fetch).search("不存在的东西"), ())
 
-    def test_search_goes_through_opensearch_not_list_search(self):
-        """⚠️ 回归：萌娘百科禁掉了 `list=search`（返回 action-notallowed）。
+    def test_pages_are_ordered_by_the_index_field(self):
+        """带 generator 时返回的页序不保证，得按 `index` 排 —— 那才是相关性顺序。"""
+        response = generated(("第一", "a"), ("第二", "b"), ("第三", "c"))
+        response["query"]["pages"].reverse()
+        fetch = FakeFetch(**{"query:search": response})
 
-        换成它就会在真机上直接报错 —— 这个用例把"用哪个接口"钉死。
-        """
-        fetch = FakeFetch(opensearch=opensearch("测试"))
-        wiki(fetch).search("测试")
-
-        self.assertEqual(fetch.calls[0]["action"], "opensearch")
-        self.assertNotIn("list", fetch.calls[0])
+        self.assertEqual([h.title for h in wiki(fetch).search("x")], ["第一", "第二", "第三"])
 
 
 class ExtractTest(unittest.TestCase):
@@ -152,16 +187,17 @@ class FailureTest(unittest.TestCase):
             state["n"] += 1
             if state["n"] == 1:
                 raise urllib.error.URLError("SSL: UNEXPECTED_EOF_WHILE_READING")
-            return opensearch("条目")
+            return generated(("条目", "正文"))
 
-        fetch = FakeFetch(opensearch=flaky)
+        fetch = FakeFetch(**{"query:search": flaky})
         hits = wiki(fetch, retries=3).search("条目")
 
         self.assertEqual([hit.title for hit in hits], ["条目"])
         self.assertEqual(state["n"], 2, "第一次失败后应该自动重试")
 
     def test_giving_up_says_how_many_tries_were_made(self):
-        fetch = FakeFetch(opensearch=urllib.error.URLError("断连"))
+        down = urllib.error.URLError("断连")
+        fetch = FakeFetch(**{"query:search": down, "query:prefixsearch": down})
         with self.assertRaises(WikiError) as caught:
             wiki(fetch, retries=3).search("条目")
 
@@ -171,7 +207,7 @@ class FailureTest(unittest.TestCase):
         """被禁用的接口要一眼看出来是"权限"问题，而不是"网络"问题 ——
         否则会朝着完全错误的方向排查。"""
         blocked = {"error": {"code": "action-notallowed", "info": "Unauthorized API call"}}
-        fetch = FakeFetch(opensearch=blocked)
+        fetch = FakeFetch(**{"query:search": blocked, "query:prefixsearch": blocked})
 
         with self.assertRaises(WikiError) as caught:
             wiki(fetch).search("测试")
@@ -183,25 +219,29 @@ class FailureTest(unittest.TestCase):
 
 class LookupTest(unittest.TestCase):
     def test_formats_hits_into_blocks(self):
-        fetch = FakeFetch(
-            opensearch=opensearch("咲弥"),
-            query=lambda params: extracts("咲弥", "咲弥是……"),
-        )
+        fetch = FakeFetch(**{"query:search": generated(("咲弥", "咲弥是……"))})
         text = wiki(fetch).lookup("咲弥")
 
         self.assertIn("《咲弥》", text)
         self.assertIn("咲弥是……", text)
+        self.assertEqual(len(fetch.calls), 1, "正文跟着搜索一起回来，一次请求就够")
 
     def test_says_so_when_nothing_is_found(self):
-        fetch = FakeFetch(opensearch=opensearch())
+        fetch = FakeFetch(**{"query:search": generated(), "query:prefixsearch": generated()})
         self.assertIn("没有找到", wiki(fetch).lookup("不存在"))
 
-    def test_says_so_when_the_page_has_no_body(self):
-        fetch = FakeFetch(
-            opensearch=opensearch("空条目"),
-            query=lambda params: {"query": {"pages": [{"title": "空条目", "missing": True}]}},
-        )
-        self.assertIn("正文没取到", wiki(fetch).lookup("空条目"))
+    def test_offers_candidate_titles_when_there_is_no_body(self):
+        """⚠️ 搜到标题却取不到正文时，**把候选给出去**。
+
+        以前这种情况回一句"正文没取到"就完了 —— 机器人只能自己硬猜标题，
+        猜错又是一轮空手（实测就是连猜六次）。
+        """
+        fetch = FakeFetch(**{"query:search": generated(("初音未来", ""), ("镜音铃", ""))})
+        text = wiki(fetch).lookup("初音")
+
+        self.assertIn("《初音未来》", text)
+        self.assertIn("《镜音铃》", text)
+        self.assertIn("准确的标题", text)
 
 
 class StripWikitextTest(unittest.TestCase):
@@ -356,10 +396,7 @@ class BuildToolsTest(unittest.TestCase):
         所以没有本地语料时，这一路必须能**退到萌娘百科**，而不是抛异常或返回空 ——
         否则模型会以为"查过了，什么都没有"。
         """
-        fetch = FakeFetch(
-            opensearch=opensearch("咲弥"),
-            query=lambda params: extracts("咲弥", "咲弥是 Arcaea 的角色。"),
-        )
+        fetch = FakeFetch(**{"query:search": generated(("咲弥", "咲弥是 Arcaea 的角色。"))})
         box = build_knowledge_tools(
             moegirl_api=MOEGIRL, corpus_dir=Path("不存在的语料目录"), fetch=fetch
         )
@@ -367,7 +404,8 @@ class BuildToolsTest(unittest.TestCase):
         result = box.call("arcaea_lookup", '{"query": "咲弥"}')
 
         self.assertIn("咲弥是 Arcaea 的角色。", result)
-        self.assertEqual(fetch.calls[0]["action"], "opensearch", "退路走的是萌娘百科")
+        self.assertEqual(fetch.calls[0]["action"], "query", "退路走的是萌娘百科")
+        self.assertEqual(fetch.calls[0]["generator"], "search")
 
     def test_local_corpus_wins_over_the_online_lookup(self):
         """有本地语料就先查本地 —— 又快，又能翻到百科里没有的剧情原文。"""
@@ -381,7 +419,7 @@ class BuildToolsTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            fetch = FakeFetch(opensearch=AssertionError("不该联网"))  # type: ignore[arg-type]
+            fetch = FakeFetch(**{"query:search": AssertionError("不该联网")})  # type: ignore[arg-type]
 
             box = build_knowledge_tools(
                 moegirl_api=MOEGIRL, corpus_dir=directory, fetch=fetch

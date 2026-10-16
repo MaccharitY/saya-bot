@@ -156,37 +156,80 @@ class MediaWiki:
     # ---- 检索 ----
 
     def search(self, query: str, *, limit: int = 3) -> tuple[WikiHit, ...]:
-        """找条目。用的是 opensearch（前缀模糊匹配）——
+        """找条目。
 
-        ⚠️ 萌娘百科禁掉了正经的全文搜索接口，所以**关键词对不上就是找不到**。
-        这是那个站的限制，不是这里的问题。
+        ⚠️ **萌娘百科禁的是 `list=search`，不是 `generator=search`** —— 实测
+        `generator=` 那套全放行。这个区别很要紧：
+
+        - `opensearch` / `prefixsearch` 只做**前缀匹配**，于是
+          「小米15 eSIM」这种带修饰的查询**必然落空**，而「eSIM」会匹配到
+          「Eliminator 小枫」这种毫不相干的东西（拉丁字母前缀毫无意义）。
+        - `generator=search` 是**真全文检索**。实测「初音未来」能查回
+          条目正文 446 字，还带出「我去，初音未来！」这种梗条目。
+
+        以前只用前缀匹配，机器人换来换去查了六次全是空，把工具轮次耗光。
         """
-        data = self._call(
-            {"action": "opensearch", "search": query, "limit": str(limit), "namespace": "0"}
+        return tuple(
+            WikiHit(title=title, url=url)
+            for title, url, _ in self._search_pages(query, limit=limit)
         )
-        if not isinstance(data, list) or len(data) < 2:
-            return ()
 
-        titles = data[1] or []
-        descriptions = data[2] if len(data) > 2 else []
-        urls = data[3] if len(data) > 3 else []
-        hits: list[WikiHit] = []
-        for index, title in enumerate(titles):
-            hits.append(
-                WikiHit(
-                    title=str(title),
-                    description=str(descriptions[index]) if index < len(descriptions) else "",
-                    url=str(urls[index]) if index < len(urls) else self.page_url(str(title)),
-                )
+    def _search_pages(self, query: str, *, limit: int) -> list[tuple[str, str, str]]:
+        """先全文搜，没结果再退到前缀匹配。
+
+        ⚠️ **两种模式都失败时，要把错误抛出去。** 全吞掉的话，一个被禁的接口
+        会伪装成"没找到这个条目" —— 排查方向就完全错了（要么去改查询词，
+        要么以为人家真没这个条目，而真相是接口根本不能用）。
+        """
+        last: WikiError | None = None
+        for mode in ("search", "prefixsearch"):
+            try:
+                pages = self._pages(query, limit=limit, mode=mode)
+            except WikiError as exc:
+                last = exc
+                continue
+            if pages:
+                return pages
+        if last is not None:
+            raise last
+        return []
+
+    def _pages(
+        self, query: str, *, limit: int, mode: str = "search"
+    ) -> list[tuple[str, str, str]]:
+        """搜条目，**顺带把正文一起拿回来**（一次请求搞定，对人家服务器也客气）。
+
+        mode: `search`（全文，首选）/ `prefixsearch`（前缀，退路）。
+        返回 [(标题, 网页地址, 正文)]，按相关性排序。
+        """
+        key = "gsrsearch" if mode == "search" else "gpssearch"
+        cap = "gsrlimit" if mode == "search" else "gpslimit"
+        data = self._call(
+            {
+                "action": "query",
+                "generator": mode,
+                key: query,
+                cap: str(max(1, limit)),
+                "prop": "extracts",
+                "explaintext": "1",
+                "exintro": "1",
+            }
+        )
+
+        pages = (data.get("query") or {}).get("pages") or []
+        if not isinstance(pages, list):
+            return []
+        # ⚠️ 带 generator 时返回的页序不保证，得按 `index` 排 —— 那才是相关性顺序
+        ordered = sorted(pages, key=lambda page: page.get("index", 99))
+        return [
+            (
+                str(page.get("title", "")),
+                self.page_url(str(page.get("title", ""))),
+                str(page.get("extract") or "").strip(),
             )
-        return tuple(hits)
-
-    def extract(self, title: str, *, max_chars: int = 1200) -> str:
-        """取条目正文。取不到就返回空串（调用方自己决定怎么说）。"""
-        text = self._try_extracts(title, max_chars=max_chars)
-        if text:
-            return text
-        return self._try_raw_wikitext(title, max_chars=max_chars)
+            for page in ordered
+            if page.get("title")
+        ]
 
     def _try_extracts(self, title: str, *, max_chars: int) -> str:
         """首选：TextExtracts 扩展。不是每个站都装了这个扩展。"""
@@ -209,6 +252,41 @@ class MediaWiki:
             if extract:
                 return _trim(extract, max_chars)
         return ""
+
+    def extract(self, title: str, *, max_chars: int = 1200) -> str:
+        """按**准确标题**取正文。取不到就返回空串（调用方自己决定怎么说）。"""
+        text = self._try_extracts(title, max_chars=max_chars)
+        if text:
+            return text
+        return self._try_raw_wikitext(title, max_chars=max_chars)
+
+    def lookup(self, query: str, *, hits: int = 2, max_chars: int = 900) -> str:
+        """给模型用的成品：查一次，把最相关的几个条目的开头拼成一段文本。
+
+        首选全文检索（连正文一起回来，**一次请求**）；它没结果再退到前缀匹配。
+        """
+        pages = self._search_pages(query, limit=hits)
+        if not pages:
+            return (
+                f"{self.label}里没有找到「{query}」相关的条目。"
+                f"换个说法或换一个更接近条目名的词再试。"
+            )
+
+        blocks = [
+            f"《{title}》（{url}）\n{_trim(extract, max_chars)}"
+            for title, url, extract in pages
+            if extract
+        ]
+        if blocks:
+            return "\n\n".join(blocks)
+
+        # 搜到了标题但一条正文都没取到 —— 把候选给出去，让模型拿**准确标题**再查一次，
+        # 而不是自己硬猜（猜错就又是一轮空手）
+        names = "、".join(f"《{title}》" for title, _, _ in pages)
+        return (
+            f"{self.label}里有这些相关条目：{names}。"
+            f"用其中**准确的标题**再查一次就能拿到正文。"
+        )
 
     def _try_raw_wikitext(self, title: str, *, max_chars: int) -> str:
         """兜底：直接取 wikitext，再粗洗一遍标记。凑合能读，不保证好看。"""
@@ -236,24 +314,6 @@ class MediaWiki:
             if cleaned:
                 return _trim(cleaned, max_chars)
         return ""
-
-    def lookup(self, query: str, *, hits: int = 2, max_chars: int = 900) -> str:
-        """给模型用的成品：查一次，把最相关的几个条目的开头拼成一段文本。"""
-        found = self.search(query, limit=hits)
-        if not found:
-            return f"{self.label}里没有找到「{query}」相关的条目。"
-
-        blocks: list[str] = []
-        for hit in found:
-            body = self.extract(hit.title, max_chars=max_chars)
-            if not body:
-                continue
-            blocks.append(f"《{hit.title}》（{hit.url}）\n{body}")
-
-        if not blocks:
-            return f"{self.label}里有叫「{found[0].title}」的条目，但正文没取到。"
-        return "\n\n".join(blocks)
-
 
 def strip_wikitext(text: str) -> str:
     """把 wikitext 粗洗成能读的文本。够用就行 —— 它是给模型看的，不是拿去发布的。"""
