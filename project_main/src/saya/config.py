@@ -187,6 +187,11 @@ class Config:
     arcaea_corpus_dir: str
     # 运行时命令台：在机器人自己的终端里敲命令改设置（立刻生效，见 core/console.py）
     console_enabled: bool
+    # 百度 OCR（可选）。⚠️ **只有附属子进程读得到**，同样走 cv_subprocess_env()。
+    # 留空就用本地 PP-OCRv3 —— 云那半是"让委派路线跟一个真正强的 OCR 比"。
+    baidu_ocr_key: str = ""
+    baidu_ocr_secret: str = ""
+    baidu_ocr_endpoint: str = ""
 
     @classmethod
     def from_env(cls, dotenv_path: Path | None = None) -> Config:
@@ -244,6 +249,9 @@ class Config:
             wiki_moegirl_api=get("WIKI_MOEGIRL_API", DEFAULT_MOEGIRL_API),
             arcaea_corpus_dir=get("ARCAEA_CORPUS_DIR", "./persona/corpus"),
             console_enabled=get("CONSOLE_ENABLED", "true").lower() in _TRUE,
+            baidu_ocr_key=get("BAIDU_OCR_KEY"),
+            baidu_ocr_secret=get("BAIDU_OCR_SECRET"),
+            baidu_ocr_endpoint=get("BAIDU_OCR_ENDPOINT"),
         )
 
     def require_api_key(self) -> str:

@@ -82,7 +82,13 @@ def split_command(command: str, *, posix: bool | None = None) -> list[str]:
     return argv if posix else [token.strip('"').strip("'") for token in argv]
 
 
-def cv_subprocess_env(*, model_dir: str = "") -> dict[str, str]:
+def cv_subprocess_env(
+    *,
+    model_dir: str = "",
+    ocr_key: str = "",
+    ocr_secret: str = "",
+    ocr_endpoint: str = "",
+) -> dict[str, str]:
     """附属子进程需要、而**普通环境变量送不到**的那些键，显式传下去。
 
     ⚠️ 为什么需要这个口子：附属是通过 `subprocess` 起的，它的环境来自
@@ -95,7 +101,18 @@ def cv_subprocess_env(*, model_dir: str = "") -> dict[str, str]:
     新增"只有子进程才用得上"的配置键时，**要加到这里**，
     否则它就是个摆设。
     """
-    return {"SAYA_CV_MODEL_DIR": model_dir} if model_dir else {}
+    env: dict[str, str] = {}
+    if model_dir:
+        env["SAYA_CV_MODEL_DIR"] = model_dir
+    # ⚠️ 百度 OCR 的三个键**只被附属子进程读**（`cv_mcp/cloud_ocr.py`）。
+    # 不在这里传，`.env` 里填了也等于没填 —— 云 OCR 会静默退回本地。
+    if ocr_key:
+        env["SAYA_BAIDU_OCR_KEY"] = ocr_key
+    if ocr_secret:
+        env["SAYA_BAIDU_OCR_SECRET"] = ocr_secret
+    if ocr_endpoint:
+        env["SAYA_BAIDU_OCR_ENDPOINT"] = ocr_endpoint
+    return env
 
 
 def start_cv_tools(

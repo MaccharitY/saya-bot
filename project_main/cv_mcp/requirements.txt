@@ -21,3 +21,6 @@ mcp>=1.0
 ultralytics>=8.3
 rapidocr_onnxruntime>=1.3
 pillow>=10
+
+# 云 OCR（可选）：百度。**不需要额外依赖** —— 走标准库的 urllib。
+# 只有把 SAYA_CV_OCR_BACKEND 设成 cloud（且配了 SAYA_BAIDU_OCR_KEY/SECRET）时才用。

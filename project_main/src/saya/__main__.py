@@ -104,7 +104,12 @@ def build_pipeline(config: Config) -> Pipeline:
     tools = None
     if config.vision_route in NEEDS_TOOLS:
         tools = start_cv_tools(
-            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+            config.cv_mcp_command, extra_env=cv_subprocess_env(
+                model_dir=config.cv_model_dir,
+                ocr_key=config.baidu_ocr_key,
+                ocr_secret=config.baidu_ocr_secret,
+                ocr_endpoint=config.baidu_ocr_endpoint,
+            )
         )
         log.info(
             "附属已就绪：%s（工具 %d 个）",
@@ -320,7 +325,12 @@ def run_check(config: Config, env_file: Path | None = None) -> int:
             print("\n→ 试着启动附属（专用 CV 模型）…")
             try:
                 tools = start_cv_tools(
-            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+            config.cv_mcp_command, extra_env=cv_subprocess_env(
+                model_dir=config.cv_model_dir,
+                ocr_key=config.baidu_ocr_key,
+                ocr_secret=config.baidu_ocr_secret,
+                ocr_endpoint=config.baidu_ocr_endpoint,
+            )
         )
             except CvToolsError as exc:
                 problems.append(f"附属启动失败：{exc}")

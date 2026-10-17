@@ -44,7 +44,10 @@ mcp = _Server("saya-cv")
 # 权重放专门的缓存目录，**别落在仓库里**。
 # （Ultralytics 默认把模型下到当前工作目录，实测因此往仓库扔了个 5.6MB 的 .pt。）
 _MODEL_DIR = Path(os.environ.get("SAYA_CV_MODEL_DIR", Path.home() / ".cache" / "saya-cv"))
-_YOLO_WEIGHTS = str(_MODEL_DIR / "yolo11n.pt")  # nano：先跑通，够用；要精度可换 s/m
+# ⚠️ 权重可换：`SAYA_YOLO_WEIGHTS=yolo11x.pt`。
+# 换之前先读报告里的讨论 —— 我们撞到的限制是**词表**（80 类），不是精度，
+# 换更大的模型不会让它认识"棋子"或"数字标签"。
+_YOLO_WEIGHTS = str(_MODEL_DIR / os.environ.get("SAYA_YOLO_WEIGHTS", "yolo11n.pt"))
 
 _yolo = None
 _ocr = None
@@ -58,6 +61,24 @@ def _get_yolo():
         _MODEL_DIR.mkdir(parents=True, exist_ok=True)
         _yolo = YOLO(_YOLO_WEIGHTS)
     return _yolo
+
+
+def _device() -> str:
+    """YOLO 跑在哪儿。
+
+    ⚠️ **Ultralytics 默认是 CPU** —— 即使 CUDA 可用也不自动上去
+    （2026-10-17 实测：`YOLO(...).device` 是 `cpu`，GPU 全程没动静）。
+    所以这里显式选：`SAYA_CV_DEVICE` 优先，不写就自动挑 GPU。
+    """
+    raw = os.environ.get("SAYA_CV_DEVICE", "").strip()
+    if raw:
+        return raw
+    try:
+        import torch  # noqa: PLC0415 - 只有需要时才 import，省启动时间
+
+        return "cuda:0" if torch.cuda.is_available() else "cpu"
+    except Exception:  # noqa: BLE001 - 装不上 torch 也不该让附属起不来
+        return "cpu"
 
 
 def _get_ocr():
@@ -115,7 +136,7 @@ def detect_objects(image_path: str, detail: str = "count") -> str:
 
     started = time.monotonic()
     try:
-        results = _get_yolo().predict(str(path), verbose=False)
+        results = _get_yolo().predict(str(path), verbose=False, device=_device())
     except Exception as exc:  # noqa: BLE001 - 出错要让模型看到原因，而不是断链
         return f"检测失败：{type(exc).__name__}: {exc}"
     elapsed = int((time.monotonic() - started) * 1000)
@@ -162,6 +183,23 @@ def read_text(image_path: str) -> str:
     if path is None:
         return f"错误：文件不存在 {image_path}"
 
+    # ⚠️ **云 OCR 是可选的**（`SAYA_CV_OCR_BACKEND`）。
+    # 本地的 PP-OCRv3 是 2022 年的模型；拿它代表"专用 OCR 路线"不公平，
+    # 所以实验里可以把这一半换成阿里云（达摩院）—— 检测那一半仍留本地，
+    # 因为阿里云的物体检测只收公网 URL，要多配一层 OSS。
+    backend = os.environ.get("SAYA_CV_OCR_BACKEND", "auto").strip().lower()
+    try:
+        import cloud_ocr  # noqa: PLC0415 - 同目录；SDK 在模块内部按需 import
+    except ImportError:
+        cloud_ocr = None
+    if backend == "cloud" or (backend == "auto" and cloud_ocr is not None and cloud_ocr.available()):
+        if cloud_ocr is None or not cloud_ocr.available():
+            return "云 OCR 未启用：缺 SAYA_BAIDU_OCR_KEY / SAYA_BAIDU_OCR_SECRET"
+        try:
+            return cloud_ocr.read_text(path)
+        except Exception as exc:  # noqa: BLE001
+            return f"云 OCR 失败：{type(exc).__name__}: {exc}"
+
     started = time.monotonic()
     try:
         result, _ = _get_ocr()(str(path))
@@ -200,7 +238,7 @@ def annotate_objects(image_path: str, output_path: str) -> str:
 
     started = time.monotonic()
     try:
-        results = _get_yolo().predict(str(path), verbose=False)
+        results = _get_yolo().predict(str(path), verbose=False, device=_device())
     except Exception as exc:  # noqa: BLE001
         return f"检测失败：{type(exc).__name__}: {exc}"
 
