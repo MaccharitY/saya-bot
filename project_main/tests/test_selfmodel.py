@@ -85,6 +85,13 @@ class AbilityTest(unittest.TestCase):
         for missing in ("语音", "视频", "文件", "主动发言"):
             self.assertIn(missing, text)
 
+    def test_knows_she_sends_one_reply_per_message(self):
+        """⚠️ 实测：让她"连发 30 条"，她答「那得靠**程序那边**多发几次」——
+        把自己和程序说成了两回事。发消息也是她自己发的。"""
+        text = selfmodel.build(FULL)
+        self.assertIn("每收到一条消息，最多回一条", text)
+        self.assertIn("不是「别处有个程序」在代劳", text)
+
     def test_tells_her_not_to_guess(self):
         text = selfmodel.build(FULL)
         self.assertIn("直接说办不到", text)
