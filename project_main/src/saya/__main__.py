@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from saya import cache as cache_store
 from saya.adapter.base import Adapter, AdapterError
 from saya.adapter.mock import MockAdapter
 from saya.adapter.onebot11_http import OneBot11HttpAdapter
@@ -486,6 +487,14 @@ def main(argv: list[str] | None = None) -> int:
             env_path=env_file or DEFAULT_ENV_FILE,
             apply=reconfigure,
             status=lambda: _runtime_status(live["config"], started_at),
+            # ⚠️ 清缓存走**这个进程自己的数据目录** —— 面板是从仓库根目录跑的，
+            # 它算出来的 `./data` 会指到别处（见 `cache.data_dir_for`）。
+            cache_preview=lambda: cache_store.describe(
+                cache_store.inventory(Path(live["config"].data_dir))
+            ),
+            cache_purge=lambda: cache_store.describe(
+                cache_store.purge(Path(live["config"].data_dir)), cleaned=True
+            ),
         ).start(sys.stdin)
 
     # ⚠️ **反方向的检查**：如果我是被控制台（tools/panel.py）拉起的，

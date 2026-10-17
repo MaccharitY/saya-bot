@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import io
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -104,7 +105,11 @@ class ConsoleOutputIsEncodableTest(unittest.TestCase):
             for lineno, text in printed_strings(path):
                 codes = unencodable(text)
                 if codes:
-                    where = path.relative_to(PROJECT_MAIN)
+                    # ⚠️ 用 relpath 而不是 `relative_to(PROJECT_MAIN)`：
+                    # 扫描范围含 `tools/`（在 PROJECT_MAIN 外面），
+                    # `relative_to` 会抛 ValueError —— 于是测试**因为报错而失败**，
+                    # 真正的问题（哪个字符编不进 GBK）反而看不见。
+                    where = os.path.relpath(path, REPO_ROOT)
                     offenders.append(f"{where}:{lineno} -> {[hex(c) for c in codes]}")
 
         self.assertEqual(

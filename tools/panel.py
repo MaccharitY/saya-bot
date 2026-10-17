@@ -68,6 +68,7 @@ LOCK_PATH = REPO_ROOT / "project_main" / "data" / "panel.lock"
 
 sys.path.insert(0, str(REPO_ROOT / "project_main" / "src"))
 
+from saya import cache as cache_store  # noqa: E402
 from saya.console import prepare_console  # noqa: E402
 from saya.envfile import EnvFile  # noqa: E402
 from saya.manage import run as run_manage  # noqa: E402
@@ -558,6 +559,37 @@ class Supervisor:
         for line in child.stdout:
             self._output(line.rstrip("\n"))
 
+    # ---- 清缓存 ----
+    #
+    # ⚠️ **直接开库清，不转给机器人**。配置是"进程里的一份对象"（所以要转进去），
+    # 而聊天记录只在磁盘上 —— 机器人每次读都走 SQLite，删掉就没了。
+    # 机器人跑着也照清：它下一次读自然是空的。
+
+    def cache_dir(self) -> Path:
+        return cache_store.data_dir_for(self.env_path)
+
+    def cache_command(self, args: list[str]) -> Outcome:
+        action = args[0].lower() if args else ""
+        if action in ("", "show", "status"):
+            return _say(*cache_store.describe(cache_store.inventory(self.cache_dir())))
+        if action == "clear":
+            return Outcome(
+                confirm="cache-clear",
+                question=(
+                    "确认清空聊天记录与收到的图片？长期记忆与设置不受影响。 [y/N]"
+                ),
+            )
+        return Outcome(
+            lines=(f"cache 只有 show / clear，没有 {action}。",), ok=False
+        )
+
+    def cache_clear(self) -> Outcome:
+        try:
+            snap = cache_store.purge(self.cache_dir())
+        except OSError as exc:
+            return Outcome(lines=(f"清缓存失败：{exc}",), ok=False)
+        return Outcome(lines=cache_store.describe(snap, cleaned=True))
+
     # ---- 设置命令 ----
 
     def forward(self, line: str) -> Outcome:
@@ -627,6 +659,8 @@ class Supervisor:
             return self.status()
         if name == "napcat":
             return self.napcat_command(args)
+        if name == "cache":
+            return self.cache_command(args)
         if name == "quit":
             return Outcome(
                 confirm="quit",
@@ -650,6 +684,8 @@ class Supervisor:
             return self.napcat_stop()
         if action == "napcat-restart":
             return self.napcat_restart()
+        if action == "cache-clear":
+            return self.cache_clear()
         return Outcome()
 
 
@@ -667,6 +703,11 @@ USAGE = "\n".join(
         "  napcat start     启动 NapCat（已在跑则只等就绪）",
         "  napcat stop      停止 NapCat（需确认）",
         "  napcat restart   重启 NapCat（需确认，可能要在 WebUI 重新登录）",
+        "",
+        "清缓存：",
+        "  cache            查看会清掉多少（消息 / 话题 / 图片）",
+        "  cache clear      清空聊天记录与收到的图片（需确认）",
+        "                   [!] 长期记忆与设置不受影响",
         "",
         "[!] bot 会在此终端退出时同时终止。",
         "[!] NapCat 不会 —— 它揣着 QQ 登录态，重启不保证自动登录。",
@@ -813,6 +854,7 @@ BANNER = """
  saya 控制台--输入 help 查看命令。
  start / end / restart / quit / status
  napcat [start|stop|restart]   QQ 侧
+ cache [clear]                 清聊天记录与图片
  [!] bot 会在此终端退出时同时终止
  [!] NapCat 不会（它揣着 QQ 登录态）
 ─────────────────────────────────────────────"""

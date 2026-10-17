@@ -62,6 +62,10 @@ BANNER = """
 ─────────────────────────────────────────────"""
 
 
+# 确认词。`cache clear` 要再加一个这样的词才会真的动手。
+_YES = {"yes", "y", "是", "确认"}
+
+
 class Console:
     """读一行 → 交给 manage → 打印结果。变更时回调 `apply` 让内核换配置。"""
 
@@ -71,6 +75,8 @@ class Console:
         env_path: Path,
         apply: Callable[[], Iterable[str]] | None = None,
         status: Callable[[], Iterable[str]] | None = None,
+        cache_preview: Callable[[], Iterable[str]] | None = None,
+        cache_purge: Callable[[], Iterable[str]] | None = None,
         output: Callable[[str], None] = print,
     ) -> None:
         self.env_path = env_path
@@ -78,6 +84,9 @@ class Console:
         self._apply = apply
         # 运行时长之类的**只有进程自己知道**的信息，由 main 那边提供
         self._status = status
+        # 清缓存用**同一个数据库连接**，所以只能在这儿做（见 panel.forward）
+        self._cache_preview = cache_preview
+        self._cache_purge = cache_purge
         self._output = output
 
     # ---- 纯逻辑：可单测，不碰 stdin/线程 ----
@@ -101,6 +110,9 @@ class Console:
                 ok=False,
             )
 
+        if word == "cache":
+            return self._cache(line)
+
         if word == "status" and self._status is not None:
             try:
                 return Result(lines=tuple(self._status()))
@@ -113,14 +125,17 @@ class Console:
             return Result(lines=(str(exc),), ok=False)
 
         result = run(env, line)
-        if word in ("help", "?") and self._status is not None:
-            # `status` 是**这个前端特有的**（要问进程自己跑了多久），
-            # `manage` 那边不认识它，所以帮助里得在这儿补上 ——
-            # 不补的话用户永远不知道有这个命令（实测就是敲了三次没敲对）。
-            result = Result(
-                lines=result.lines
-                + ("", "只有机器人自己这个终端里才有：", "  status    跑了多久、接在哪儿、用的哪个模型")
-            )
+        if word in ("help", "?"):
+            # `status` / `cache` 是**这个前端特有的**，`manage` 那边不认识它们，
+            # 所以帮助里得在这儿补上 —— 不补的话用户永远不知道有这些命令
+            # （实测就是敲了三次没敲对）。
+            extra: list[str] = []
+            if self._status is not None:
+                extra.append("  status    跑了多久、接在哪儿、用的哪个模型")
+            if self._cache_preview is not None:
+                extra.append("  cache     清聊天记录与收到的图片（长期记忆与设置不动）")
+            if extra:
+                result = Result(lines=result.lines + ("", "另外还有：", *extra))
         if not result.changed:
             return result
         if not result.ok:
@@ -146,6 +161,31 @@ class Console:
                     "别提交上去"
                 )
         return Result(lines=tuple(lines), changed=True, ok=True)
+
+    def _cache(self, line: str) -> Result:
+        """清聊天记录与收到的图片。
+
+        ⚠️ **必须两句**：`cache clear` 只报数，`cache clear yes` 才动手。
+        这个终端是一次一行读的，没有"停下来问一句"的地方 ——
+        所以确认做在命令本身，而不是做成交互。
+        """
+        if self._cache_preview is None or self._cache_purge is None:
+            return Result(lines=("这个实例没接缓存清理（记忆未启用）。",), ok=False)
+
+        args = line.split()[1:]
+        action = args[0].lower() if args else "show"
+        if action in ("show", "status"):
+            return Result(lines=tuple(self._cache_preview()))
+        if action == "clear":
+            if len(args) >= 2 and args[1].lower() in _YES:
+                return Result(lines=tuple(self._cache_purge()))
+            return Result(
+                lines=tuple(self._cache_preview())
+                + ("确认清空再加一个 yes：cache clear yes",)
+            )
+        return Result(
+            lines=(f"cache 只有 show / clear，没有 {action!r}。",), ok=False
+        )
 
     # ---- 前端：读 stdin ----
 

@@ -314,5 +314,70 @@ class BadInputCannotPoisonTheEnvTest(EnvFixture):
         self.assertIn("help", text)
 
 
+class CacheCommandTest(EnvFixture):
+    """`cache` —— 清聊天记录与收到的图片。
+
+    ⚠️ 必须两句：`cache clear` 只报数，`cache clear yes` 才动手。
+    这个终端一行一行读，没有"停下来问一句"的地方，所以确认做在命令里。
+    """
+
+    def make(self, *, preview=None, purge=None) -> Console:
+        self.preview_calls = 0
+        self.purge_calls = 0
+
+        def _preview():
+            self.preview_calls += 1
+            return ("聊天记录：3 条消息、2 个话题。",)
+
+        def _purge():
+            self.purge_calls += 1
+            return ("已清空：3 条消息。",)
+
+        return Console(
+            env_path=self.path,
+            apply=lambda: [],
+            cache_preview=preview or _preview,
+            cache_purge=purge or _purge,
+            output=lambda _: None,
+        )
+
+    def test_bare_cache_only_previews(self):
+        console = self.make()
+        result = console.handle("cache")
+        self.assertTrue(result.ok)
+        self.assertEqual(self.purge_calls, 0, "光敲 cache 不许清东西")
+        self.assertIn("条消息", result.text)
+
+    def test_clear_without_yes_only_previews(self):
+        console = self.make()
+        result = console.handle("cache clear")
+        self.assertEqual(self.purge_calls, 0)
+        self.assertIn("cache clear yes", result.text, "得告诉人怎么确认")
+
+    def test_clear_with_yes_actually_purges(self):
+        console = self.make()
+        result = console.handle("cache clear yes")
+        self.assertEqual(self.purge_calls, 1)
+        self.assertIn("已清空", result.text)
+
+    def test_yes_accepts_the_chinese_word(self):
+        console = self.make()
+        console.handle("cache clear 确认")
+        self.assertEqual(self.purge_calls, 1)
+
+    def test_unknown_action_is_rejected(self):
+        result = self.make().handle("cache delete")
+        self.assertFalse(result.ok)
+        self.assertIn("clear", result.text)
+
+    def test_without_wiring_it_says_so(self):
+        console = Console(env_path=self.path, apply=lambda: [], output=lambda _: None)
+        self.assertFalse(console.handle("cache").ok)
+
+    def test_help_mentions_cache(self):
+        result = self.make().handle("help")
+        self.assertIn("cache", result.text)
+
+
 if __name__ == "__main__":
     unittest.main()

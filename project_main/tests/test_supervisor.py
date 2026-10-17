@@ -28,7 +28,7 @@ sys.path.insert(0, str(PROJECT_MAIN / "src"))
 # ⚠️ 这个脚本**不能叫 saya.py** —— 会和 src/saya/ 这个包同名，
 #    于是 `from saya import ...` 导到的是包，不是它。实测撞过。
 from panel import Supervisor, serve  # noqa: E402
-from saya import napcat  # noqa: E402
+from saya import cache, napcat  # noqa: E402
 
 SAMPLE = (
     "SAYA_LLM_API_KEY=sk-not-a-real-key\n"
@@ -205,6 +205,41 @@ class NapCatTest(Fixture):
             outcome = self.sup.confirmed("quit")
         self.assertTrue(outcome.stop)
         napcat_stop.assert_not_called()
+
+
+class CacheTest(Fixture):
+    """清缓存 —— 聊天记录与图片，**长期记忆与设置不动**。"""
+
+    def test_cache_only_previews(self):
+        with mock.patch("panel.cache_store.purge") as purge:
+            text = "\n".join(self.sup.handle("cache").lines)
+        purge.assert_not_called()
+        self.assertIn("没有可清的东西", text)
+
+    def test_clear_needs_confirmation(self):
+        outcome = self.sup.handle("cache clear")
+        self.assertEqual(outcome.confirm, "cache-clear")
+        self.assertIn("[y/N]", outcome.question)
+
+    def test_the_question_names_what_is_kept(self):
+        """⚠️ 不清的那部分必须写在问句里，不然人不敢按 y。"""
+        self.assertIn("长期记忆与设置不受影响", self.sup.handle("cache clear").question)
+
+    def test_confirmed_clear_actually_purges(self):
+        with mock.patch(
+            "panel.cache_store.purge", return_value=cache.Inventory(messages=3)
+        ) as purge:
+            outcome = self.sup.confirmed("cache-clear")
+        purge.assert_called_once()
+        self.assertIn("已清空", "\n".join(outcome.lines))
+
+    def test_unknown_action_is_rejected(self):
+        outcome = self.sup.handle("cache nuke")
+        self.assertFalse(outcome.ok)
+        self.assertIn("clear", "\n".join(outcome.lines))
+
+    def test_help_mentions_cache(self):
+        self.assertIn("cache", "\n".join(self.sup.handle("help").lines))
 
 
 class OwnershipTest(Fixture):
