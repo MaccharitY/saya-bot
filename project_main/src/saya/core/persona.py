@@ -108,11 +108,15 @@ class Persona:
         """名字的写法。跟着 `name` 走，换人格就跟着换 —— 不写死在规则表里。"""
         return _NAME_RULE.format(name=self.name)
 
-    def system_prompt(self, *, audience: str = "") -> str:
+    def system_prompt(self, *, audience: str = "", self_model: str = "") -> str:
         """拼出完整的系统提示。
 
         `audience` 是 `Roles.audience()` 产出的一段**可信**说明，
         告诉模型正在说话的人是谁。不给就整块省略。
+
+        `self_model` 是"她怎么跑的"那一节（`core/selfmodel.py` 生成）。
+        由调用方现算，**不塞进 `Persona`** —— 它跟着 `Config` 变，
+        而 `Persona` 是启动时读进来就不再变的东西。
         """
         # 人格正文是**第一人称**写的（"我是…"），所以这里不要再说"你是「X」" ——
         # 人称来回跳会让模型把稿子当成"别人对它的描述"，而不是它自己。
@@ -132,6 +136,9 @@ class Persona:
         blocks.append(f"必须遵守：\n{rules}")
 
         blocks.append(_BUILD)
+
+        if self_model.strip():
+            blocks.append(self_model.strip())
 
         if audience.strip():
             blocks.append(f"{RELATION_BRIEF}\n\n{audience.strip()}")

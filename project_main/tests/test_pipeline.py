@@ -911,5 +911,31 @@ class ImageTriggerTest(unittest.TestCase):
         self.assertFalse(self.triggers("   "))
 
 
+class SelfModelTest(PipelineTestBase):
+    """她得知道自己是怎么跑的（ADR-037）：记忆怎么留、能查什么、什么办不到。"""
+
+    def test_it_knows_its_own_view_mode(self):
+        pipeline, _ = self.build()
+        self.assertIn("视图模式 direct", pipeline._self_model())
+
+    def test_it_knows_the_memory_limits(self):
+        memory = Memory(self.dir / "selfmodel.db")
+        self.addCleanup(memory.close)
+        pipeline, _ = self.build(memory=memory)
+        text = pipeline._self_model()
+        self.assertIn("50 条消息", text)
+        self.assertIn("删除后无法恢复", text)
+
+    def test_it_does_not_claim_memory_it_does_not_have(self):
+        pipeline, _ = self.build()
+        self.assertIn("会话记忆未启用", pipeline._self_model())
+
+    def test_the_prompt_carries_it(self):
+        pipeline, _ = self.build()
+        pipeline.handle(group_message("在吗", mentioned=True))
+        system = self.transport.calls[0]["messages"][0]["content"]
+        self.assertIn("你的记忆与能力", system)
+
+
 if __name__ == "__main__":
     unittest.main()

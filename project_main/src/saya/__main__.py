@@ -137,8 +137,11 @@ def build_pipeline(config: Config) -> Pipeline:
         log.info("人格已加载：%s（%d 字）", persona_path, len(persona.description))
 
     knowledge = ToolBox()
+    # 语料在不在是**磁盘上的事实**，不是配置 —— 她自述"能查什么"要用这一条。
+    corpus_ready = False
     if config.wiki_enable:
         corpus_dir = project_path(config.arcaea_corpus_dir)
+        corpus_ready = (corpus_dir / "index.json").is_file()
         knowledge = build_knowledge_tools(
             moegirl_api=config.wiki_moegirl_api,
             corpus_dir=corpus_dir,
@@ -146,7 +149,7 @@ def build_pipeline(config: Config) -> Pipeline:
         log.info(
             "知识源已接入：%s（本地剧情语料：%s）",
             "、".join(knowledge.names),
-            "有" if (corpus_dir / "index.json").is_file() else "无",
+            "有" if corpus_ready else "无",
         )
 
     return Pipeline(
@@ -160,6 +163,7 @@ def build_pipeline(config: Config) -> Pipeline:
         memory=memory,
         notebook=notebook,
         tools=knowledge,
+        corpus_available=corpus_ready,
     )
 
 

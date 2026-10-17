@@ -23,9 +23,14 @@ from typing import Any
 
 from saya.adapter.base import Adapter
 from saya.config import Config
-from saya.core import guard
+from saya.core import guard, selfmodel
 from saya.core.context import build_history, build_notes
-from saya.core.memory import Memory, session_key
+from saya.core.memory import (
+    DEFAULT_MESSAGES_PER_SIDE,
+    DEFAULT_TOPICS_PER_SESSION,
+    Memory,
+    session_key,
+)
 from saya.core.notebook import REMEMBER, Notebook, read_intent
 from saya.core.persona import Persona
 from saya.core.roles import ROLE_MEMBER, Roles
@@ -100,6 +105,7 @@ class Pipeline:
         memory: Memory | None = None,
         notebook: Notebook | None = None,
         tools: ToolBox | None = None,
+        corpus_available: bool = False,
     ) -> None:
         self._config = config
         self._adapter = adapter
@@ -111,6 +117,9 @@ class Pipeline:
         self._memory = memory
         self._notebook = notebook
         self._tools = tools or ToolBox()
+        # 本地剧情语料在不在（`index.json` 有没有）。这不是配置，是磁盘上的事实，
+        # 所以由启动时判一次传进来 —— 她不问"配置里写了没"，她问"有没有得查"。
+        self._corpus_available = corpus_available
         self._roles = Roles.from_config(config)
 
     def reconfigure(self, config: Config) -> None:
@@ -156,6 +165,32 @@ class Pipeline:
         if self._notebook is not None:
             self._notebook.close()
 
+    def _self_model(self) -> str:
+        """现算"她怎么跑的"。
+
+        ⚠️ **每次现算，不缓存**（ADR-037）：`reconfigure` 之后配置就换了，
+        缓存下来的那份会继续描述旧配置 —— 而"她对自己的描述是假的"
+        比"她不知道"更糟，她会照错的答，语气还很确定。
+        代价可以忽略：拼几十个字的字符串。
+        """
+        has_memory = self._memory is not None and self._config.memory_enabled
+        names = self._tools.names
+        return selfmodel.build(
+            selfmodel.Capabilities(
+                memory_enabled=has_memory,
+                messages_per_side=DEFAULT_MESSAGES_PER_SIDE if has_memory else 0,
+                topics_per_session=DEFAULT_TOPICS_PER_SESSION if has_memory else 0,
+                notebook_enabled=(
+                    self._notebook is not None and self._config.notebook_enabled
+                ),
+                vision_enabled=self._config.vision_enable,
+                vision_route=self._config.vision_route,
+                wiki_enabled="moegirl_lookup" in names,
+                corpus_available=self._corpus_available,
+                tool_names=names,
+            )
+        )
+
     # ---- 单条消息 ----
 
     def handle(self, message: IncomingMessage) -> bool:
@@ -191,7 +226,8 @@ class Pipeline:
         # 关系说明进**系统提示**（可信区），不进下面那个不可信区 ——
         # 身份由代码按 QQ 号判定，而名字是群名片、用户可控，两者必须分开走。
         system_prompt = self._persona.system_prompt(
-            audience=self._roles.audience(message)
+            audience=self._roles.audience(message),
+            self_model=self._self_model(),
         )
         try:
             reply, meta = self._generate(message, system_prompt)
@@ -233,11 +269,15 @@ class Pipeline:
         )
         self._trigger.note_answered(message, reason=decision.reason)
         self._remember_reply(message, safe_text)
+        # ⚠️ **整段打出来，不截断。** 这里以前截到 60 字，于是控制台里
+        # 每条回复都断在半句上（"要是你想让…"）—— 而这一行正是所有者
+        # 用来看她到底回了什么的地方（2026-10-17 提的）。
+        # 只把换行压成空格：多行文本进了 logging 会丢前缀，读起来更乱。
         logger.info(
             "已回复 %s %s：%s",
             message.source,
             message.group_id if message.source == "group" else message.user_id,
-            safe_text if len(safe_text) <= 60 else safe_text[:60] + "…",
+            safe_text.replace("\n", " "),
         )
 
         detail = dict(_EMPTY_META)
