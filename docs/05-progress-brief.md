@@ -57,7 +57,7 @@
 - **测试全过**，本体零第三方依赖（条数不写在这里 —— 数字天天变，跑一下最准）
 - 验收记录见根目录 [`ACCEPTANCE.md`](../ACCEPTANCE.md)。
 
-> 本节末尾的**提交号**在每次提交后补 —— 写死会腐烂。
+> **提交号不写死** —— 以 `git log -1` 为准。写死的数字会腐烂（这条栽过）。
 
 ### **接手先读哪几节**
 
@@ -306,11 +306,10 @@ bash tools/start_saya.sh --check  # 只自检，不碰 QQ
 **还没做的** —— ⚠️ **唯一权威是 [`docs/02-roadmap.md`](02-roadmap.md) 第 2 节**，
 这里只提示"下一步大概是什么"：
 
-1. **把 tag 推上去**（尚未推送，见第 0 节）
-2. **跑正式实验**（105 条 × 3 路线 = 315 次调用）——
-   跑之前先把 `SAYA_REASONING_EFFORT` 设成 `none`，
-   并读 [`../pre/13-experimental-protocol.md`](../pre/13-experimental-protocol.md)
-3. **报告与 slides** —— ⚠️ **一个字没写**，截止 2026-10-29
+1. ~~把 tag 推上去~~ ✅ 已推，`v0.1.2` 已发布
+2. ~~跑正式实验~~ ✅ **已跑三轮**（见第 0 节），结论是委派路线显著更差
+3. **人工抽检** —— 表已生成（`pre/experiments/review-*/`），**待人填**
+4. **报告定稿 + slides** —— 草稿在 `pre/report/`，截止 2026-10-29
 4. 记忆摘要自动生成 / 看图那条路接工具 / 选择性插嘴
 5. **0.2.0：harness 级容器** —— 所有者说"到时再说"
 
@@ -360,7 +359,7 @@ bash tools/start_saya.sh --check  # 只自检，不碰 QQ
 
 在群里 @ 它。**这次它应该记得住刚才聊过什么了。**
 
-**② 跑正式实验**（会花钱，**315 次调用** —— 我没替你跑）
+**② ~~跑正式实验~~** ✅ 已跑三轮（这一节保留的是当时的命令，实际用的是 PerceptionBench 120 题）
 
 ```
 wsl -d Ubuntu -e bash -lc "cd /mnt/d/Claude/DeepSeek_api/saya_bot/project_main && python3 experiment/run_experiment.py --manifest ../pre/experiments/testset/manifest.json --out ../pre/experiments/results.jsonl --routes direct delegated hybrid"
