@@ -51,16 +51,46 @@ _YOLO_WEIGHTS = str(_MODEL_DIR / os.environ.get("SAYA_YOLO_WEIGHTS", "yolo11n.pt
 
 _yolo = None
 _ocr = None
+# 检测侧的降级说明（换权重失败 / GPU 不可用）。和云 OCR 那条一样：**退回要留痕**。
+_yolo_note = ""
 
 
 def _get_yolo():
-    global _yolo
+    global _yolo, _yolo_note
     if _yolo is None:
         from ultralytics import YOLO
 
         _MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        _yolo = YOLO(_YOLO_WEIGHTS)
+        try:
+            _yolo = YOLO(_YOLO_WEIGHTS)
+        except Exception as exc:  # noqa: BLE001
+            # 配置的权重加载不了（没下完 / 文件坏了）→ 退回最小可用的一档。
+            # ⚠️ 必须留痕：11x 和 11n 的精度差一截，静默换掉会让结果无从解释。
+            fallback = str(_MODEL_DIR / "yolo11n.pt")
+            _yolo = YOLO(fallback)
+            _yolo_note = (
+                f"（检测器 {Path(_YOLO_WEIGHTS).name} 加载失败，"
+                f"已退回 {Path(fallback).name}：{type(exc).__name__}）\n"
+            )
     return _yolo
+
+
+def _predict(path):
+    """跑一次检测。**设备出错退回 CPU**，同样留痕。
+
+    ⚠️ GPU 出错的原因很多（显存、驱动、CUDA 版本），但结果都一样：
+    这一题不该因为一次设备故障被记成"检测不到目标"。
+    """
+    global _yolo_note
+    model = _get_yolo()
+    device = _device()
+    try:
+        return model.predict(str(path), verbose=False, device=device)
+    except Exception:  # noqa: BLE001
+        if device == "cpu":
+            raise
+        _yolo_note += "（GPU 推理失败，检测已退回 CPU）\n"
+        return model.predict(str(path), verbose=False, device="cpu")
 
 
 def _device() -> str:
@@ -136,14 +166,14 @@ def detect_objects(image_path: str, detail: str = "count") -> str:
 
     started = time.monotonic()
     try:
-        results = _get_yolo().predict(str(path), verbose=False, device=_device())
+        results = _predict(path)
     except Exception as exc:  # noqa: BLE001 - 出错要让模型看到原因，而不是断链
         return f"检测失败：{type(exc).__name__}: {exc}"
     elapsed = int((time.monotonic() - started) * 1000)
 
     boxes = results[0].boxes if results else None
     if boxes is None or len(boxes) == 0:
-        return f"没有检测到任何目标（耗时 {elapsed} ms）"
+        return _yolo_note + f"没有检测到任何目标（耗时 {elapsed} ms）"
 
     names = results[0].names
     rows: list[tuple[str, float, tuple]] = []
@@ -166,7 +196,7 @@ def detect_objects(image_path: str, detail: str = "count") -> str:
         for label, confidence, coords in rows:
             lines.append(f"  {label} {confidence:.2f} ({coords[0]},{coords[1]})-({coords[2]},{coords[3]})")
 
-    return "\n".join(lines)
+    return _yolo_note + "\n".join(lines)
 
 
 @mcp.tool()
@@ -245,7 +275,7 @@ def annotate_objects(image_path: str, output_path: str) -> str:
 
     started = time.monotonic()
     try:
-        results = _get_yolo().predict(str(path), verbose=False, device=_device())
+        results = _predict(path)
     except Exception as exc:  # noqa: BLE001
         return f"检测失败：{type(exc).__name__}: {exc}"
 
@@ -254,7 +284,7 @@ def annotate_objects(image_path: str, output_path: str) -> str:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         Image.open(path).save(out)
-        return f"没有检测到目标，已原样另存到 {out}"
+        return _yolo_note + f"没有检测到目标，已原样另存到 {out}"
 
     names = results[0].names
     with Image.open(path) as raw:
@@ -277,7 +307,7 @@ def annotate_objects(image_path: str, output_path: str) -> str:
     canvas.save(out)
     elapsed = int((time.monotonic() - started) * 1000)
 
-    return "\n".join(
+    return _yolo_note + "\n".join(
         [f"已在图上标出 {len(lines)} 个目标并保存到 {out}（耗时 {elapsed} ms）：", *lines]
     )
 
