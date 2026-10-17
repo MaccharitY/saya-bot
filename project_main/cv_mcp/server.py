@@ -189,30 +189,37 @@ def read_text(image_path: str) -> str:
     # 因为阿里云的物体检测只收公网 URL，要多配一层 OSS。
     backend = os.environ.get("SAYA_CV_OCR_BACKEND", "auto").strip().lower()
     try:
-        import cloud_ocr  # noqa: PLC0415 - 同目录；SDK 在模块内部按需 import
+        import cloud_ocr  # noqa: PLC0415 - 同目录；依赖在模块内部按需 import
     except ImportError:
         cloud_ocr = None
-    if backend == "cloud" or (backend == "auto" and cloud_ocr is not None and cloud_ocr.available()):
+
+    # ⚠️⚠️ **云失败一定退回本地，而且要在结果里留痕。**
+    # 直接返回一句错误，等于整条委派路线因为一次网络抖动全废；
+    # 而静默降级又会让"这一轮到底用的谁"无从判断。所以退回 + 前缀说明。
+    note = ""
+    if backend != "local":
         if cloud_ocr is None or not cloud_ocr.available():
-            return "云 OCR 未启用：缺 SAYA_BAIDU_OCR_KEY / SAYA_BAIDU_OCR_SECRET"
-        try:
-            return cloud_ocr.read_text(path)
-        except Exception as exc:  # noqa: BLE001
-            return f"云 OCR 失败：{type(exc).__name__}: {exc}"
+            if backend == "cloud":
+                note = "（云 OCR 未配置，已退回本地：缺 SAYA_BAIDU_OCR_KEY / SECRET）\n"
+        else:
+            try:
+                return cloud_ocr.read_text(path)
+            except Exception as exc:  # noqa: BLE001
+                note = f"（云 OCR 不可用，已退回本地：{type(exc).__name__}）\n"
 
     started = time.monotonic()
     try:
         result, _ = _get_ocr()(str(path))
     except Exception as exc:  # noqa: BLE001
-        return f"OCR 失败：{type(exc).__name__}: {exc}"
+        return f"{note}OCR 失败：{type(exc).__name__}: {exc}"
     elapsed = int((time.monotonic() - started) * 1000)
 
     if not result:
-        return f"没有识别到任何文字（耗时 {elapsed} ms）"
+        return f"{note}没有识别到任何文字（耗时 {elapsed} ms）"
 
     lines = [str(item[1]) for item in result if item and len(item) > 1]
     header = f"识别到 {len(lines)} 行文字（耗时 {elapsed} ms）："
-    return "\n".join([header, *lines])
+    return note + "\n".join([header, *lines])
 
 
 @mcp.tool()
