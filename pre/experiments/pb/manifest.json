@@ -1,0 +1,1442 @@
+[
+  {
+    "id": "counting_0001",
+    "tier": "counting",
+    "file": "images/counting_bd54fda2c5a8.png",
+    "question": "How many numbered labels inside black circles appear in the image in total?",
+    "expect_keywords": [
+      "15"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 1
+  },
+  {
+    "id": "counting_0003",
+    "tier": "counting",
+    "file": "images/counting_66e9cdba9d9a.png",
+    "question": "How many rabbits are there in the picture? (including visible but partially occluded rabbits)",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 3
+  },
+  {
+    "id": "counting_0010",
+    "tier": "counting",
+    "file": "images/counting_839ad06fd2ad.jpg",
+    "question": "How many independent pop-up windows are there in total within the screenshot?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "ScreenSpot-Pro",
+    "pb_index": 10
+  },
+  {
+    "id": "counting_0022",
+    "tier": "counting",
+    "file": "images/counting_d7b76bf399c7.png",
+    "question": "How many pieces of cut watermelon are visible in the picture? (Only output the number)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 22
+  },
+  {
+    "id": "counting_0023",
+    "tier": "counting",
+    "file": "images/counting_78821720cfe2.jpg",
+    "question": "How many bottles are there within the visible range of the first row in the image?",
+    "expect_keywords": [
+      "7"
+    ],
+    "match": "exact",
+    "source": "PointBench",
+    "pb_index": 23
+  },
+  {
+    "id": "counting_0028",
+    "tier": "counting",
+    "file": "images/counting_565af1c3cde2.png",
+    "question": "How many arrows are there in the image? Just answer with the number directly.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 28
+  },
+  {
+    "id": "counting_0031",
+    "tier": "counting",
+    "file": "images/counting_9cf0d2ddefec.png",
+    "question": "Observe the image. What is the total number of independent rounded-rectangle process modules containing bold text?",
+    "expect_keywords": [
+      "13"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 31
+  },
+  {
+    "id": "counting_0035",
+    "tier": "counting",
+    "file": "images/counting_ac09127e83f9.png",
+    "question": "How many birds are there in the image? Answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 35
+  },
+  {
+    "id": "counting_0039",
+    "tier": "counting",
+    "file": "images/counting_48724bcbd7a7.jpg",
+    "question": "Count the number of pieces outside the chessboard in the image.",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 39
+  },
+  {
+    "id": "counting_0040",
+    "tier": "counting",
+    "file": "images/counting_657828958b1f.jpg",
+    "question": "There are three figures in each row. How many red triangles are in the middle figure of the top row?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 40
+  },
+  {
+    "id": "counting_0049",
+    "tier": "counting",
+    "file": "images/counting_967b5819c62a.jpg",
+    "question": "Observe the image. Looking from right to left, how many columns are there in the visible array of bronze disks?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 49
+  },
+  {
+    "id": "counting_0051",
+    "tier": "counting",
+    "file": "images/counting_a7a8bc71ad10.jpg",
+    "question": "Observe the person's own left hand in the image. How many visible fingers are not blocked by other fingers? (Output only the number)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 51
+  },
+  {
+    "id": "counting_0052",
+    "tier": "counting",
+    "file": "images/counting_9682f57e7bd3.jpg",
+    "question": "Look at the picture. How many hangers with white plastic hooks are at least partially visible in the image?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "ERQA",
+    "pb_index": 52
+  },
+  {
+    "id": "counting_0054",
+    "tier": "counting",
+    "file": "images/counting_2f75c73390e8.jpg",
+    "question": "Count the total number of boats in the image that do not have a cockpit structure. Answer with only the numerical value.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "TreeBench",
+    "pb_index": 54
+  },
+  {
+    "id": "counting_0064",
+    "tier": "counting",
+    "file": "images/counting_c3b0d3343f74.jpg",
+    "question": "Look at the picture and count how many black railings of the spiral staircase are visible in the image?",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "DA-2K",
+    "pb_index": 64
+  },
+  {
+    "id": "counting_0067",
+    "tier": "counting",
+    "file": "images/counting_8734f8db130f.jpg",
+    "question": "Observe the image: starting from the starting dot of the \"plastic cup\", how many points on the path intersect with other paths?",
+    "expect_keywords": [
+      "11"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 67
+  },
+  {
+    "id": "counting_0068",
+    "tier": "counting",
+    "file": "images/counting_5d6ebc717cc6.jpg",
+    "question": "How many obstacle lines are there in the image in total?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "VPCT",
+    "pb_index": 68
+  },
+  {
+    "id": "counting_0072",
+    "tier": "counting",
+    "file": "images/counting_9e9b80f51cf8.png",
+    "question": "Look at the storage boxes in the lower right corner of the image. How many pink storage boxes are there?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 72
+  },
+  {
+    "id": "counting_0073",
+    "tier": "counting",
+    "file": "images/counting_165b3dd6eda1.png",
+    "question": "How many independent green region blocks are there in the image? (Answer with the number directly)",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 73
+  },
+  {
+    "id": "counting_0078",
+    "tier": "counting",
+    "file": "images/counting_c781c6e5b100.jpg",
+    "question": "How many fish appear in the image in total? Just answer with the number.",
+    "expect_keywords": [
+      "12"
+    ],
+    "match": "exact",
+    "source": "DA-2K",
+    "pb_index": 78
+  },
+  {
+    "id": "counting_0079",
+    "tier": "counting",
+    "file": "images/counting_baec46fcdcea.jpg",
+    "question": "Observe the eyeshadow palette in the image. How many eyeshadow color blocks does the palette contain in total?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 79
+  },
+  {
+    "id": "counting_0085",
+    "tier": "counting",
+    "file": "images/counting_c529d65cf4ba.png",
+    "question": "Excluding text and punctuation, how many blue curves are there in the image? Answer with just the number.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 85
+  },
+  {
+    "id": "counting_0086",
+    "tier": "counting",
+    "file": "images/counting_7f143612a096.jpg",
+    "question": "How many rows does the black horizontal dividing line divide this image into? (Please answer with a number only)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "CountBench",
+    "pb_index": 86
+  },
+  {
+    "id": "counting_0089",
+    "tier": "counting",
+    "file": "images/counting_e8a856af2815.jpg",
+    "question": "Observe the pattern numbered 6 in the figure, and count how many smallest-unit triangles there are in total in this pattern?",
+    "expect_keywords": [
+      "10"
+    ],
+    "match": "exact",
+    "source": "VisuLogic",
+    "pb_index": 89
+  },
+  {
+    "id": "counting_0100",
+    "tier": "counting",
+    "file": "images/counting_4a348cd5ae1b.png",
+    "question": "How many intersection points does the figure in the image have in total?",
+    "expect_keywords": [
+      "110"
+    ],
+    "match": "exact",
+    "source": "VLMs-are-Blind",
+    "pb_index": 100
+  },
+  {
+    "id": "counting_0109",
+    "tier": "counting",
+    "file": "images/counting_2e12c49a67b4.jpg",
+    "question": "How many pieces are there in each row of this puzzle?",
+    "expect_keywords": [
+      "50 pieces"
+    ],
+    "match": "exact",
+    "source": "VibeEval",
+    "pb_index": 109
+  },
+  {
+    "id": "counting_0112",
+    "tier": "counting",
+    "file": "images/counting_4a6d963ec1bc.png",
+    "question": "How many air conditioners are there in the room in total? (Not counting the outdoor units) Just answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 112
+  },
+  {
+    "id": "counting_0119",
+    "tier": "counting",
+    "file": "images/counting_b238414885a0.png",
+    "question": "Count how many pink circles there are in the picture. Just answer with the number directly.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 119
+  },
+  {
+    "id": "counting_0125",
+    "tier": "counting",
+    "file": "images/counting_53d0a902e353.jpg",
+    "question": "Observe the red box in the picture. How many flowers have their main body inside the red box?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 125
+  },
+  {
+    "id": "counting_0126",
+    "tier": "counting",
+    "file": "images/counting_0521d14a787f.jpg",
+    "question": "How many squares have a yellow background and the number 2 on them? (Answer with just the number.)",
+    "expect_keywords": [
+      "12"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-main",
+    "pb_index": 126
+  },
+  {
+    "id": "localization_0015",
+    "tier": "localization",
+    "file": "images/localization_1feeefa2cdcf.jpg",
+    "question": "How many chess pieces are there in total on the vertical line with column label f?",
+    "expect_keywords": [
+      "3 pieces"
+    ],
+    "match": "exact",
+    "source": "MME-CC",
+    "pb_index": 15
+  },
+  {
+    "id": "localization_0026",
+    "tier": "localization",
+    "file": "images/localization_f562e9fc4442.jpg",
+    "question": "Observe the picture. How many letters are fully visible on the person's crossbody bag?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 26
+  },
+  {
+    "id": "localization_0029",
+    "tier": "localization",
+    "file": "images/localization_9247ee5b0c10.png",
+    "question": "At what o'clock position on the dial is the Gemini symbol in the image? Answer with just the number.",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 29
+  },
+  {
+    "id": "localization_0042",
+    "tier": "localization",
+    "file": "images/localization_644470b015e6.jpg",
+    "question": "What is the surface color of the object at the circle at point A?",
+    "expect_keywords": [
+      "black"
+    ],
+    "match": "exact",
+    "source": "BLINK",
+    "pb_index": 42
+  },
+  {
+    "id": "localization_0059",
+    "tier": "localization",
+    "file": "images/localization_831554acc2c5.jpg",
+    "question": "Observe the railing along the left edge of the image. How many thin horizontal metal rods are visible on the railing in total?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 59
+  },
+  {
+    "id": "localization_0071",
+    "tier": "localization",
+    "file": "images/localization_82010b6738ef.png",
+    "question": "Ignoring the letters in the image, count how many red circles are completely unoccluded in total, and answer directly with the number.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 71
+  },
+  {
+    "id": "localization_0105",
+    "tier": "localization",
+    "file": "images/localization_be2b0cb5cdc6.jpg",
+    "question": "In the subplot with m=50, find the line corresponding to \"order line 1.0\". When the x-axis value of this line is 10^3, what is the corresponding y-axis value?\nA.10^-2\nB.10^-1\nC.10^-3\nD.10^-4",
+    "expect_keywords": [
+      "A"
+    ],
+    "match": "exact",
+    "source": "CharXiv-Reasoning",
+    "pb_index": 105
+  },
+  {
+    "id": "localization_0118",
+    "tier": "localization",
+    "file": "images/localization_8ca05d261b97.jpg",
+    "question": "Observe the image, identify the signs held above the crowd's heads in the front row area, and count how many signs feature a green globe pattern?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "TreeBench",
+    "pb_index": 118
+  },
+  {
+    "id": "localization_0121",
+    "tier": "localization",
+    "file": "images/localization_ee48d7a3fbb8.jpg",
+    "question": "What is the total amount after tax on the bill in the picture?",
+    "expect_keywords": [
+      "193.14"
+    ],
+    "match": "exact",
+    "source": "VibeEval",
+    "pb_index": 121
+  },
+  {
+    "id": "localization_0154",
+    "tier": "localization",
+    "file": "images/localization_cdc6c00bfc67.png",
+    "question": "How many fully visible faces does the rightmost solid figure have? (Output only the number)",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 154
+  },
+  {
+    "id": "localization_0171",
+    "tier": "localization",
+    "file": "images/localization_c4fc67753e02.jpg",
+    "question": "In , where is the scheduling widget containing date and time inputs located overall in the image? Output in a format such as upper right",
+    "expect_keywords": [
+      "upper left"
+    ],
+    "match": "exact",
+    "source": "ScreenSpot-v2",
+    "pb_index": 171
+  },
+  {
+    "id": "localization_0172",
+    "tier": "localization",
+    "file": "images/localization_e3e8fb0abd84.png",
+    "question": "Observe the bird on the right side of the picture. How many black dots are there on its body in total?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 172
+  },
+  {
+    "id": "localization_0201",
+    "tier": "localization",
+    "file": "images/localization_c1255118b654.jpg",
+    "question": "Observe the vehicle in the image that is reversing, and provide the first two digits of the car's license plate.",
+    "expect_keywords": [
+      "61"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 201
+  },
+  {
+    "id": "localization_0208",
+    "tier": "localization",
+    "file": "images/localization_c74e136bdf7d.jpg",
+    "question": "Observe point 1 in the image. Which part of the chair is this point located on?\nA.Armrest\nB.Backrest\nC.Wheel\nD.Chair leg",
+    "expect_keywords": [
+      "C"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 208
+  },
+  {
+    "id": "localization_0245",
+    "tier": "localization",
+    "file": "images/localization_744e8820e813.jpg",
+    "question": "Observe the image and determine which color trajectory's end connects to the position of the screw hole in the part held in the hand.",
+    "expect_keywords": [
+      "Red"
+    ],
+    "match": "exact",
+    "source": "ERQA",
+    "pb_index": 245
+  },
+  {
+    "id": "localization_0274",
+    "tier": "localization",
+    "file": "images/localization_895d6b6a1892.jpg",
+    "question": "What is the diameter of the tire in the image? (Unit: cm) Answer with the number only.",
+    "expect_keywords": [
+      "40"
+    ],
+    "match": "exact",
+    "source": "EMMA",
+    "pb_index": 274
+  },
+  {
+    "id": "localization_0303",
+    "tier": "localization",
+    "file": "images/localization_b6779e16c356.jpg",
+    "question": "Observe the image. How many people are inside the red box in the picture? Answer with just the number.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 303
+  },
+  {
+    "id": "localization_0306",
+    "tier": "localization",
+    "file": "images/localization_da61631c86d0.png",
+    "question": "Observe the maze image and count how many flowers are located inside the maze paths in total. Answer directly with the number.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 306
+  },
+  {
+    "id": "localization_0317",
+    "tier": "localization",
+    "file": "images/localization_3b5803b557f6.jpg",
+    "question": "In the figure, how many inclined straight baffles in total serve to block and guide the ball before it finally falls into the bottom container (regardless of whether they all make contact with the ball)?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "VPCT",
+    "pb_index": 317
+  },
+  {
+    "id": "localization_0353",
+    "tier": "localization",
+    "file": "images/localization_7822838f955e.jpg",
+    "question": "What region does the arrow indicated by the letter I point to?\nA. Stinger\nB. Thorax\nC. Abdomen\nD. Wing",
+    "expect_keywords": [
+      "D"
+    ],
+    "match": "exact",
+    "source": "MMStar",
+    "pb_index": 353
+  },
+  {
+    "id": "localization_0382",
+    "tier": "localization",
+    "file": "images/localization_bcdb70d9c2c0.png",
+    "question": "Observe the gray bag in the lower-left corner of the image. How many books are visible (including partially visible) inside the bag?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 382
+  },
+  {
+    "id": "localization_0389",
+    "tier": "localization",
+    "file": "images/localization_ee65fe090d3e.jpg",
+    "question": "How many black knights are there in total on all the patterned squares of the chessboard? (Please answer with the numerical value only)",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "VibeEval",
+    "pb_index": 389
+  },
+  {
+    "id": "localization_0408",
+    "tier": "localization",
+    "file": "images/localization_7060b33477d1.jpg",
+    "question": "Observe the leftmost bead string in the image. How many beads on this bead string are fully visible (not cut off by the image)?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 408
+  },
+  {
+    "id": "localization_0442",
+    "tier": "localization",
+    "file": "images/localization_d25669379274.jpg",
+    "question": "How many squares are there ahead in the direction the saw is moving?",
+    "expect_keywords": [
+      "15"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-main",
+    "pb_index": 442
+  },
+  {
+    "id": "localization_0446",
+    "tier": "localization",
+    "file": "images/localization_cd7704ea1ef4.jpg",
+    "question": "Within the area of the red box S3, how many screws can be seen in total? Answer directly with a number.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 446
+  },
+  {
+    "id": "localization_0449",
+    "tier": "localization",
+    "file": "images/localization_550f2f22c375.jpg",
+    "question": "Based on the information in the image, approximately how many claims were filed in total in 2010?\nA.900\nB.600\nC.950\nD.700",
+    "expect_keywords": [
+      "A"
+    ],
+    "match": "exact",
+    "source": "ChartQAPro",
+    "pb_index": 449
+  },
+  {
+    "id": "localization_0450",
+    "tier": "localization",
+    "file": "images/localization_a67d04ee7d0c.jpg",
+    "question": "Where is the green checker located on the board? Use coordinates in the format letter (column) + number (row), e.g. a8.",
+    "expect_keywords": [
+      "h6"
+    ],
+    "match": "exact",
+    "source": "MME-CC",
+    "pb_index": 450
+  },
+  {
+    "id": "localization_0473",
+    "tier": "localization",
+    "file": "images/localization_e741b0081ad6.jpg",
+    "question": "There are two semicircles on the coordinate system in the figure. What is the sum of the radii of these two semicircles?",
+    "expect_keywords": [
+      "7"
+    ],
+    "match": "exact",
+    "source": "DynaMath",
+    "pb_index": 473
+  },
+  {
+    "id": "localization_0494",
+    "tier": "localization",
+    "file": "images/localization_f94905d3bc6f.jpg",
+    "question": "Observe the image. What location is enclosed by the red box?\nA. Corridor\nB. Steps\nC. Roof\nD. Cannot be determined",
+    "expect_keywords": [
+      "C"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 494
+  },
+  {
+    "id": "localization_0506",
+    "tier": "localization",
+    "file": "images/localization_daa6e99e2472.jpg",
+    "question": "As shown in the figure, what is the actual distance between point 1 and point 2? (Round the result to two decimal places; unit: cm; just answer with the numerical value directly)",
+    "expect_keywords": [
+      "7.76"
+    ],
+    "match": "exact",
+    "source": "PhyX",
+    "pb_index": 506
+  },
+  {
+    "id": "fine_0002",
+    "tier": "fine",
+    "file": "images/fine_56ae6bad32e5.jpg",
+    "question": "How many hinges can be seen in the image in total? Answer with the number directly.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 2
+  },
+  {
+    "id": "fine_0004",
+    "tier": "fine",
+    "file": "images/fine_dff8a055d35d.jpg",
+    "question": "How many different floor seams can be seen in the image? Just answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 4
+  },
+  {
+    "id": "fine_0018",
+    "tier": "fine",
+    "file": "images/fine_5d023d291309.jpg",
+    "question": "Look at the picture. How many mugs with handles are there in the image?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 18
+  },
+  {
+    "id": "fine_0027",
+    "tier": "fine",
+    "file": "images/fine_ae963e46c75d.jpg",
+    "question": "What is the number corresponding to the yellow stroke in the image?",
+    "expect_keywords": [
+      "9"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 27
+  },
+  {
+    "id": "fine_0037",
+    "tier": "fine",
+    "file": "images/fine_d132bc43c02f.jpg",
+    "question": "In this image, how many people wearing masks can be seen? Answer with a number directly.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 37
+  },
+  {
+    "id": "fine_0038",
+    "tier": "fine",
+    "file": "images/fine_b30c8c28f7a6.jpg",
+    "question": "The figure shows the incidence of a certain disease. What is the number of recovered patients in the figure?",
+    "expect_keywords": [
+      "15"
+    ],
+    "match": "exact",
+    "source": "MMMU",
+    "pb_index": 38
+  },
+  {
+    "id": "fine_0060",
+    "tier": "fine",
+    "file": "images/fine_f514cf24b168.jpg",
+    "question": "Observe the picture. How many flagpoles can be seen in total in the image? Just answer with the number directly.",
+    "expect_keywords": [
+      "12"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 60
+  },
+  {
+    "id": "fine_0077",
+    "tier": "fine",
+    "file": "images/fine_9b4cc65b8df3.jpg",
+    "question": "Among the hand gestures shown in the image, how many are left hands?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "MathVision",
+    "pb_index": 77
+  },
+  {
+    "id": "fine_0091",
+    "tier": "fine",
+    "file": "images/fine_a63bc333b6f8.jpg",
+    "question": "How many whole, unpeeled oranges are there in the picture?",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "PointBench",
+    "pb_index": 91
+  },
+  {
+    "id": "fine_0093",
+    "tier": "fine",
+    "file": "images/fine_d6a29b65d345.jpg",
+    "question": "How many real people appear in the image in total? Just answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "TreeBench",
+    "pb_index": 93
+  },
+  {
+    "id": "fine_0099",
+    "tier": "fine",
+    "file": "images/fine_206312897c65.jpg",
+    "question": "How many real cats are there in the image? Answer directly with a number.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 99
+  },
+  {
+    "id": "fine_0111",
+    "tier": "fine",
+    "file": "images/fine_9505a52e209f.jpg",
+    "question": "Observe the image. Among the white perforated boards in the background, counting from top to bottom, which board is bent?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 111
+  },
+  {
+    "id": "fine_0115",
+    "tier": "fine",
+    "file": "images/fine_b820613cebe1.jpg",
+    "question": "Look at the large bed in the picture. How many My Melody plush toys are on the bed?",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 115
+  },
+  {
+    "id": "fine_0120",
+    "tier": "fine",
+    "file": "images/fine_f7a10c3bde01.jpg",
+    "question": "Observe the image. How many cherries in the white bowl have stems that are not connected to the stems of other cherries?",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 120
+  },
+  {
+    "id": "fine_0124",
+    "tier": "fine",
+    "file": "images/fine_7cc39c1e6850.png",
+    "question": "How many icons representing envelope patterns are visible in the image? (Output only the number)",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 124
+  },
+  {
+    "id": "fine_0127",
+    "tier": "fine",
+    "file": "images/fine_b30c8c28f7a6.jpg",
+    "question": "The figure shows the incidence of a certain disease. How many death cases are there in the figure?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "MMMU",
+    "pb_index": 127
+  },
+  {
+    "id": "fine_0134",
+    "tier": "fine",
+    "file": "images/fine_e56da2ab7ff9.jpg",
+    "question": "Which puzzle piece below corresponds to the blank position c in the image? Answer with the number of the corresponding puzzle piece.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "MME-CC",
+    "pb_index": 134
+  },
+  {
+    "id": "fine_0135",
+    "tier": "fine",
+    "file": "images/fine_3ededb7db037.jpg",
+    "question": "How many fingers can be seen in total in the image? Answer directly with a number.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 135
+  },
+  {
+    "id": "fine_0136",
+    "tier": "fine",
+    "file": "images/fine_1525c731b1cf.png",
+    "question": "How many complete fingers are visible in the image? (Only output the number)",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 136
+  },
+  {
+    "id": "fine_0148",
+    "tier": "fine",
+    "file": "images/fine_6ddc04949f82.png",
+    "question": "The image shows an anthropomorphic cartoon sun. Count how many lower teeth are visible on the sun. Answer with the number directly.",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 148
+  },
+  {
+    "id": "fine_0157",
+    "tier": "fine",
+    "file": "images/fine_c565e8e3be1b.jpg",
+    "question": "How many circles are there in the entire pattern in the image? Answer with the number directly.",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 157
+  },
+  {
+    "id": "fine_0165",
+    "tier": "fine",
+    "file": "images/fine_f420190bfc58.jpg",
+    "question": "What is the first letter of the word in the first image? Answer in lowercase",
+    "expect_keywords": [
+      "a"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 165
+  },
+  {
+    "id": "fine_0170",
+    "tier": "fine",
+    "file": "images/fine_b6c07086746f.jpg",
+    "question": "From the observer's perspective, in which area of the image are the table and chairs located? (left/middle/right)",
+    "expect_keywords": [
+      "right"
+    ],
+    "match": "exact",
+    "source": "VibeEval",
+    "pb_index": 170
+  },
+  {
+    "id": "fine_0177",
+    "tier": "fine",
+    "file": "images/fine_4137e2af8581.jpg",
+    "question": "How many socket panels can be seen in the image in total? Answer with the number directly.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 177
+  },
+  {
+    "id": "fine_0199",
+    "tier": "fine",
+    "file": "images/fine_edfcd065b553.png",
+    "question": "Observe the picture. How many legs does the spider pattern in the image have in total? Please answer with a number only.",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 199
+  },
+  {
+    "id": "fine_0218",
+    "tier": "fine",
+    "file": "images/fine_71e553c2d080.jpg",
+    "question": "How many real fish can be seen in the picture? Answer directly with a number.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 218
+  },
+  {
+    "id": "fine_0235",
+    "tier": "fine",
+    "file": "images/fine_4803a6bb48ce.jpg",
+    "question": "How many socket panels can be seen in the image in total? Answer with a number directly.",
+    "expect_keywords": [
+      "1"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 235
+  },
+  {
+    "id": "fine_0244",
+    "tier": "fine",
+    "file": "images/fine_12016fca71dc.jpg",
+    "question": "Observe the picture. How many suitcases are in the picture?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 244
+  },
+  {
+    "id": "fine_0250",
+    "tier": "fine",
+    "file": "images/fine_8e7f0347939b.png",
+    "question": "Look at the picture. How many different shifts are there in total in the image?",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 250
+  },
+  {
+    "id": "fine_0254",
+    "tier": "fine",
+    "file": "images/fine_51a1f785ad63.png",
+    "question": "Observe the image. How many visible individual weights are there in the picture (including those partially cut off by the image edge)?",
+    "expect_keywords": [
+      "6"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 254
+  },
+  {
+    "id": "ocr_0000",
+    "tier": "ocr",
+    "file": "images/ocr_1c331b72a756.jpg",
+    "question": "What is the current score of this game?",
+    "expect_keywords": [
+      "15400"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 0
+  },
+  {
+    "id": "ocr_0006",
+    "tier": "ocr",
+    "file": "images/ocr_f55d75750a2b.png",
+    "question": "What are the last 4 digits of Li Si's phone number in the picture?",
+    "expect_keywords": [
+      "1365"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 6
+  },
+  {
+    "id": "ocr_0033",
+    "tier": "ocr",
+    "file": "images/ocr_e1eb1bc10380.jpg",
+    "question": "What is written on the white license plate of the car in the picture?",
+    "expect_keywords": [
+      "WW812"
+    ],
+    "match": "exact",
+    "source": "PointBench",
+    "pb_index": 33
+  },
+  {
+    "id": "ocr_0045",
+    "tier": "ocr",
+    "file": "images/ocr_4af2a532d7b4.png",
+    "question": "From the observer's perspective at the current angle, what is the letter on the purple face of the leftmost small cube in the image? (Keep the letter case consistent with the image content.)",
+    "expect_keywords": [
+      "A"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 45
+  },
+  {
+    "id": "ocr_0046",
+    "tier": "ocr",
+    "file": "images/ocr_2769e22c24eb.jpg",
+    "question": "What is the number on the ground on the right side of the image?",
+    "expect_keywords": [
+      "16-19"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 46
+  },
+  {
+    "id": "ocr_0066",
+    "tier": "ocr",
+    "file": "images/ocr_ae31eb106abd.jpg",
+    "question": "How many odd numbers are there in the formula in the lower-left corner of the image?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "ViVerBench",
+    "pb_index": 66
+  },
+  {
+    "id": "ocr_0070",
+    "tier": "ocr",
+    "file": "images/ocr_b7bedd49631b.jpg",
+    "question": "What is the text above the red line in the figure?",
+    "expect_keywords": [
+      "differentiable"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 70
+  },
+  {
+    "id": "ocr_0104",
+    "tier": "ocr",
+    "file": "images/ocr_620dfe4a182f.jpg",
+    "question": "What is the first word in the second line of the caption?",
+    "expect_keywords": [
+      "America"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 104
+  },
+  {
+    "id": "ocr_0107",
+    "tier": "ocr",
+    "file": "images/ocr_d8a03fd5cf38.png",
+    "question": "How many literature citation numbers are there in total in the content of the paper under the \"INTRODUCTION\" section in the figure? Answer the value directly.",
+    "expect_keywords": [
+      "7"
+    ],
+    "match": "exact",
+    "source": "OCRBench-v2",
+    "pb_index": 107
+  },
+  {
+    "id": "ocr_0128",
+    "tier": "ocr",
+    "file": "images/ocr_38a297a6510e.png",
+    "question": "Which letter itself (not the dot it represents) falls exactly on the dashed edge of a cell? Answer with the letter only.",
+    "expect_keywords": [
+      "D"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 128
+  },
+  {
+    "id": "ocr_0140",
+    "tier": "ocr",
+    "file": "images/ocr_9adf091095d7.png",
+    "question": "Observe the image. What is the measure of ∠APC? Answer directly with a number, keeping only the integer.",
+    "expect_keywords": [
+      "58"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 140
+  },
+  {
+    "id": "ocr_0143",
+    "tier": "ocr",
+    "file": "images/ocr_021611df565b.jpg",
+    "question": "Observe the picture and identify what the first line of the text printed on the card from which the earring hangs says.",
+    "expect_keywords": [
+      "My love likes the sun"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 143
+  },
+  {
+    "id": "ocr_0152",
+    "tier": "ocr",
+    "file": "images/ocr_a195b04a60cb.png",
+    "question": "Among all the dates in the image, how many days have activities marked to take place after 8 PM (including 8 o'clock)?",
+    "expect_keywords": [
+      "6 days"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 152
+  },
+  {
+    "id": "ocr_0173",
+    "tier": "ocr",
+    "file": "images/ocr_39d4850cd9f3.jpg",
+    "question": "What is the second lowest unemployment rate in the figure?",
+    "expect_keywords": [
+      "6.25%"
+    ],
+    "match": "exact",
+    "source": "MathVista",
+    "pb_index": 173
+  },
+  {
+    "id": "ocr_0185",
+    "tier": "ocr",
+    "file": "images/ocr_750159b40015.jpg",
+    "question": "Locate the tick marks on the y-axis in the figure. Among all the tick marks labeled with numbers, counting from top to bottom, which one is the 50% tick? (Answer with a number only)",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "ChartQAPro",
+    "pb_index": 185
+  },
+  {
+    "id": "ocr_0187",
+    "tier": "ocr",
+    "file": "images/ocr_dd261337b712.jpg",
+    "question": "Observe the image. There is a color bar on the right side of the image. Count how many 0s appear in total among the tick values of this color bar?",
+    "expect_keywords": [
+      "10"
+    ],
+    "match": "exact",
+    "source": "CharXiv-Descriptive",
+    "pb_index": 187
+  },
+  {
+    "id": "ocr_0200",
+    "tier": "ocr",
+    "file": "images/ocr_66dadd0d1cf9.png",
+    "question": "What machine does the square pattern formed by the red grid represent?",
+    "expect_keywords": [
+      "ventilation filter"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 200
+  },
+  {
+    "id": "ocr_0222",
+    "tier": "ocr",
+    "file": "images/ocr_31e43fb92eaa.jpg",
+    "question": "How many letters are there in the image in total (case-insensitive)? Just answer with a number.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 222
+  },
+  {
+    "id": "ocr_0225",
+    "tier": "ocr",
+    "file": "images/ocr_471459178286.jpg",
+    "question": "What is the English text on the sign in the image? Just answer with the text shown in the image directly.",
+    "expect_keywords": [
+      "tungsweg"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 225
+  },
+  {
+    "id": "ocr_0261",
+    "tier": "ocr",
+    "file": "images/ocr_d8a03fd5cf38.png",
+    "question": "How many lines of content in the image belong to the \"INTRODUCTION\" section? Answer with the value directly.",
+    "expect_keywords": [
+      "21"
+    ],
+    "match": "exact",
+    "source": "OCRBench-v2",
+    "pb_index": 261
+  },
+  {
+    "id": "ocr_0267",
+    "tier": "ocr",
+    "file": "images/ocr_4e22e43df395.png",
+    "question": "What is the text on the rightmost bottle in the red box? (Keep the text format in the answer consistent with the original)",
+    "expect_keywords": [
+      "WINE"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 267
+  },
+  {
+    "id": "ocr_0284",
+    "tier": "ocr",
+    "file": "images/ocr_8089af8e1267.png",
+    "question": "What does the sign hanging on the door in the picture say?",
+    "expect_keywords": [
+      "OPEN"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 284
+  },
+  {
+    "id": "ocr_0290",
+    "tier": "ocr",
+    "file": "images/ocr_cdff980995d6.png",
+    "question": "What letter is the vertex of angle 8 labeled with? Keep the letter case consistent with the content in the original image.",
+    "expect_keywords": [
+      "F"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 290
+  },
+  {
+    "id": "ocr_0296",
+    "tier": "ocr",
+    "file": "images/ocr_f3bebf17acc6.jpg",
+    "question": "What is the scale value on the measuring cup that is not covered by the rice?",
+    "expect_keywords": [
+      "150"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 296
+  },
+  {
+    "id": "ocr_0302",
+    "tier": "ocr",
+    "file": "images/ocr_f420190bfc58.jpg",
+    "question": "What is the word in the first image? Keep the capitalization exactly as it appears in the original image.",
+    "expect_keywords": [
+      "Athens"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 302
+  },
+  {
+    "id": "ocr_0307",
+    "tier": "ocr",
+    "file": "images/ocr_a775b9596a1a.png",
+    "question": "What is the difficulty level (RATING) of this maze? Just answer with the number.",
+    "expect_keywords": [
+      "425"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 307
+  },
+  {
+    "id": "ocr_0310",
+    "tier": "ocr",
+    "file": "images/ocr_67c786a0fad5.png",
+    "question": "There are two circles in the figure. Which letter marks the center of the smaller circle? (Keep the letter case consistent with the content in the image.)",
+    "expect_keywords": [
+      "C"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 310
+  },
+  {
+    "id": "ocr_0320",
+    "tier": "ocr",
+    "file": "images/ocr_d1b9dad8b130.jpg",
+    "question": "As shown in the figure, how many points labeled with letters are there on diagonal AC (excluding endpoints A and C)?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "MathCanvas",
+    "pb_index": 320
+  },
+  {
+    "id": "ocr_0329",
+    "tier": "ocr",
+    "file": "images/ocr_7dd17246f108.png",
+    "question": "Observe the image. What is the text content within the coordinates [0.325, 0.420, 0.489, 0.480]? Answer directly with the text content.",
+    "expect_keywords": [
+      "mockup"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 329
+  },
+  {
+    "id": "ocr_0335",
+    "tier": "ocr",
+    "file": "images/ocr_1ebfb0d1a0d8.png",
+    "question": "What are the black Chinese characters on the rightmost small box inside the box in the picture?",
+    "expect_keywords": [
+      "Gel pen refill"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 335
+  }
+]

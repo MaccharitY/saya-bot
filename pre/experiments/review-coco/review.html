@@ -1,0 +1,176 @@
+<!doctype html><meta charset='utf-8'>
+<title>人工抽检</title>
+<style>
+body{font:14px/1.6 system-ui,sans-serif;margin:24px;max-width:1100px}
+h1{font-size:20px} h2{font-size:14px;margin:26px 0 6px;color:#333}
+.img{max-width:420px;border:1px solid #ddd;border-radius:4px}
+table{border-collapse:collapse;width:100%;margin:6px 0 2px}
+td,th{border:1px solid #e3e3e3;padding:6px 8px;vertical-align:top;text-align:left}
+th{background:#f6f6f6;font-weight:600} .exp{color:#666}
+.ok{color:#0a7a2f} .bad{color:#b3261e} .mid{color:#8a6d00}
+</style>
+<h1>人工抽检</h1>
+<p class='exp'>按图片分组。重点看那些判成<span class='bad'>错</span>的是不是其实答对了，以及判成<span class='ok'>对</span>的是不是蒙对的。</p>
+<h2>images/000000000009.jpg</h2>
+<img class='img' src='../testset/images/000000000009.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个橙子？只回答一个阿拉伯数字。 <span class='exp'>（期望：4）</span></th></tr><tr><td style='width:90px'>direct</td><td>0</td><td style='width:110px' class='mid'>接近度 0.00</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：碗）</span></th></tr><tr><td style='width:90px'>direct</td><td>食物</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000049.jpg</h2>
+<img class='img' src='../testset/images/000000000049.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：6）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>6</td><td style='width:110px' class='mid'>接近度 1.00</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：马）</span></th></tr><tr><td style='width:90px'>direct</td><td>马</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000071.jpg</h2>
+<img class='img' src='../testset/images/000000000071.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个汽车？只回答一个阿拉伯数字。 <span class='exp'>（期望：13）</span></th></tr><tr><td style='width:90px'>delegated</td><td>3</td><td style='width:110px' class='mid'>接近度 0.23</td></tr></table>
+<h2>images/000000000077.jpg</h2>
+<img class='img' src='../testset/images/000000000077.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：5）</span></th></tr><tr><td style='width:90px'>direct</td><td>4</td><td style='width:110px' class='mid'>接近度 0.80</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：人）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>滑板者</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000089.jpg</h2>
+<img class='img' src='../testset/images/000000000089.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个刀？只回答一个阿拉伯数字。 <span class='exp'>（期望：5）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>6</td><td style='width:110px' class='mid'>接近度 0.80</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：烤箱）</span></th></tr><tr><td style='width:90px'>direct</td><td>电炉</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000110.jpg</h2>
+<img class='img' src='../testset/images/000000000110.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：10）</span></th></tr><tr><td style='width:90px'>delegated</td><td>8</td><td style='width:110px' class='mid'>接近度 0.80</td></tr></table>
+<h2>images/000000000127.jpg</h2>
+<img class='img' src='../testset/images/000000000127.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个长椅？只回答一个阿拉伯数字。 <span class='exp'>（期望：4）</span></th></tr><tr><td style='width:90px'>direct</td><td>1</td><td style='width:110px' class='mid'>接近度 0.25</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：餐桌）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>蛋糕和咖啡</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000143.jpg</h2>
+<img class='img' src='../testset/images/000000000143.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个鸟？只回答一个阿拉伯数字。 <span class='exp'>（期望：8）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>8</td><td style='width:110px' class='mid'>接近度 1.00</td></tr></table>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：鸟）</span></th></tr><tr><td style='width:90px'>direct</td><td>鸟</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000149.jpg</h2>
+<img class='img' src='../testset/images/000000000149.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：12）</span></th></tr><tr><td style='width:90px'>delegated</td><td>7</td><td style='width:110px' class='mid'>接近度 0.58</td></tr></table>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：风筝）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>风筝</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000164.jpg</h2>
+<img class='img' src='../testset/images/000000000164.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个瓶子？只回答一个阿拉伯数字。 <span class='exp'>（期望：10）</span></th></tr><tr><td style='width:90px'>direct</td><td>5</td><td style='width:110px' class='mid'>接近度 0.50</td></tr></table>
+<h2>images/000000000192.jpg</h2>
+<img class='img' src='../testset/images/000000000192.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：4）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>4</td><td style='width:110px' class='mid'>接近度 1.00</td></tr></table>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：人）</span></th></tr><tr><td style='width:90px'>delegated</td><td>人</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000201.jpg</h2>
+<img class='img' src='../testset/images/000000000201.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个单板滑雪板？只回答一个阿拉伯数字。 <span class='exp'>（期望：6）</span></th></tr><tr><td style='width:90px'>delegated</td><td>4</td><td style='width:110px' class='mid'>接近度 0.67</td></tr></table>
+<h2>images/000000000247.jpg</h2>
+<img class='img' src='../testset/images/000000000247.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个汽车？只回答一个阿拉伯数字。 <span class='exp'>（期望：6）</span></th></tr><tr><td style='width:90px'>direct</td><td>1</td><td style='width:110px' class='mid'>接近度 0.17</td></tr></table>
+<h2>images/000000000257.jpg</h2>
+<img class='img' src='../testset/images/000000000257.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：13）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>12</td><td style='width:110px' class='mid'>接近度 0.92</td></tr></table>
+<h2>images/000000000294.jpg</h2>
+<img class='img' src='../testset/images/000000000294.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个勺子？只回答一个阿拉伯数字。 <span class='exp'>（期望：11）</span></th></tr><tr><td style='width:90px'>delegated</td><td>0</td><td style='width:110px' class='mid'>接近度 0.00</td></tr></table>
+<h2>images/000000000309.jpg</h2>
+<img class='img' src='../testset/images/000000000309.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个泰迪熊？只回答一个阿拉伯数字。 <span class='exp'>（期望：3）</span></th></tr><tr><td style='width:90px'>direct</td><td>1</td><td style='width:110px' class='mid'>接近度 0.33</td></tr></table>
+<h2>images/000000000312.jpg</h2>
+<img class='img' src='../testset/images/000000000312.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个大象？只回答一个阿拉伯数字。 <span class='exp'>（期望：6）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>6</td><td style='width:110px' class='mid'>接近度 1.00</td></tr></table>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：大象）</span></th></tr><tr><td style='width:90px'>direct</td><td>大象</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000328.jpg</h2>
+<img class='img' src='../testset/images/000000000328.jpg'>
+<table><tr><th colspan='3'>[counting] 图里有多少个人？只回答一个阿拉伯数字。 <span class='exp'>（期望：3）</span></th></tr><tr><td style='width:90px'>delegated</td><td>3</td><td style='width:110px' class='mid'>接近度 1.00</td></tr></table>
+<h2>images/000000000061.jpg</h2>
+<img class='img' src='../testset/images/000000000061.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：大象）</span></th></tr><tr><td style='width:90px'>direct</td><td>大象。</td><td style='width:110px' class='ok'>对</td></tr></table>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：大象）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>大象</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000064.jpg</h2>
+<img class='img' src='../testset/images/000000000064.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：汽车）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>时钟</td><td style='width:110px' class='bad'>错</td></tr></table>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：汽车）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>时钟</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000094.jpg</h2>
+<img class='img' src='../testset/images/000000000094.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：卡车）</span></th></tr><tr><td style='width:90px'>delegated</td><td>汽车（car）</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000260.jpg</h2>
+<img class='img' src='../testset/images/000000000260.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：公交车）</span></th></tr><tr><td style='width:90px'>direct</td><td>女人和行李。</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000307.jpg</h2>
+<img class='img' src='../testset/images/000000000307.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：狗）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>狗和飞盘</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000338.jpg</h2>
+<img class='img' src='../testset/images/000000000338.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：冰箱）</span></th></tr><tr><td style='width:90px'>delegated</td><td>烤箱</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000359.jpg</h2>
+<img class='img' src='../testset/images/000000000359.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：汽车）</span></th></tr><tr><td style='width:90px'>direct</td><td>红绿灯</td><td style='width:110px' class='bad'>错</td></tr></table>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：汽车）</span></th></tr><tr><td style='width:90px'>delegated</td><td>红绿灯</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000360.jpg</h2>
+<img class='img' src='../testset/images/000000000360.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：单板滑雪板）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>滑雪者</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000404.jpg</h2>
+<img class='img' src='../testset/images/000000000404.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：船）</span></th></tr><tr><td style='width:90px'>delegated</td><td>船</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000438.jpg</h2>
+<img class='img' src='../testset/images/000000000438.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：甜甜圈）</span></th></tr><tr><td style='width:90px'>direct</td><td>甜甜圈</td><td style='width:110px' class='ok'>对</td></tr></table>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：甜甜圈）</span></th></tr><tr><td style='width:90px'>direct</td><td>甜甜圈</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000472.jpg</h2>
+<img class='img' src='../testset/images/000000000472.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：飞机）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>飞机</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000490.jpg</h2>
+<img class='img' src='../testset/images/000000000490.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：滑板）</span></th></tr><tr><td style='width:90px'>delegated</td><td>狗和滑板</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000531.jpg</h2>
+<img class='img' src='../testset/images/000000000531.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：人）</span></th></tr><tr><td style='width:90px'>direct</td><td>网球场</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000540.jpg</h2>
+<img class='img' src='../testset/images/000000000540.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：飞机）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>飞机</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000560.jpg</h2>
+<img class='img' src='../testset/images/000000000560.jpg'>
+<table><tr><th colspan='3'>[small] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：水槽）</span></th></tr><tr><td style='width:90px'>delegated</td><td>水槽和盆栽。</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000025.jpg</h2>
+<img class='img' src='../testset/images/000000000025.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：长颈鹿）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>长颈鹿</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000034.jpg</h2>
+<img class='img' src='../testset/images/000000000034.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：斑马）</span></th></tr><tr><td style='width:90px'>delegated</td><td>斑马</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000072.jpg</h2>
+<img class='img' src='../testset/images/000000000072.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：长颈鹿）</span></th></tr><tr><td style='width:90px'>delegated</td><td>长颈鹿</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000074.jpg</h2>
+<img class='img' src='../testset/images/000000000074.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：自行车）</span></th></tr><tr><td style='width:90px'>direct</td><td>狗和自行车。</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000081.jpg</h2>
+<img class='img' src='../testset/images/000000000081.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：飞机）</span></th></tr><tr><td style='width:90px'>delegated</td><td>飞机</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000092.jpg</h2>
+<img class='img' src='../testset/images/000000000092.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：蛋糕）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>蛋糕</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000109.jpg</h2>
+<img class='img' src='../testset/images/000000000109.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：长椅）</span></th></tr><tr><td style='width:90px'>delegated</td><td>人</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000113.jpg</h2>
+<img class='img' src='../testset/images/000000000113.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：餐桌）</span></th></tr><tr><td style='width:90px'>direct</td><td>蛋糕</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000136.jpg</h2>
+<img class='img' src='../testset/images/000000000136.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：长颈鹿）</span></th></tr><tr><td style='width:90px'>delegated</td><td>长颈鹿和人。</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000142.jpg</h2>
+<img class='img' src='../testset/images/000000000142.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：餐桌）</span></th></tr><tr><td style='width:90px'>direct</td><td>香蕉吐司</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000144.jpg</h2>
+<img class='img' src='../testset/images/000000000144.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：长颈鹿）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>长颈鹿</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000151.jpg</h2>
+<img class='img' src='../testset/images/000000000151.jpg'>
+<table><tr><th colspan='3'>[fine] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：火车）</span></th></tr><tr><td style='width:90px'>delegated</td><td>停车标志</td><td style='width:110px' class='bad'>错</td></tr></table>
+<h2>images/000000000036.jpg</h2>
+<img class='img' src='../testset/images/000000000036.jpg'>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：雨伞）</span></th></tr><tr><td style='width:90px'>direct</td><td>粉色雨伞</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000263.jpg</h2>
+<img class='img' src='../testset/images/000000000263.jpg'>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：大象）</span></th></tr><tr><td style='width:90px'>delegated</td><td>大象</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000315.jpg</h2>
+<img class='img' src='../testset/images/000000000315.jpg'>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：雨伞）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>遮阳伞</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000491.jpg</h2>
+<img class='img' src='../testset/images/000000000491.jpg'>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：泰迪熊）</span></th></tr><tr><td style='width:90px'>hybrid</td><td>泰迪熊</td><td style='width:110px' class='ok'>对</td></tr></table>
+<h2>images/000000000597.jpg</h2>
+<img class='img' src='../testset/images/000000000597.jpg'>
+<table><tr><th colspan='3'>[common] 图里最主要的东西是什么？用一两个词回答。 <span class='exp'>（期望：大象）</span></th></tr><tr><td style='width:90px'>delegated</td><td>大象</td><td style='width:110px' class='ok'>对</td></tr></table>
