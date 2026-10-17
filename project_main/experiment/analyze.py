@@ -206,7 +206,10 @@ def ci(values: list[float], alpha: float = ALPHA) -> tuple[float, float]:
 class Data:
     """把 jsonl 整理成"每个题号 → 每条路线各一条记录"。"""
 
-    def __init__(self, records: list[dict]) -> None:
+    def __init__(self, records: list[dict], *, correct_field: str = "correct") -> None:
+        # 判官结果落在 `judge` 上，精确匹配落在 `correct` 上 —— 换个字段就能
+        # 用同一套统计重算，**不改任何一条记录**。
+        self.correct_field = correct_field
         self.meta = [r for r in records if r.get("kind")]
         self.rows = [r for r in records if not r.get("kind")]
 
@@ -249,7 +252,7 @@ class Data:
 
     def _correct(self, item: str, route: str) -> int:
         """ITT：**失败 / 报错 / 未判分 一律算不正确**（pre/13 第 5 节）。"""
-        return 1 if self.by_item[item][route].get("correct") else 0
+        return 1 if self.by_item[item][route].get(self.correct_field) else 0
 
     def risk_diff(self, ids: list[str], a: str, b: str, tier: str | None = None) -> float:
         """配对风险差：只保留**两条路线都有记录**的题目。"""
@@ -375,7 +378,11 @@ def report(data: Data, routes: list[str], *, confirm_tier: str, primary: tuple[s
 
     # ---- 准确率：按路线 × 层 ----
     add("■ 准确率（95% 区间用聚类自助法；失败按不正确计入）")
-    tiers = ["counting", "small", "fine", "common"]
+    # 层名**由数据决定**：换测试集时层名会变（PerceptionBench 是
+    # counting/localization/fine/ocr），写死的列表会打出一排 nan。
+    seen = {t for t in data.tier_of.values() if t}
+    preferred = ["counting", "localization", "fine", "ocr", "small", "common"]
+    tiers = [t for t in preferred if t in seen] + sorted(seen - set(preferred))
     header = f"  {'层':<10}" + "".join(f"{r:>18}" for r in routes)
     add(header)
     for tier in tiers:
@@ -565,10 +572,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--confirm-tier", default="counting", help="确证族所在的层")
     parser.add_argument("--primary", nargs=2, default=["delegated", "direct"],
                         help="主分析的两条路线")
+    parser.add_argument(
+        "--field",
+        default="correct",
+        choices=["correct", "judge"],
+        help="用哪个字段判对错（correct=关键词/精确匹配，judge=LLM 判官）",
+    )
     parser.add_argument("--out", help="把报告也写到这个文件")
     args = parser.parse_args(argv)
 
-    data = Data(load(Path(args.results)))
+    data = Data(load(Path(args.results)), correct_field=args.field)
     if not data.rows:
         print("结果文件里没有数据记录", file=sys.stderr)
         return 1

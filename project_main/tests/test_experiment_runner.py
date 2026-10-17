@@ -266,5 +266,36 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(runner.summarize([]), "")
 
 
+class ExactMatchTest(unittest.TestCase):
+    """PerceptionBench 那套用的判据：归一化之后**相等**。
+
+    它的答案是短且唯一的，用包含判会放过「15400」里的「1540」；
+    但标点、大小写、量词这些不承载信息的差异不该判错。
+    """
+
+    def test_identical(self):
+        self.assertTrue(runner.grade("15400", ["15400"], mode="exact"))
+
+    def test_superstring_is_rejected(self):
+        """⚠️ 包含判会把「1540」判成命中「15400」—— 这正是不能用包含的理由。"""
+        self.assertFalse(runner.grade("1540", ["15400"], mode="exact"))
+
+    def test_punctuation_and_spacing_are_ignored(self):
+        self.assertTrue(runner.grade("  15400. ", ["15400"], mode="exact"))
+        self.assertTrue(runner.grade("3 pieces", ["3"], mode="exact"))
+        self.assertTrue(runner.grade("3", ["3 pieces"], mode="exact"))
+
+    def test_case_and_leading_zeros(self):
+        self.assertTrue(runner.grade("ww812", ["WW812"], mode="exact"))
+        self.assertTrue(runner.grade("015", ["15"], mode="exact"))
+
+    def test_keyword_mode_is_unchanged(self):
+        self.assertTrue(runner.grade("图里有 3 只猫", ["3", "猫"]))
+        self.assertTrue(runner.grade("图里有 3 只猫", ["3"], mode="keyword"))
+
+    def test_no_keywords_still_means_ungraded(self):
+        self.assertIsNone(runner.grade("x", [], mode="exact"))
+
+
 if __name__ == "__main__":
     unittest.main()

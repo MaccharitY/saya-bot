@@ -72,3 +72,8 @@ pre/requirement/*.png
 # ---- 本机工具设置 ----
 # Claude 桌面端会往这里写本机授权记录，因人而异，不该进仓库。
 .claude/settings.local.json
+
+# ---- 外部基准的数据本体 ----
+# PerceptionBench 单个 JSONL 1.6 GB（图是 base64 内嵌的），绝不能进仓库。
+# manifest 仍然提交 —— 它只有题目与答案，几万字。
+pre/experiments/testset/*.jsonl

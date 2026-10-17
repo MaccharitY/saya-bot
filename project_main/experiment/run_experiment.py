@@ -170,15 +170,50 @@ def _keyword_hit(text: str, word: str, rivals: Iterable[str]) -> bool:
     )
 
 
-def grade(answer: str, keywords: list[str], *, rivals: Iterable[str] = ()) -> bool | None:
-    """关键词判据：**全部命中**才算对。没有关键词就不判（返回 None）。
+# 归一化时丢掉的量词。参考答案里常带（`3 pieces`），模型回答里常不带（`3`）。
+_UNITS = {
+    "pieces", "piece", "pcs", "pc", "items", "item", "个", "只", "张", "条", "块",
+}
 
-    `rivals` 是**整份测试集里的所有关键词** —— 用来识别上面说的子串冲突。
-    不传的话中文那类冲突（`马 ⊂ 斑马`）识别不出来；**数字那类（`3 ⊂ 13`）
-    仍然按边界判**，它不依赖 rivals。
+
+def _normalize_answer(text: str) -> str:
+    """把短答案压成可比较的形式。
+
+    PerceptionBench 的答案是「短且唯一」的，所以判 `exact` 是合适的；
+    但标点、大小写、量词这些**不承载信息**的差异不该判错。
+    """
+    value = text.strip().lower()
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip(" .。!！?？,，:：;；\"'“”‘’()（）")
+    words = [w for w in value.split(" ") if w not in _UNITS]
+    value = " ".join(words)
+    try:
+        return str(int(value))  # `015` → `15`
+    except ValueError:
+        return value
+
+
+def grade(
+    answer: str,
+    keywords: list[str],
+    *,
+    rivals: Iterable[str] = (),
+    mode: str = "keyword",
+) -> bool | None:
+    """判分。没有关键词就不判（返回 None）。
+
+    - `mode="keyword"`：关键词**全部命中**才算对（coco128 那套用的）
+    - `mode="exact"`：归一化之后**相等**才算对（PerceptionBench 那套用的 ——
+      它的答案是短且唯一的，用包含判反而会放过「15400」里的「1540」）
+
+    `rivals` 是**整份测试集里的所有关键词** —— 用来识别子串冲突
+    （`马 ⊂ 斑马`）。数字那类（`3 ⊂ 13`）按边界判，不依赖 rivals。
     """
     if not keywords:
         return None
+    if mode == "exact":
+        target = _normalize_answer(keywords[0])
+        return bool(target) and _normalize_answer(answer) == target
     text = answer.lower()
     pool = [r.lower() for r in rivals]
     return all(_keyword_hit(text, k.lower(), pool) for k in keywords)
@@ -256,7 +291,12 @@ def run_one(
         "file": item.get("file", ""),
         "question": item["question"],
         "answer": answer,
-        "correct": grade(answer, item.get("expect_keywords") or [], rivals=rivals),
+        "correct": grade(
+            answer,
+            item.get("expect_keywords") or [],
+            rivals=rivals,
+            mode=item.get("match", "keyword"),
+        ),
         "error": error,
         "wall_ms": int((time.monotonic() - started) * 1000),
     }
@@ -358,7 +398,12 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
             return 1
         try:
             tools = start_cv_tools(
-            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+            config.cv_mcp_command, extra_env=cv_subprocess_env(
+                model_dir=config.cv_model_dir,
+                ocr_key=config.baidu_ocr_key,
+                ocr_secret=config.baidu_ocr_secret,
+                ocr_endpoint=config.baidu_ocr_endpoint,
+            )
         )
         except CvToolsError as exc:
             print(f"    × 附属起不来：{exc}")
@@ -510,7 +555,12 @@ def main(argv: list[str] | None = None) -> int:
     tools = None
     if any(route in ("delegated", "hybrid") for route in args.routes):
         tools = start_cv_tools(
-            config.cv_mcp_command, extra_env=cv_subprocess_env(model_dir=config.cv_model_dir)
+            config.cv_mcp_command, extra_env=cv_subprocess_env(
+                model_dir=config.cv_model_dir,
+                ocr_key=config.baidu_ocr_key,
+                ocr_secret=config.baidu_ocr_secret,
+                ocr_endpoint=config.baidu_ocr_endpoint,
+            )
         )
 
     baseline = environment_baseline(config.llm_base_url)
