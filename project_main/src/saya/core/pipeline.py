@@ -79,6 +79,7 @@ def _probably_about_the_image(text: str) -> bool:
 _EMPTY_META: dict[str, Any] = {
     "route": "",
     "model": "",
+    "fingerprint": "",
     "tokens_in": 0,
     "tokens_out": 0,
     "latency_ms": 0,
@@ -489,6 +490,7 @@ class Pipeline:
         meta = {
             "route": "text",
             "model": run.model,
+            "fingerprint": run.fingerprint,
             "tokens_in": run.tokens_in,
             "tokens_out": run.tokens_out,
             "latency_ms": run.latency_ms,
@@ -522,6 +524,7 @@ class Pipeline:
         meta = {
             "route": result.route,
             "model": result.model,
+            "fingerprint": result.fingerprint,
             "tokens_in": result.tokens_in,
             "tokens_out": result.tokens_out,
             "latency_ms": result.latency_ms,

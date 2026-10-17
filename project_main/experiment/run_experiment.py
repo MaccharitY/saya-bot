@@ -241,6 +241,9 @@ def run_one(
             "cache_hit_tokens": result.cache_hit_tokens,
             "cache_miss_tokens": result.cache_miss_tokens,
             "reasoning_tokens": result.reasoning_tokens,
+            # ⚠️ 模型名换版本时**不变**（2026-10-17 升到 V4.1-Flash-1017，
+            # `model` 仍是 deepseek-flash）。只有这个指纹能看出整轮跑的是不是一个后端。
+            "fingerprint": result.fingerprint,
         }
     except (VisionError, LLMError, CvToolsError) as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -658,6 +661,18 @@ def main(argv: list[str] | None = None) -> int:
         print("    中途换过模型的数据不能直接用 —— 这批作废，要重跑。")
     elif seen_models:
         print(f"\n模型（服务端实际返回）：{seen_models[0]}（配置里写的是 {config.llm_model}）")
+
+    # ⚠️ **模型名靠不住。** 服务端换版本时 `model` 字段照旧 ——
+    # 2026-10-17 平台公告升到 V4.1-Flash-1017，我们这边一个字都看不出来。
+    # 真正能分辨后端的是 `system_fingerprint`，所以两个都要查。
+    seen_fp = sorted({r.get("fingerprint") for r in records if r.get("fingerprint")})
+    if len(seen_fp) > 1:
+        print(f"\n[!] 整轮里出现了 {len(seen_fp)} 个不同的 system_fingerprint：{seen_fp}")
+        print("    服务端中途换过版本 —— 这批数据不能混着用，要重跑。")
+    elif seen_fp:
+        print(f"后端指纹（system_fingerprint）：{seen_fp[0]}")
+    else:
+        print("\n[!] 本次没有记录到 system_fingerprint —— 服务端是否换了版本无从判断。")
 
     print(summarize(records))
     print(f"\n结果已写入 {out_path}")

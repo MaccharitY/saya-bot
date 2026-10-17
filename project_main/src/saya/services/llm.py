@@ -81,6 +81,11 @@ class ChatResult:
     # （2026-10-16 实测：completion_tokens=56，其中 reasoning_tokens=54）。
     # 它只用来回答"这次输出里有多少是思考"，**绝不能再加进成本** —— 加一遍就是双倍计。
     reasoning_tokens: int = 0
+    # ⚠️ **上游部署的指纹。** 模型名会一直叫 `deepseek-flash`，
+    # 但服务端换版本时它不变 —— 2026-10-17 实测：平台公告升到
+    # `V4.1-Flash-1017`，而 `model` 字段照旧，只有这个指纹能看出来。
+    # 实验里靠它判断"整轮跑的是不是同一个后端"（见 experiment/run_experiment.py）。
+    fingerprint: str = ""
 
     @property
     def wants_tools(self) -> bool:
@@ -288,6 +293,7 @@ def _parse_result(
         cache_hit_tokens=cache_hit,
         cache_miss_tokens=cache_miss,
         reasoning_tokens=reasoning,
+        fingerprint=str(data.get("system_fingerprint") or ""),
     )
 
 

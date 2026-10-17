@@ -61,6 +61,8 @@ class VisionResult:
     cache_hit_tokens: int = 0
     cache_miss_tokens: int = 0
     reasoning_tokens: int = 0
+    # 服务端部署指纹 —— 模型名换版本时不变，只有它能看出来（见 ChatResult）
+    fingerprint: str = ""
 
     @classmethod
     def from_chat(cls, result: ChatResult, *, route: str) -> VisionResult:
@@ -75,6 +77,7 @@ class VisionResult:
             cache_hit_tokens=result.cache_hit_tokens,
             cache_miss_tokens=result.cache_miss_tokens,
             reasoning_tokens=result.reasoning_tokens,
+            fingerprint=result.fingerprint,
         )
 
 

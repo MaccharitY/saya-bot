@@ -142,6 +142,8 @@ class ToolRun:
     cache_hit_tokens: int = 0
     cache_miss_tokens: int = 0
     reasoning_tokens: int = 0
+    # 服务端部署指纹。模型名换版本时不变，只有它能看出来（见 ChatResult）。
+    fingerprint: str = ""
 
 
 def run_with_tools(
@@ -226,4 +228,5 @@ def run_with_tools(
         cache_hit_tokens=cache_hit,
         cache_miss_tokens=cache_miss,
         reasoning_tokens=reasoning,
+        fingerprint=result.fingerprint,
     )

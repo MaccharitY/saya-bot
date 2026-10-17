@@ -32,17 +32,21 @@ def fake_response(
     tokens_in: int = 100,
     tokens_out: int = 20,
     usage: dict | None = None,
+    fingerprint: str | None = None,
 ) -> dict:
     message: dict = {"role": "assistant", "content": text}
     if tool_calls is not None:
         message["tool_calls"] = tool_calls
     counted = {"prompt_tokens": tokens_in, "completion_tokens": tokens_out}
     counted.update(usage or {})
-    return {
+    body = {
         "model": "deepseek-flash",
         "choices": [{"index": 0, "message": message}],
         "usage": counted,
     }
+    if fingerprint is not None:
+        body["system_fingerprint"] = fingerprint
+    return body
 
 
 class FakeTransport:
@@ -103,6 +107,16 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(result.tokens_in, 10)
         self.assertEqual(result.tokens_out, 5)
         self.assertFalse(result.wants_tools)
+
+    def test_reads_the_server_fingerprint(self):
+        """⚠️ 模型名换版本时**不变** —— 2026-10-17 平台升到 V4.1-Flash-1017，
+        服务端返回的 `model` 仍是 `deepseek-flash`，只有这个指纹看得出来。"""
+        client = make_client(FakeTransport(fake_response(fingerprint="e72d3c7f")))
+        self.assertEqual(client.chat([text_message("user", "hi")]).fingerprint, "e72d3c7f")
+
+    def test_missing_fingerprint_is_empty_not_a_crash(self):
+        client = make_client(FakeTransport(fake_response()))
+        self.assertEqual(client.chat([text_message("user", "hi")]).fingerprint, "")
 
 
 class ToolCallTest(unittest.TestCase):
