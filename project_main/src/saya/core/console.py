@@ -131,9 +131,9 @@ class Console:
             # （实测就是敲了三次没敲对）。
             extra: list[str] = []
             if self._status is not None:
-                extra.append("  status    跑了多久、接在哪儿、用的哪个模型")
+                extra.append("  status    运行时长、接入地址、模型")
             if self._cache_preview is not None:
-                extra.append("  cache     清聊天记录与收到的图片（长期记忆与设置不动）")
+                extra.append("  cache     清聊天记录与收到图片（长期记忆与设置不受影响）")
             if extra:
                 result = Result(lines=result.lines + ("", "另外还有：", *extra))
         if not result.changed:
@@ -170,7 +170,7 @@ class Console:
         所以确认做在命令本身，而不是做成交互。
         """
         if self._cache_preview is None or self._cache_purge is None:
-            return Result(lines=("这个实例没接缓存清理（记忆未启用）。",), ok=False)
+            return Result(lines=("这个实例未启用缓存清理。",), ok=False)
 
         args = line.split()[1:]
         action = args[0].lower() if args else "show"
@@ -181,10 +181,10 @@ class Console:
                 return Result(lines=tuple(self._cache_purge()))
             return Result(
                 lines=tuple(self._cache_preview())
-                + ("确认清空再加一个 yes：cache clear yes",)
+                + ("确认执行：cache clear yes",)
             )
         return Result(
-            lines=(f"cache 只有 show / clear，没有 {action!r}。",), ok=False
+            lines=("cache 支持 show / clear。",), ok=False
         )
 
     # ---- 前端：读 stdin ----

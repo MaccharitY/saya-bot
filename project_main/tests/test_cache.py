@@ -124,7 +124,7 @@ class PurgeTest(Fixture):
         snap = cache.purge(self.data)
         text = "\n".join(cache.describe(snap, cleaned=True))
         self.assertIn("已清空", text)
-        self.assertIn("长期记忆与设置未改动", text)
+        self.assertIn("长期记忆与设置未变动", text)
 
     def test_second_purge_is_a_no_op(self) -> None:
         self.seed()
@@ -139,10 +139,10 @@ class PurgeTest(Fixture):
 class DescribeTest(unittest.TestCase):
     def test_preview_says_what_is_kept(self) -> None:
         text = "\n".join(cache.describe(cache.Inventory(messages=1, topics=1, images=1, files=1)))
-        self.assertIn("不会动长期记忆和设置", text)
+        self.assertIn("不影响长期记忆与设置", text)
 
     def test_empty_says_so(self) -> None:
-        self.assertEqual(cache.describe(cache.Inventory()), ("没有可清的东西。",))
+        self.assertEqual(cache.describe(cache.Inventory()), ("没有可清理的内容。",))
 
     def test_human_size(self) -> None:
         self.assertEqual(cache.human_size(512), "512 B")

@@ -490,19 +490,19 @@ class Supervisor:
             state = self.napcat_state()
         except Exception:  # noqa: BLE001 - 状态查不出来不该掀翻控制台
             logger.exception("NapCat 状态探测失败")
-            return ["NapCat：状态查不出来（详见日志）。"]
+            return ["NapCat：状态查询失败（详见日志）。"]
         return napcat.describe(state, napcat_dir=self.napcat_dir)
 
     def napcat_start(self) -> Outcome:
         qq = self.self_qq()
         if not qq:
             return Outcome(
-                lines=(".env 里没有 SAYA_SELF_ID，无法启动 NapCat。",), ok=False
+                lines=(".env 内 SAYA_SELF_ID 未赋值，无法启动 NapCat。",), ok=False
             )
         try:
             state = napcat.start(qq, napcat_dir=self.napcat_dir, wait=self.napcat_wait)
         except FileNotFoundError as exc:
-            return Outcome(lines=(f"找不到 NapCat：{exc}",), ok=False)
+            return Outcome(lines=(f"未找到 NapCat：{exc}",), ok=False)
         return Outcome(
             lines=tuple(napcat.describe(state, napcat_dir=self.napcat_dir)),
             ok=state.ready,
@@ -512,14 +512,14 @@ class Supervisor:
         try:
             state = napcat.stop(napcat_dir=self.napcat_dir)
         except OSError as exc:
-            return Outcome(lines=(f"停不掉：{exc}",), ok=False)
+            return Outcome(lines=(f"停止失败：{exc}",), ok=False)
         return Outcome(lines=tuple(napcat.describe(state, napcat_dir=self.napcat_dir)))
 
     def napcat_restart(self) -> Outcome:
         qq = self.self_qq()
         if not qq:
             return Outcome(
-                lines=(".env 里没有 SAYA_SELF_ID，无法启动 NapCat。",), ok=False
+                lines=(".env 内 SAYA_SELF_ID 未赋值，无法启动 NapCat。",), ok=False
             )
         try:
             state = napcat.restart(qq, napcat_dir=self.napcat_dir, wait=self.napcat_wait)
@@ -539,7 +539,7 @@ class Supervisor:
         if action == "stop":
             return Outcome(
                 confirm="napcat-stop",
-                question="确认停止 NapCat？QQ 会下线，重新登录可能要扫码。 [y/N]",
+                question="确认停止 NapCat？QQ 将下线，重新登录可能需要在 WebUI 扫码。 [y/N]",
             )
         if action == "restart":
             return Outcome(
@@ -547,7 +547,7 @@ class Supervisor:
                 question="确认重启 NapCat？重启后可能需要在 WebUI 重新登录。 [y/N]",
             )
         return Outcome(
-            lines=(f"不认识：napcat {action}（可用 status / start / stop / restart）",),
+            lines=(f"napcat 支持 status / start / stop / restart。",),
             ok=False,
         )
 
@@ -580,7 +580,7 @@ class Supervisor:
                 ),
             )
         return Outcome(
-            lines=(f"cache 只有 show / clear，没有 {action}。",), ok=False
+            lines=("cache 支持 show / clear。",), ok=False
         )
 
     def cache_clear(self) -> Outcome:
@@ -695,22 +695,22 @@ USAGE = "\n".join(
         "  start            启动 bot（日志输出至本终端）",
         "  end              停止 bot（需确认）",
         "  restart          重启（使用当前代码，需确认）",
-        "  status           查看运行状态（bot 与 QQ 侧一起报）",
+        "  status           查看运行状态（bot 与 NapCat）",
         "  quit             退出控制台（bot 同时终止，需确认）",
         "",
-        "QQ 侧（NapCat）：",
-        "  napcat           查看 QQ 侧状态（进程 / 登录 / 端口）",
-        "  napcat start     启动 NapCat（已在跑则只等就绪）",
-        "  napcat stop      停止 NapCat（需确认）",
-        "  napcat restart   重启 NapCat（需确认，可能要在 WebUI 重新登录）",
+        "NapCat：",
+        "  napcat           查看状态（进程 / 登录 / 端口）",
+        "  napcat start     启动（运行中则等待就绪）",
+        "  napcat stop      停止（需确认）",
+        "  napcat restart   重启（需确认，可能需要在 WebUI 重新登录）",
         "",
-        "清缓存：",
-        "  cache            查看会清掉多少（消息 / 话题 / 图片）",
+        "缓存：",
+        "  cache            查看将清理的内容",
         "  cache clear      清空聊天记录与收到的图片（需确认）",
-        "                   [!] 长期记忆与设置不受影响",
         "",
         "[!] bot 会在此终端退出时同时终止。",
-        "[!] NapCat 不会 —— 它揣着 QQ 登录态，重启不保证自动登录。",
+        "[!] NapCat 不随控制台退出。",
+        "[!] cache clear 不影响长期记忆与设置。",
         "",
         "设置命令（与 bot 终端内命令一致）：",
         "  show                       查看当前配置",
@@ -853,10 +853,9 @@ BANNER = """
 ─────────────────────────────────────────────
  saya 控制台--输入 help 查看命令。
  start / end / restart / quit / status
- napcat [start|stop|restart]   QQ 侧
- cache [clear]                 清聊天记录与图片
+ napcat / cache
  [!] bot 会在此终端退出时同时终止
- [!] NapCat 不会（它揣着 QQ 登录态）
+ [!] NapCat 不随控制台退出
 ─────────────────────────────────────────────"""
 
 

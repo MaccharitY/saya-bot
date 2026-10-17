@@ -193,8 +193,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     if problems:
-        print(f"× 共 {len(problems)} 处命中 —— 先清干净再推。")
-        print("   已经提交过的那份还在历史里，得一起清掉才算干净。")
+        print(f"× 共 {len(problems)} 处命中 —— 清理后再推送。")
+        print("   已提交的历史记录同样需要清理。")
         return 1
 
     print("√ 没有发现泄露。")

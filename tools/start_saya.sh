@@ -143,8 +143,8 @@ if [ ! -x "$NAPCAT_DIR/opt/QQ/qq" ]; then
 fi
 if ! napcat_report ensure; then
     echo
-    echo "  ⚠️ QQ 侧未就绪。机器人照常启动，但在 NapCat 登录之前收不到任何消息。"
-    echo "     处理：打开 http://127.0.0.1:6099/webui 扫码登录，再回来执行 status。"
+    echo "  ⚠️ NapCat 未就绪。机器人照常启动，但在登录之前收不到任何消息。"
+    echo "     处理：打开 http://127.0.0.1:6099/webui 扫码登录，随后执行 status。"
 fi
 
 # ---- 4. 启动 ----

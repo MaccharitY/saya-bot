@@ -167,22 +167,20 @@ def human_size(size: int) -> str:
 
 
 def describe(snap: Inventory, *, cleaned: bool = False) -> tuple[str, ...]:
-    """给人看的两行。说明书体。"""
+    """给人看的两行。说明书体：书面、陈述事实；**不带量词**（`3 条` → `3`）。"""
+    if snap.empty:
+        return ("没有可清理的内容。",)
+
     if cleaned:
-        if snap.empty:
-            return ("没有可清的东西。",)
         return (
-            f"已清空：{snap.messages} 条消息、{snap.topics} 个话题、"
-            f"{snap.images} 条图片索引。",
-            f"图片文件：删除 {snap.files} 个（{human_size(snap.size)}）。",
-            "长期记忆与设置未改动。",
+            f"已清空：消息 {snap.messages}、话题 {snap.topics}、"
+            f"图片索引 {snap.images}。",
+            f"图片文件：删除 {snap.files}（{human_size(snap.size)}）。",
+            "长期记忆与设置未变动。",
         )
 
-    if snap.empty:
-        return ("没有可清的东西。",)
     return (
-        f"聊天记录：{snap.messages} 条消息、{snap.topics} 个话题。",
-        f"收到的图片：{snap.images} 条索引、{snap.files} 个文件"
-        f"（{human_size(snap.size)}）。",
-        "清缓存不会动长期记忆和设置。",
+        f"聊天记录：消息 {snap.messages}、话题 {snap.topics}。",
+        f"图片：索引 {snap.images}、文件 {snap.files}（{human_size(snap.size)}）。",
+        "清缓存不影响长期记忆与设置。",
     )

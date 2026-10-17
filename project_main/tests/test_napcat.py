@@ -103,13 +103,13 @@ class DescribeTest(unittest.TestCase):
     def test_not_logged_in_points_at_webui(self) -> None:
         text = self.lines(state(installed=True, pids=(100,), elapsed=600, webui=True))
         self.assertIn("未就绪", text)
-        self.assertIn("没登录", text)
+        self.assertIn("未登录", text)
         self.assertIn("6099", text)
 
     def test_starting_is_not_reported_as_logged_out(self) -> None:
         text = self.lines(state(installed=True, pids=(100,), elapsed=3))
         self.assertIn("启动中", text)
-        self.assertNotIn("没登录", text)
+        self.assertNotIn("未登录", text)
 
     def test_no_colloquialisms(self) -> None:
         """屏幕上的话不许出现改过的口语词。见 tests/test_output_style.py。"""

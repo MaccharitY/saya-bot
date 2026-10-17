@@ -75,6 +75,13 @@ TEXT_CONSTANTS = {"BANNER", "USAGE"}
 # 这条是 2026-10-16 补的：上一版只收了 print / Outcome / BANNER，
 # 于是 `已开始盯着拉起我的进程（PID 18300）` 这种句子漏了过去 ——
 # 而所有者正是**从屏幕上看见它**才提的。
+# ⚠️ **"拼好一串行再交出去"的函数** —— 它们不经过 print / Outcome，
+# 字面量直接 `return`，上面那两类规则一条都收不到。
+#
+# 2026-10-17 就是这么漏的：`napcat.describe` 与 `cache.describe` 的措辞
+# 全部逃过了扫描，而所有者是在屏幕上先看见的（"分布和语气和 style 又有偏差"）。
+TEXT_BUILDERS = {"describe"}
+
 LOG_METHODS = {"info", "warning", "error", "debug", "exception", "critical"}
 
 # ⚠️ **已经改掉的口语词黑名单** —— 别再回来。
@@ -92,6 +99,15 @@ _COLLOQUIAL = {
     "闭嘴": "静默",
     "不开口": "静默",
     "看图路线": "视图模式",
+    # 2026-10-17 加：NapCat / 缓存那批界面文本里逐个改掉的
+    "揣着": "保留",
+    "多半是": "可能",
+    "卡在": "停留在",
+    "查不出来": "查询失败",
+    "停不掉": "停止失败",
+    "没登录": "未登录",
+    "没接": "未启用",
+    "清掉": "清理",
 }
 
 
@@ -131,6 +147,13 @@ def screen_strings(source: str) -> list[tuple[int, str]]:
                         if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
                             found.append((inner.lineno, inner.value))
 
+        # ③ describe(...) 这类"返回一串给人看的行"的函数
+        if isinstance(node, ast.FunctionDef) and node.name in TEXT_BUILDERS:
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Constant) and isinstance(inner.value, str) \
+                   and id(inner) not in skip:
+                    found.append((inner.lineno, inner.value))
+
     return found
 
 
@@ -144,6 +167,16 @@ class ScreenTextStyleTest(unittest.TestCase):
         """文档字符串是 markdown 该待的地方，不能误伤。"""
         source = 'def f():\n    """**这**是文档"""\n    return 1\n'
         self.assertEqual(screen_strings(source), [])
+
+    def test_the_scanner_catches_text_returned_from_describe(self):
+        """⚠️ `describe()` 直接把行 return 出去，不经过 print / Outcome。
+
+        `napcat.describe` / `cache.describe` 的措辞 2026-10-17 就是这么
+        **整批逃过扫描**的 —— 所有者先在屏幕上看见了偏差。
+        """
+        source = 'def describe(x):\n    """文档"""\n    return ("**粗**",)\n'
+        found = [text for _, text in screen_strings(source)]
+        self.assertIn("**粗**", found)
 
     def test_no_markdown_on_screen(self):
         offenders: list[str] = []

@@ -145,7 +145,7 @@ class NapCatTest(Fixture):
         )
         text = "\n".join(self.sup.handle("status").lines)
         self.assertIn("未就绪", text)
-        self.assertIn("没登录", text)
+        self.assertIn("未登录", text)
 
     def test_napcat_command_reports_state(self):
         self.napcat = napcat.State(
@@ -214,7 +214,7 @@ class CacheTest(Fixture):
         with mock.patch("panel.cache_store.purge") as purge:
             text = "\n".join(self.sup.handle("cache").lines)
         purge.assert_not_called()
-        self.assertIn("没有可清的东西", text)
+        self.assertIn("没有可清理的内容", text)
 
     def test_clear_needs_confirmation(self):
         outcome = self.sup.handle("cache clear")

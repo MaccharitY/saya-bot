@@ -188,7 +188,7 @@ def stop(*, napcat_dir: Path | None = None, timeout: float = 10.0) -> State:
     if not pids:
         return probe(base)
     if not _can_signal():
-        raise OSError("停止 NapCat 只能在 POSIX 上做")
+        raise OSError("停止 NapCat 仅支持 POSIX。")
 
     _signal(pids, signal.SIGTERM)
     if _wait_gone(timeout):
@@ -234,10 +234,14 @@ def _wait_gone(timeout: float) -> bool:
 
 
 def describe(state: State, *, napcat_dir: Path | None = None) -> list[str]:
-    """给人看的状态行。说明书体：陈述事实，不劝、不问、不用「你」。"""
+    """给人看的状态行。说明书体：书面、陈述事实，不口语、不拟人、不用「你」。
+
+    续行缩进 7 格，对在「NapCat：」后面 —— 两个前端都只在行首加固定前缀，
+    所以这个对齐在两边都成立。
+    """
     base = napcat_dir or default_dir()
     if not state.installed and not state.running:
-        return [f"NapCat：未安装（{binary(base)} 不存在）。"]
+        return [f"NapCat：未安装（{binary(base)}）。"]
 
     if not state.running:
         return ["NapCat：未运行。"]
@@ -248,20 +252,18 @@ def describe(state: State, *, napcat_dir: Path | None = None) -> list[str]:
 
     if state.starting:
         return [
-            f"NapCat：启动中（PID {pid}，{state.elapsed} 秒）。"
-            f"OneBot 端口 {ONEBOT_PORT} 尚未就绪。"
+            f"NapCat：启动中（PID {pid}，{state.elapsed} 秒）"
+            f"—— OneBot 端口 {ONEBOT_PORT} 未就绪。"
         ]
 
     lines = [
-        f"NapCat：未就绪 —— 进程在（PID {pid}），"
-        f"但 OneBot 端口 {ONEBOT_PORT} 没开。"
+        f"NapCat：未就绪（PID {pid}）"
+        f"—— OneBot 端口 {ONEBOT_PORT} 未监听，账号可能未登录。"
     ]
     if state.webui:
-        lines.append(
-            f"        多半是账号没登录。WebUI：http://127.0.0.1:{WEBUI_PORT}/webui"
-        )
+        lines.append(f"       WebUI：http://127.0.0.1:{WEBUI_PORT}/webui")
     else:
-        lines.append("        WebUI 也没开，QQ 侧可能卡在启动。")
+        lines.append("       WebUI 未监听，NapCat 可能尚未启动完成。")
     return lines
 
 
@@ -284,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in ("start", "restart", "ensure"):
         if not qq:
-            print("未设置 QQ 号：改 .env 里的 SAYA_SELF_ID，或用 --qq 指定。", file=sys.stderr)
+            print("未设置 QQ 号：填写 .env 里的 SAYA_SELF_ID，或用 --qq 指定。", file=sys.stderr)
             return 2
 
     if args.command == "stop":
