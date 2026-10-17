@@ -134,6 +134,16 @@ def cmd_show(env: EnvFile, args: list[str]) -> Result:
     rate = env.get("SAYA_RATE_LIMIT_PER_GROUP_PER_MIN", "5").strip()
     warn = "   [!] 0 表示永不回复，而非不限制" if rate == "0" else ""
     lines.append(f"  每分钟上限    {rate}{warn}")
+
+    # ⚠️ **不打印凭据本身** —— 只报"配没配"。密钥长度也是指纹，不该往外报。
+    lines.append("")
+    lines.append("== 专用工具（检测 / OCR）==")
+    lines.append(f"  检测权重     {env.get('SAYA_YOLO_WEIGHTS') or 'yolo11n.pt'}")
+    lines.append(f"  检测设备     {env.get('SAYA_CV_DEVICE') or 'auto（有 GPU 就用）'}")
+    backend = (env.get("SAYA_CV_OCR_BACKEND") or "auto").strip() or "auto"
+    has_cloud = bool(env.get("SAYA_BAIDU_OCR_KEY") and env.get("SAYA_BAIDU_OCR_SECRET"))
+    lines.append(f"  OCR 后端     {backend}")
+    lines.append(f"  云 OCR 凭据   {'已配置' if has_cloud else '未配置（用本地）'}")
     return Result(lines=tuple(lines))
 
 
@@ -303,6 +313,51 @@ def cmd_help(env: EnvFile, args: list[str]) -> Result:
 # ---------------------------------------------------------------- 分发
 
 # 命令表：名字 → (一句话说明, 处理函数)。`help` 就是照着它生成的。
+_OCR_BACKENDS = ("auto", "cloud", "local")
+
+
+def cmd_ocr(env: EnvFile, args: list[str]) -> Result:
+    """云 OCR 走哪条路。⚠️ 这里**不收也不发凭据** —— 密钥只走 .env。"""
+    backend = (env.get("SAYA_CV_OCR_BACKEND") or "auto").strip() or "auto"
+    if not args:
+        return Result(lines=(f"OCR 后端    {backend}",))
+    value = args[0].strip().lower()
+    if value not in _OCR_BACKENDS:
+        return _fail(f"OCR 后端只有 {' / '.join(_OCR_BACKENDS)}，你写的是 {args[0]!r}")
+    env.set("SAYA_CV_OCR_BACKEND", value)
+    return Result(lines=(f"OCR 后端 → {value}",), changed=True)
+
+
+def cmd_yolo(env: EnvFile, args: list[str]) -> Result:
+    """检测用哪个权重。允许简写 `x`，也允许直接写文件名。"""
+    current = env.get("SAYA_YOLO_WEIGHTS") or "yolo11n.pt"
+    if not args:
+        return Result(lines=(f"检测权重    {current}",))
+    value = args[0].strip().lower()
+    if value in ("n", "s", "m", "l", "x"):
+        value = f"yolo11{value}.pt"
+    if not value.endswith(".pt"):
+        return _fail(f"权重文件名要以 .pt 结尾，你写的是 {args[0]!r}")
+    env.set("SAYA_YOLO_WEIGHTS", value)
+    return Result(lines=(f"检测权重 → {value}（下次启动加载）",), changed=True)
+
+
+def cmd_device(env: EnvFile, args: list[str]) -> Result:
+    """检测跑在哪。不写 auto：有 GPU 就用 GPU。
+
+    ⚠️ Ultralytics 的默认是 **CPU**，即使 CUDA 可用也不自动上去 ——
+    所以"auto"是我们这层自己加的，不是它的默认行为。
+    """
+    current = env.get("SAYA_CV_DEVICE") or "auto"
+    if not args:
+        return Result(lines=(f"检测设备    {current}",))
+    value = args[0].strip().lower()
+    if value not in ("auto", "cpu") and not value.startswith("cuda"):
+        return _fail(f"设备只有 auto / cpu / cuda:N，你写的是 {args[0]!r}")
+    env.set("SAYA_CV_DEVICE", value)
+    return Result(lines=(f"检测设备 → {value}",), changed=True)
+
+
 COMMANDS: dict[str, tuple[str, object]] = {
     "help": ("查看本列表", cmd_help),
     "show": ("查看当前配置", cmd_show),
@@ -314,6 +369,9 @@ COMMANDS: dict[str, tuple[str, object]] = {
     "keyword": ("keyword set|add|del <词>：keyword 模式关键词", cmd_keyword),
     "prob": ("prob <0~1>：random 概率", cmd_prob),
     "rate": ("rate <n>：每群每分钟回复上限", cmd_rate),
+    "ocr": ("ocr auto|cloud|local：云 OCR 开关", cmd_ocr),
+    "yolo": ("yolo n|s|m|l|x：检测权重", cmd_yolo),
+    "device": ("device auto|cpu|cuda:N：检测跑在哪", cmd_device),
 }
 
 USAGE = "\n".join(

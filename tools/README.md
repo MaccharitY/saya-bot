@@ -161,6 +161,9 @@ python tools/config.py friend add 30001           # 白名单（最多 15 个）
 python tools/config.py keyword set saya,咲弥       # keyword 模式用的词
 python tools/config.py prob 0.15                  # random 模式的概率
 python tools/config.py rate 3                     # 每群每分钟最多回几条
+python tools/config.py ocr cloud                  # 云 OCR：auto / cloud / local
+python tools/config.py yolo x                     # 检测权重：n / s / m / l / x
+python tools/config.py device cuda:0              # 检测跑在哪：auto / cpu / cuda:N
 ```
 
 **两个前端，一份后端**（前后端分离，ADR-022）：

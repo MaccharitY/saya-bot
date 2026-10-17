@@ -721,6 +721,9 @@ USAGE = "\n".join(
         "  friend add|del <QQ>         白名单（上限 15）",
         "  keyword set|add|del <词>    keyword 模式关键词",
         "  prob <0~1> / rate <n>       random 概率 / 每分钟回复上限",
+        "  ocr auto|cloud|local        云 OCR 开关",
+        "  yolo n|s|m|l|x              检测权重",
+        "  device auto|cpu|cuda:N      检测跑在哪",
         "",
         "策略：silent / mention / keyword / random / always / selective",
     ]
