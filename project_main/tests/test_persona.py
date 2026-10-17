@@ -42,6 +42,40 @@ class PersonaTest(unittest.TestCase):
         self.assertNotIn(DEFAULT_PERSONA.name, prompt)
 
 
+class NameSpellingTest(unittest.TestCase):
+    """名字**怎么写**，不只是"叫什么"。
+
+    ⚠️ 2026-10-17 实测：群友打了一句 `sayasaya`，它回「莎夜。叫一遍就够了」——
+    把「咲弥」按读音换成了同音字。而「莎夜」在仓库里一次都没出现过，
+    是它自己造的。只写"你的名字是 X"不够：模型会当那是语义，写法随便发挥。
+    """
+
+    def test_the_rule_is_present(self):
+        text = DEFAULT_PERSONA.system_prompt()
+        self.assertIn("名字只写", text)
+
+    def test_it_forbids_transliteration(self):
+        text = DEFAULT_PERSONA.system_prompt()
+        self.assertIn("不音译", text)
+        self.assertIn("不换字", text)
+
+    def test_it_handles_a_latin_spelling(self):
+        """群友用 saya 喊它，正是它最容易临时音译的时刻。"""
+        self.assertIn("saya", DEFAULT_PERSONA.system_prompt())
+
+    def test_it_uses_the_configured_name(self):
+        persona = Persona(name="测试角色", description="描述")
+        text = persona.system_prompt()
+        self.assertIn("测试角色", persona.name_rule())
+        self.assertNotIn("咲弥", persona.name_rule())
+        self.assertIn(persona.name_rule(), text)
+
+    def test_it_survives_an_empty_rule_list(self):
+        """人格文件换掉、规则表清空，名字这条也必须还在。"""
+        persona = Persona(name="甲", description="乙", rules=())
+        self.assertIn("名字只写", persona.system_prompt())
+
+
 class SelfAwarenessTest(unittest.TestCase):
     """模型得知道自己实际上是什么，**但不许对群友说**。
 
