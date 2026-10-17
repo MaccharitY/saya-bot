@@ -269,15 +269,16 @@ class Pipeline:
         )
         self._trigger.note_answered(message, reason=decision.reason)
         self._remember_reply(message, safe_text)
-        # ⚠️ **整段打出来，不截断。** 这里以前截到 60 字，于是控制台里
+        # ⚠️ **原样打，不截断、不压行。** 这里以前截到 60 字，于是控制台里
         # 每条回复都断在半句上（"要是你想让…"）—— 而这一行正是所有者
         # 用来看她到底回了什么的地方（2026-10-17 提的）。
-        # 只把换行压成空格：多行文本进了 logging 会丢前缀，读起来更乱。
+        # 换行也照原样留着：她分段说的话，在日志里也该是分段的。
+        # 代价是续行没有 `时间 级别 模块 |` 前缀 —— 那比把段落压成一坨好读。
         logger.info(
             "已回复 %s %s：%s",
             message.source,
             message.group_id if message.source == "group" else message.user_id,
-            safe_text.replace("\n", " "),
+            safe_text,
         )
 
         detail = dict(_EMPTY_META)

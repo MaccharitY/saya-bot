@@ -937,5 +937,27 @@ class SelfModelTest(PipelineTestBase):
         self.assertIn("你的记忆与能力", system)
 
 
+class ReplyLoggingTest(PipelineTestBase):
+    """「已回复」那行是所有者看回复的地方，**不许截断、不许压行**。
+
+    ⚠️ 原来截到 60 字，控制台里每条都断在半句上（"要是你想让…"）。
+    换行也照原样留着 —— 她分段说的话，日志里也该是分段的。
+    """
+
+    def test_the_whole_reply_is_logged(self):
+        reply = "第一段，说得长一点也好。" + "补充。" * 40
+        pipeline, _ = self.build(transport=FakeTransport(text=reply))
+        with self.assertLogs("saya.pipeline", level="INFO") as logs:
+            pipeline.handle(group_message("在吗", mentioned=True))
+        self.assertIn(reply, "\n".join(logs.output))
+
+    def test_line_breaks_survive(self):
+        reply = "先看这一句。\n\n再看这一句。"
+        pipeline, _ = self.build(transport=FakeTransport(text=reply))
+        with self.assertLogs("saya.pipeline", level="INFO") as logs:
+            pipeline.handle(group_message("在吗", mentioned=True))
+        self.assertIn("\n\n再看这一句。", "\n".join(logs.output))
+
+
 if __name__ == "__main__":
     unittest.main()
