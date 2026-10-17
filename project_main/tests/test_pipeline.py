@@ -958,6 +958,14 @@ class ReplyLoggingTest(PipelineTestBase):
             pipeline.handle(group_message("在吗", mentioned=True))
         self.assertIn("\n\n再看这一句。", "\n".join(logs.output))
 
+    def test_the_reply_starts_on_its_own_line(self):
+        """冒号后先换行 —— 否则正文被前缀挤短、续行却顶格，读起来是断的。"""
+        pipeline, _ = self.build(transport=FakeTransport(text="在的"))
+        with self.assertLogs("saya.pipeline", level="INFO") as logs:
+            pipeline.handle(group_message("在吗", mentioned=True))
+        message = next(r.getMessage() for r in logs.records if "已回复" in r.getMessage())
+        self.assertTrue(message.endswith("：\n在的"), message)
+
 
 if __name__ == "__main__":
     unittest.main()
