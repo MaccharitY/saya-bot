@@ -16,40 +16,50 @@
 
 - **核心冻结**（2026-10-17 定）：0.1.2 之后**只修 bug，不加功能** ——
   它要拿去跑对照实验。`web_search` 这类新能力留到实验之后。
-- ⚠️ **三轮实验都记的是 `94a57f5-dirty`**（2026-10-17 晚，工作区里带着后来成为 `v0.1.3` 的识图改动）。
-  写报告时照实记，别写成"跑在 v0.1.3 上" —— 那时改动还没提交。
-  指纹那条决定了数据能不能自证"整轮是同一个后端"。
+- ⚠️ **提交号不是一个**：前三轮记 `94a57f5-dirty`（2026-10-17 晚），
+  第四轮记 `4f8e483-dirty`（2026-10-18 凌晨）。
+  `-dirty` 不是笔误 —— 前三轮跑的时候，工作区里带着后来成为 `v0.1.3` 的识图改动。
+  写报告时照实记，别写成"全部跑在某个 tag 上"。
+  指纹那条决定了数据能不能自证"整轮是同一个后端"（四轮都是 `e72d3c7f…`）。
 
-### **实验已经跑完三轮**（这是当前最重要的事实）
+### **实验已经跑完四轮**（这是当前最重要的事实）
 
-| 轮次 | 测试集 | 判据 | 专用工具 | 结果（direct / delegated / hybrid） |
+| 轮次 | 测试集 | 判据 | 专用工具 / 思考预算 | 结果（direct / delegated / hybrid） |
 |---|---|---|---|---|
-| 一 | coco128 105 题 | 关键词包含 | YOLO11n CPU + PP-OCRv3 | 40% / **55%** / 46% |
-| 二 | PerceptionBench 120 题 | LLM 判官 | 同上 | 33% / **12%** / 36% |
-| 三 | 同二 | 同二 | **11x GPU + 百度云 OCR** | 32% / **11%** / 37% |
+| 一 | coco128 105 题 | 关键词包含 | YOLO11n CPU + PP-OCRv3 / 关 | 40% / **55%** / 46% |
+| 二 | PerceptionBench 120 题 | LLM 判官 | 同上 / 关 | 33% / **12%** / 36% |
+| 三 | 同二 | 同二 | **11x GPU + 百度云 OCR** / 关 | 32% / **11%** / 37% |
+| 四 | 同二 | 同二 | 同三 / **max** | **53% / 15% / 44%** |
 
-**两个结论**：
+**三个结论**：
 
-1. **委派路线显著更差**：主分析（counting 层，delegated vs direct）风险差 **−0.300**，
-   95%CI [−0.472, −0.143]，置换检验 p = 0.0052。
+1. **委派路线显著更差**：主分析（counting 层，delegated vs direct）风险差
+   `max` **−0.567**（p = 0.0002）、`none` −0.300（p = 0.0052）。
 2. **换强工具没有用**（12% → 11%）—— 上限在**词表**，不在精度。
+3. **开满思考只救得了"看见图的路线"**：direct +21 点、hybrid +7 点，
+   delegated 只 +4 点，counting 层 3% → 3%。推理补不回工具从未产出的信息。
+   代价：direct 端到端 1.06 s → 33.9 s，成本 ¥0.07 → ¥9.97 / 120 题。
 
 ### 材料在哪
 
 | 东西 | 路径 |
 |---|---|
-| **提交稿**（~1160 词，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
+| **提交稿**（~1200 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
 | **内部报告**（长版，写 slides 用） | [`../pre/report/internal-report.md`](../pre/report/internal-report.md) |
 | **过程流水**（为什么改、改成什么） | [`../pre/14-experiment-iteration-log.md`](../pre/14-experiment-iteration-log.md) |
-| 原始结果 + 判官结果 | `../pre/experiments/results-pb2{,-judged}.jsonl` |
-| 分析报告 | `../pre/experiments/analysis-pb2.md` |
+| 原始结果 + 判官结果（`none`） | `../pre/experiments/results-pb2{,-judged}.jsonl` |
+| 分析报告（`none`） | `../pre/experiments/analysis-pb2.md` |
+| 原始结果 + 判官结果（`max`） | `../pre/experiments/results-pb-max{,-judged}.jsonl` |
+| 分析报告（`max`） | `../pre/experiments/analysis-pb-max.md` |
+| 30 题预试（max，counting） | `../pre/experiments/results-pb-max-counting{,-judged}.jsonl` |
 | 人工抽检表 | `../pre/experiments/review-pb/`、`review-coco/` |
 
 ### 下一步（按这个顺序）
 
 1. **人工抽检** —— 表已生成，**待人填**；填完才算得出判官一致率
-2. **锚点论文核对** —— 文献库 45 条**全部只见搜索摘要**，引用前必须开原文
-3. **slides** —— 骨架直接用内部报告 §7 那张"什么任务走哪条路"
+2. **锚点论文收尾** —— 六篇候选摘要已核（`11-literature.md` §7.2）；
+   MMVP 与 HuggingGPT 的**会议归属**还需另核
+3. **slides** —— 骨架用内部报告 §7，加一页"思考预算的代价"
 4. **报告定稿** —— 截止 **2026-10-29**
 
 - ⚠️ 推送前照例跑 `privacy_scan.py` 并**盯退出码**（别接管道，`| tail` 会吞掉它）。
@@ -308,7 +318,7 @@ bash tools/start_saya.sh --check  # 只自检，不碰 QQ
 这里只提示"下一步大概是什么"：
 
 1. ~~把 tag 推上去~~ ✅ 已推，`v0.1.2` 已发布
-2. ~~跑正式实验~~ ✅ **已跑三轮**（见第 0 节），结论是委派路线显著更差
+2. ~~跑正式实验~~ ✅ **已跑四轮**（见第 0 节），结论是委派路线显著更差
 3. **人工抽检** —— 表已生成（`pre/experiments/review-*/`），**待人填**
 4. **报告定稿 + slides** —— 草稿在 `pre/report/`，截止 2026-10-29
 4. 记忆摘要自动生成 / 看图那条路接工具 / 选择性插嘴
@@ -360,7 +370,7 @@ bash tools/start_saya.sh --check  # 只自检，不碰 QQ
 
 在群里 @ 它。**这次它应该记得住刚才聊过什么了。**
 
-**② ~~跑正式实验~~** ✅ 已跑三轮（这一节保留的是当时的命令，实际用的是 PerceptionBench 120 题）
+**② ~~跑正式实验~~** ✅ 已跑四轮（这一节保留的是当时的命令，实际用的是 PerceptionBench 120 题）
 
 ```
 wsl -d Ubuntu -e bash -lc "cd /mnt/d/Claude/DeepSeek_api/saya_bot/project_main && python3 experiment/run_experiment.py --manifest ../pre/experiments/testset/manifest.json --out ../pre/experiments/results.jsonl --routes direct delegated hybrid"
