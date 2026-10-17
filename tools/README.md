@@ -11,6 +11,21 @@
 
 ## 清单
 
+> ⚠️ **先看这张表再往下翻。** 下面每条都有详细说明，但「这台机器上我到底能用什么」
+> 应该一眼看完 —— 2026-10-17 就出过一次：**手上有 `fetch.py`，却对外说"打不开网页"**。
+> （详见 `docs/01-architecture.md` 的 ADR-037。）
+
+| 脚本 | 干什么 |
+|---|---|
+| `saya_bot_controller.bat`（**仓库根目录**） | 启停机器人 + 改设置，双击即用 |
+| `start_saya.bat` / `start_saya.sh` | 只管把机器人拉起来（不经控制台） |
+| `panel.py` | 常驻控制台 —— `saya_bot_controller.bat` 调的就是它 |
+| `config.py` | 离线改设置（机器人**没在跑**时用） |
+| **`fetch.py`** | **抓网页转文本。本机 `WebFetch` 工具不通，要读网页正文就用它** |
+| `notes.py` | 查 / 删长期记忆 |
+| `privacy_scan.py` | 发布前隐私自检（扫可能被提交的文件 + 全历史） |
+| `fetch_arcaea_corpus.py` | 切剧情语料。⚠️ **现在不联网**，名字是历史遗留 |
+
 ### `start_saya.bat` —— 一键启动 / **重启**（Windows 双击，在 `tools/` 里）
 
 它转去调 WSL 里的 `start_saya.sh`，并传 `--restart`（双击这个按钮的意思就是

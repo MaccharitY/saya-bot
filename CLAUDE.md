@@ -48,7 +48,8 @@ saya_bot/
 │  ├─ experiment/          ← 对照实验的执行器与测试集构建
 │  ├─ tests/
 │  └─ pyproject.toml
-├─ tools/                  ← 与本体无关的独立脚本（启动 / 抓网页 / 看长期记忆）
+├─ tools/                  ← 独立脚本：start_saya / panel / config / fetch / notes / privacy_scan
+│                            （⚠️ `fetch.py` 抓网页转文本 —— WebFetch 不通时用它，见 tools/README.md）
 └─ pre/                    ← 课程交付物
    ├─ 00-course-requirements.md   课程要求（从截图提取）
    ├─ requirement/                原始截图（不可再生，别删；**不进仓库**）
