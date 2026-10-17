@@ -23,7 +23,7 @@ class MemoryTestCase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.memory = Memory(
             Path(self._tmp.name) / "memory.db",
-            messages_per_session=3,
+            messages_per_side=3,
             topics_per_session=2,
             members_kept=3,
             members_with_note=2,
@@ -54,6 +54,41 @@ class RecordAndReadTest(MemoryTestCase):
         self.assertEqual(len(recent), 2)
         self.assertTrue(recent[-1].from_bot)
         self.assertIsNone(self.memory.member(999), "机器人自己不该进成员榜")
+
+    def test_each_side_keeps_its_own_quota(self):
+        """⚠️⚠️ **存储按说话人分额**（2026-10-17）。
+
+        原来是"每个会话留最新的 N 条"，**不分谁说的**。后果很具体：
+        话多的一方把格子占满，话少的一方**整块消失**。
+        实测撞到过：一个群里 50 条**全是别人的**，她一条都没有 ——
+        于是她完全想不起自己说过什么（所有者原话：「只记得别人的话」）。
+
+        现在她与别人**各留 N 条**（这里是 3）。
+        """
+        for i in range(6):  # 别人刷 6 条
+            self.say(qq=111, text=f"别人{i}", offset_seconds=i)
+        for i in range(2):  # 她只说 2 条
+            self.memory.record(
+                session="g:1", qq=999, name="咲弥", text=f"我{i}",
+                at=T0 + timedelta(seconds=10 + i), from_bot=True,
+            )
+
+        recent = self.memory.recent("g:1")
+        mine = [m for m in recent if m.from_bot]
+        theirs = [m for m in recent if not m.from_bot]
+        self.assertEqual(len(mine), 2, "她的两条都要在，哪怕别人的更新")
+        self.assertEqual(len(theirs), 3, "别人只留最新的 3 条")
+
+    def test_her_messages_are_not_crowded_out_by_a_flood(self):
+        """上面那条的极端版：别人疯狂刷屏，她的话照样留着。"""
+        self.memory.record(
+            session="g:1", qq=999, name="咲弥", text="我说过的关键一句", at=T0, from_bot=True
+        )
+        for i in range(20):
+            self.say(qq=111, text=f"刷{i}", offset_seconds=i + 1)
+
+        texts = [m.text for m in self.memory.recent("g:1") if m.from_bot]
+        self.assertEqual(texts, ["我说过的关键一句"])
 
     def test_member_name_is_updated_but_never_blanked(self):
         self.say(name="旧名字")

@@ -178,9 +178,9 @@ class Pipeline:
             return False
 
         # 记在生成之前：这样它自己这次也能看到上下文
+        # ⚠️ **记事本不在这一批** —— 它要等生成之后才写，理由见下面那段。
         self._remember(message)
         self._remember_image(message)
-        self._note(message)
 
         check = guard.detect_injection(message.text)
         if check.suspicious:
@@ -199,6 +199,22 @@ class Pipeline:
             logger.warning("生成失败：%s", exc)
             self._trace.write(self._event("error", {"error": str(exc)}, message))
             return False
+        finally:
+            # ⚠️⚠️ **记事本必须在生成之后写**（2026-10-17 改）。
+            #
+            # 写在前面的话，这句话会**立刻**进记事本，而模型随即在
+            # 「他们让你记着的事」里看见一条**和自己正在回的那一句一字不差**的记录
+            # —— 于是判成"这话你以前说过"。实测就是这么冒出来的：
+            #
+            #     用户：记住，你在群…里是我们的 pre 对象，…
+            #     它  ：记着了，**这条你说过第二遍**。
+            #
+            # 而那是**第一次说**。被追问时它只能编（"更早那次搁在我记事本上"），
+            # 因为确实没有"更早那次"。
+            #
+            # 用 `finally` 而不是挪到下面一行：**生成失败时照样要记下来** ——
+            # 用户交代的事不该因为一次网络抖动就丢掉。
+            self._note(message)
 
         safe_text, blocked = guard.screen_output(reply, system_prompt=system_prompt)
         if blocked:

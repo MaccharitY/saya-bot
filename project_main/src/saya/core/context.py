@@ -32,10 +32,43 @@ from saya.core.notebook import MAX_LINE_CHARS, Notebook
 from saya.core.roles import ROLE_LABELS
 from saya.domain import IncomingMessage
 
-MAX_CHARS = 1500  # 整块硬上限，超了就砍（token 是真金白银）
+MAX_CHARS = 3000  # 整块硬上限，超了就砍（token 是真金白银）
 NOTES_MAX_CHARS = 600  # 长期记忆那一块的上限
-PER_LINE_CHARS = 80  # 单条消息最多显示多长
-RECENT_FETCH = 40  # 先取这么多候选，最终带几条由预算说了算
+
+# ⚠️ **这三个是一组的，动一个要考虑另外两个**（2026-10-17）：
+#
+#     RECENT_FETCH              取多少条**候选**（下面这个）
+#     memory.DEFAULT_MESSAGES_PER_SIDE   存储**每一侧**各留多少条（现在 50，合计上限 100）
+#     MAX_CHARS                 最后按字数装多少（这个）
+#
+# 实测过：把 `MAX_CHARS` 从 1500 翻到 3000，装进去的从 27 行涨到 45 行；
+# **再翻到 4500 一点不涨** —— 因为候选只有那么多，预算再大也没东西可装。
+# 所以想让她记得更多，要**存储上限、取候选、预算一起抬**，只动一个会白动。
+#
+# ⚠️ 这里取 110 = **两倍存储上限**，也就是"把留着的全取回来，让预算去裁"。
+# 存储上限改了，这里也要跟着改 —— 取少了的话，被取满的一方会把另一方挤掉，
+# 而那正是这一轮要修的那个毛病。
+RECENT_FETCH = 110  # 先取这么多候选，最终带几条由预算说了算
+
+# ⚠️ **单条上限按说话人分开**（2026-10-17）。
+# 原来只有 80 一个字，后果是**她的回复被砍掉的比例是别人的 20 倍**。
+# 实测这个项目的库里：
+#
+#     她自己  52 条：中位 49 字，p90 126，最长 178 → 按 80 切会砍掉 21%
+#     别人   118 条：中位  5 字，p90  18，最长  91 → 按 80 切只砍掉 1%
+#
+# （别人的中位数只有 5 个字 —— 群里大多数话就是「忘掉那条」这么长。）
+#
+# ⚠️ 后果不是"少看几个字"：**她看到的是自己被切一半的话**，于是没法核对
+# "我到底说过什么"。实测撞到过：用户引用她真说过的一句，她回
+# **「那句不是我说的」** —— 因为那一整句从来没完整进过上下文。
+# 她的话还常常是两段（`\n\n` 分开），切断正好丢掉后半段。
+#
+# 所以两个上限都**设在实测最长之上**，让"完整"是常态：
+# 护栏作用还在（防单条超长消息吃掉整块预算），但正常消息不会再被切。
+# ⚠️ 以后数据长什么样会变，**发现又有截断就照实测重新定**，别当成常数。
+PER_LINE_CHARS = 100  # 别人的话最多显示多长（实测最长 91）
+BOT_LINE_CHARS = 200  # 她自己的话最多显示多长（实测最长 178）
 
 
 def _ago(when: datetime, now: datetime) -> str:
@@ -124,29 +157,72 @@ def _recent_section(
     bot_name: str,
     budget: int,
 ) -> str:
-    """最近消息。**从最新往回装，装不下就停** —— 被舍弃的永远是最旧的那几条。"""
+    """最近消息。**两边各占一半额度**，各自从最新往回装。
+
+    ⚠️ **为什么要分额度**（2026-10-17）：原来不分谁的，一律按时间从新往回装。
+    话多的一方会把预算占满，话少的一方**整块消失** —— 实测撞到过：
+    一个群里的候选**全是别人的**，她一条都没有，于是她完全想不起自己说过什么。
+    （所有者原话：「只记得别人的话」。）
+
+    存储侧已经改成两边各留 50 条（见 `memory._prune_messages`），
+    但**只改存储不够** —— 注入时按时间装，她的旧话照样被挤出去。所以这里也要分。
+
+    ⚠️ **用不完的那一半让给对方**，不浪费：她话少的时候别人照样能多占。
+    """
     recent = memory.recent(session, limit=RECENT_FETCH)
     if not recent:
         return ""
 
     # 群聊与私聊的措辞分开 —— 让模型知道自己在什么场合说话
     title = "【群里最近说过的话】" if message.source == "group" else "【你们之前聊过】"
-
-    kept: list[str] = []
-    used = len(title)
-    for item in reversed(recent):
-        who = bot_name if (bot_qq is not None and item.qq == bot_qq) else item.name or str(item.qq)
-        text = item.text.replace("\n", " ")[:PER_LINE_CHARS]
-        line = f"{who}：{text}"
-        if used + len(line) + 1 > budget:
-            break
-        kept.append(line)
-        used += len(line) + 1
-
-    if not kept:
+    allowance = budget - len(title)
+    if allowance <= 0:
         return ""
-    kept.reverse()  # 装的时候是从新到旧，展示要正过来
-    return "\n".join([title, *kept])
+
+    mine: list[tuple[int, str]] = []
+    theirs: list[tuple[int, str]] = []
+    for index, item in enumerate(recent):
+        is_bot = bot_qq is not None and item.qq == bot_qq
+        who = bot_name if is_bot else item.name or str(item.qq)
+        cap = BOT_LINE_CHARS if is_bot else PER_LINE_CHARS
+        # ⚠️ 先算好再插进 f-string：3.11 的 f-string 表达式里**不能有反斜杠**
+        text = item.text.replace("\n", " ")[:cap]
+        (mine if is_bot else theirs).append((index, f"{who}：{text}"))
+
+    half = allowance // 2
+    kept_mine = _take_newest(mine, half)
+    kept_theirs = _take_newest(theirs, half)
+
+    # 谁那半边没用完，剩下的给**还有存货**的那一边（两边都试，装到预算满为止）。
+    # ⚠️ 这里必须**两边都再试一次** —— 只补给对方的话，先装的那一边会漏掉尾巴。
+    rest = allowance - _width(kept_mine) - _width(kept_theirs)
+    if rest > 0:
+        kept_mine = _take_newest(mine, _width(kept_mine) + rest)
+        rest = allowance - _width(kept_mine) - _width(kept_theirs)
+        if rest > 0:
+            kept_theirs = _take_newest(theirs, _width(kept_theirs) + rest)
+
+    picked = sorted(kept_mine + kept_theirs)
+    if not picked:
+        return ""
+    return "\n".join([title, *(line for _, line in picked)])
+
+
+def _take_newest(items: list[tuple[int, str]], cap: int) -> list[tuple[int, str]]:
+    """从**最新**往回装，装不下就停。返回带原序号的 [(序, 行)]。"""
+    kept: list[tuple[int, str]] = []
+    used = 0
+    for entry in reversed(items):
+        cost = len(entry[1]) + 1
+        if used + cost > cap:
+            break
+        kept.append(entry)
+        used += cost
+    return kept
+
+
+def _width(kept: list[tuple[int, str]]) -> int:
+    return sum(len(line) + 1 for _, line in kept)
 
 
 def _topic_section(topic) -> str:

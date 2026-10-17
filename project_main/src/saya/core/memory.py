@@ -38,7 +38,7 @@ from pathlib import Path
 from saya.domain import IncomingMessage
 
 # 默认上限。**都可配置** —— 这些数字是拍的起点，真实使用后再调。
-DEFAULT_MESSAGES_PER_SESSION = 50  # 每个会话精确保留多少条
+DEFAULT_MESSAGES_PER_SIDE = 50  # 每个会话里，**她 / 其他人各留**这么多条
 DEFAULT_TOPICS_PER_SESSION = 20  # 每个会话保留多少个话题概述
 DEFAULT_MEMBERS_KEPT = 300  # 成员榜保留多少个
 DEFAULT_MEMBERS_WITH_NOTE = 100  # 前多少名保留摘要
@@ -161,7 +161,7 @@ class Memory:
         self,
         path: Path | str,
         *,
-        messages_per_session: int = DEFAULT_MESSAGES_PER_SESSION,
+        messages_per_side: int = DEFAULT_MESSAGES_PER_SIDE,
         topics_per_session: int = DEFAULT_TOPICS_PER_SESSION,
         members_kept: int = DEFAULT_MEMBERS_KEPT,
         members_with_note: int = DEFAULT_MEMBERS_WITH_NOTE,
@@ -169,7 +169,7 @@ class Memory:
         images_per_session: int = DEFAULT_IMAGES_PER_SESSION,
     ) -> None:
         self._path = Path(path)
-        self._messages_per_session = messages_per_session
+        self._messages_per_side = messages_per_side
         self._topics_per_session = topics_per_session
         self._members_kept = members_kept
         self._members_with_note = members_with_note
@@ -321,13 +321,33 @@ class Memory:
 
     def _prune(self, session: str) -> None:
         """存新删旧。上限都在上面几个 DEFAULT_* 里。"""
+        # ⚠️ **按说话人分额，不是总条数封顶**（2026-10-17 改）。
+        #
+        # 原来是"每个会话留最新的 N 条"，**不分谁说的**。后果很具体：
+        # **话多的一方把格子占满，话少的一方整块消失** ——
+        # 实测 `g:1031477964` 里 50 条**全是别人的**，她一条都没有。
+        # 于是她完全想不起自己说过什么（所有者原话："只记得别人的话"）。
+        #
+        # 现在她与别人**各留 N 条**，谁也别想挤掉谁。
         self._db.execute(
             """
-            DELETE FROM messages WHERE session = ? AND id NOT IN (
-                SELECT id FROM messages WHERE session = ? ORDER BY id DESC LIMIT ?
-            )
+            DELETE FROM messages
+            WHERE session = ?
+              AND id NOT IN (
+                  SELECT id FROM (
+                      SELECT id FROM messages
+                      WHERE session = ? AND from_bot = 1
+                      ORDER BY id DESC LIMIT ?
+                  )
+                  UNION
+                  SELECT id FROM (
+                      SELECT id FROM messages
+                      WHERE session = ? AND from_bot = 0
+                      ORDER BY id DESC LIMIT ?
+                  )
+              )
             """,
-            (session, session, self._messages_per_session),
+            (session, session, self._messages_per_side, session, self._messages_per_side),
         )
 
         stale = self._db.execute(

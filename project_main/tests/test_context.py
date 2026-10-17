@@ -57,6 +57,36 @@ class BuildHistoryTest(ContextTestCase):
         text = self.build(group_message())
         self.assertIn("咲弥：在的", text)
 
+    def test_her_line_survives_a_flood_of_other_messages(self):
+        """⚠️⚠️ **只改存储不够，注入侧也要分额**（2026-10-17）。
+
+        造一个"她说过一句、之后别人刷了一大屏"的场景：
+        - **不分额**的话按时间从新往回装，她那句最老的**第一个被挤掉**
+        - 分额之后，她那半边给她留着位置
+
+        实测原型：`g:1031477964` 里 50 条记录**全是别人的**，她一条都没有 ——
+        于是她完全想不起自己说过什么。
+        """
+        self.say(qq=999, name="咲弥", text="我说过的关键一句", from_bot=True)
+        for i in range(60):
+            self.say(
+                qq=222, name="乙", text=f"刷屏第{i}条" + "啊" * 60,
+                at=T0 + timedelta(seconds=i + 1),
+            )
+
+        text = self.build(group_message())
+        self.assertIn("我说过的关键一句", text, "她的那句不该被刷没")
+        self.assertLessEqual(len(text), MAX_CHARS)
+
+    def test_the_block_never_exceeds_the_cap_with_both_sides(self):
+        """两边都塞满时也不能超预算 —— 让额度的算术以前错过一次（超了一半）。"""
+        for i in range(60):
+            self.say(qq=999, name="咲弥", text="她" * 150, from_bot=True,
+                     at=T0 + timedelta(seconds=i))
+            self.say(qq=222, name="乙", text="人" * 90,
+                     at=T0 + timedelta(seconds=i, microseconds=1))
+        self.assertLessEqual(len(self.build(group_message())), MAX_CHARS)
+
     def test_speaker_section_is_about_the_current_speaker_only(self):
         """**这是省 token 的关键**：只查正在说话的人，不是把成员名单倒进去。"""
         self.say(qq=111, name="甲", text="a")
