@@ -106,26 +106,45 @@ if ! "$PYTHON" "$PROJECT/run.py" --check; then
     exit 1
 fi
 
+# NapCat 的状态与启动**都走 `saya/napcat.py`** —— 判据只有一份。
+# `status` 只读；`ensure` 会按需启动并等端口。
+napcat_report() {
+    local out rc
+    out="$(PYTHONPATH="$PROJECT/src" NAPCAT_DIR="$NAPCAT_DIR" \
+        "$PYTHON" -m saya.napcat --qq "$QQ" --wait 10 "$1" 2>&1)"
+    rc=$?
+    if [ -n "$out" ]; then
+        while IFS= read -r line; do printf '  %s\n' "$line"; done <<< "$out"
+    fi
+    return "$rc"
+}
+
 if [ "$CHECK_ONLY" = "1" ]; then
+    bold "NapCat（QQ 侧，只读）"
+    if [ -x "$NAPCAT_DIR/opt/QQ/qq" ]; then
+        napcat_report status || true
+    else
+        info "未安装（$NAPCAT_DIR/opt/QQ/qq 不存在）"
+    fi
     echo
     echo "只自检，不启动。"
     exit 0
 fi
 
 # ---- 3. NapCat ----
+#
+# ⚠️ **判据是 3000 端口，不是进程在不在。** 2026-10-17 撞过：QQ 进程活着，
+# 账号却已掉线，OneBot 适配器根本没起来 —— 旧版用 `pgrep` 判活，报「运行中」，
+# 一路绿灯，机器人一条消息都收不到。判据收在 `saya/napcat.py` 一处。
 bold "NapCat（QQ 侧）"
-if pgrep -f "opt/QQ/qq" >/dev/null 2>&1; then
-    echo "  运行中（QQ $QQ）"
-elif [ -x "$NAPCAT_DIR/opt/QQ/qq" ]; then
-    echo "  未运行，启动中…"
-    mkdir -p "$NAPCAT_DIR/log"
-    (cd "$NAPCAT_DIR" && setsid nohup xvfb-run -a "$NAPCAT_DIR/opt/QQ/qq" --no-sandbox -q "$QQ" \
-        >"$NAPCAT_DIR/log/manual-start.log" 2>&1 &)
-    echo "  已启动（日志：$NAPCAT_DIR/log/manual-start.log）"
-    echo "  ⚠️ 如果这是重启 WSL 后的第一次，可能需要在 WebUI 再扫一次码"
-else
+if [ ! -x "$NAPCAT_DIR/opt/QQ/qq" ]; then
     fail "找不到 NapCat（$NAPCAT_DIR/opt/QQ/qq）。先装 NapCat，见 docs/04。"
     exit 1
+fi
+if ! napcat_report ensure; then
+    echo
+    echo "  ⚠️ QQ 侧未就绪。机器人照常启动，但在 NapCat 登录之前收不到任何消息。"
+    echo "     处理：打开 http://127.0.0.1:6099/webui 扫码登录，再回来执行 status。"
 fi
 
 # ---- 4. 启动 ----

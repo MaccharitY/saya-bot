@@ -28,6 +28,7 @@ sys.path.insert(0, str(PROJECT_MAIN / "src"))
 # ⚠️ 这个脚本**不能叫 saya.py** —— 会和 src/saya/ 这个包同名，
 #    于是 `from saya import ...` 导到的是包，不是它。实测撞过。
 from panel import Supervisor, serve  # noqa: E402
+from saya import napcat  # noqa: E402
 
 SAMPLE = (
     "SAYA_LLM_API_KEY=sk-not-a-real-key\n"
@@ -81,6 +82,12 @@ class Fixture(unittest.TestCase):
         patcher = mock.patch("panel._port_open", return_value=False)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # ⚠️ QQ 侧同样打桩。不打的话 `status` 会去 `pgrep`、连 3000/6099，
+        # 测试就变成"看这台机器上恰好有没有在跑 NapCat"。
+        self.napcat = napcat.State(installed=True, pids=(), onebot=False, webui=False)
+        patcher = mock.patch("panel.napcat.probe", side_effect=lambda *a, **k: self.napcat)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.sup = Supervisor(
             env_path=self.env_path,
             lock_path=self.lock_path,
@@ -118,6 +125,86 @@ class DispatchTest(Fixture):
 
     def test_empty_line_is_a_no_op(self):
         self.assertEqual(self.sup.handle("   ").lines, ())
+
+
+class NapCatTest(Fixture):
+    """QQ 侧的启停与状态。
+
+    ⚠️ 2026-10-17 的事故：QQ 进程活着、账号掉线，机器人一条消息都收不到，
+    而控制台只报「运行中」。所以 `status` 必须**两行一起报**。
+    """
+
+    def test_status_reports_both_sides(self):
+        text = "\n".join(self.sup.handle("status").lines)
+        self.assertIn("未运行", text)  # 机器人
+        self.assertIn("NapCat", text)  # QQ 侧
+
+    def test_status_shows_qq_side_separately_from_the_bot(self):
+        self.napcat = napcat.State(
+            installed=True, pids=(900,), onebot=False, webui=True, elapsed=600
+        )
+        text = "\n".join(self.sup.handle("status").lines)
+        self.assertIn("未就绪", text)
+        self.assertIn("没登录", text)
+
+    def test_napcat_command_reports_state(self):
+        self.napcat = napcat.State(
+            installed=True, pids=(900,), onebot=True, webui=True, elapsed=60
+        )
+        text = "\n".join(self.sup.handle("napcat").lines)
+        self.assertIn("就绪", text)
+
+    def test_stop_and_restart_need_confirmation(self):
+        for command, action in (
+            ("napcat stop", "napcat-stop"),
+            ("napcat restart", "napcat-restart"),
+        ):
+            outcome = self.sup.handle(command)
+            self.assertEqual(outcome.confirm, action)
+            self.assertIn("[y/N]", outcome.question)
+
+    def test_restart_warns_about_logging_in_again(self):
+        """重启不保证自动登录 —— 必须提前说，不然人以为只是重启一下。"""
+        self.assertIn("重新登录", self.sup.handle("napcat restart").question)
+
+    def test_unknown_subcommand_is_rejected(self):
+        outcome = self.sup.handle("napcat teleport")
+        self.assertFalse(outcome.ok)
+        self.assertIn("status", "\n".join(outcome.lines))
+
+    def test_start_without_qq_number_refuses(self):
+        outcome = self.sup.handle("napcat start")
+        self.assertFalse(outcome.ok)
+        self.assertIn("SAYA_SELF_ID", "\n".join(outcome.lines))
+
+    def test_start_uses_the_qq_number_from_env(self):
+        with mock.patch.object(self.sup, "self_qq", return_value="123456"):
+            with mock.patch(
+                "panel.napcat.start",
+                return_value=napcat.State(
+                    installed=True, pids=(900,), onebot=True, webui=True
+                ),
+            ) as started:
+                outcome = self.sup.handle("napcat start")
+        started.assert_called_once()
+        self.assertEqual(started.call_args.args[0], "123456")
+        self.assertTrue(outcome.ok)
+
+    def test_confirmed_stop_calls_napcat_stop(self):
+        with mock.patch(
+            "panel.napcat.stop",
+            return_value=napcat.State(installed=True, pids=(), onebot=False, webui=False),
+        ) as stopped:
+            outcome = self.sup.confirmed("napcat-stop")
+        stopped.assert_called_once()
+        self.assertIn("未运行", "\n".join(outcome.lines))
+
+    def test_qq_side_is_not_tied_to_the_panel(self):
+        """退出控制台只带走机器人 —— NapCat 留着（它揣着登录态）。"""
+        with mock.patch("panel.napcat.stop") as napcat_stop:
+            outcome = self.sup.confirmed("quit")
+        self.assertTrue(outcome.stop)
+        napcat_stop.assert_not_called()
 
 
 class OwnershipTest(Fixture):

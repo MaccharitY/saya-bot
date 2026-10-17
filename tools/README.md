@@ -19,7 +19,7 @@
 |---|---|
 | `saya_bot_controller.bat`（**仓库根目录**） | 启停机器人 + 改设置，双击即用 |
 | `start_saya.bat` / `start_saya.sh` | 只管把机器人拉起来（不经控制台） |
-| `panel.py` | 常驻控制台 —— `saya_bot_controller.bat` 调的就是它 |
+| `panel.py` | 常驻控制台 —— 启停机器人 + 改设置 + QQ 侧（NapCat）启停 |
 | `config.py` | 离线改设置（机器人**没在跑**时用） |
 | **`fetch.py`** | **抓网页转文本。本机 `WebFetch` 工具不通，要读网页正文就用它** |
 | `notes.py` | 查 / 删长期记忆 |
@@ -82,6 +82,9 @@ bash tools/start_saya.sh --check    # 只自检（不碰 NapCat、不启动、�
 命令行匹配只作兜底 —— 进程名是相对的 `run.py`，光靠它认不准。
 
 QQ 号从 `project_main/.env` 的 `SAYA_SELF_ID` 读，不写死在脚本里。
+
+**第三步（QQ 侧）调的是 `python -m saya.napcat ensure`**，判据与面板同一份
+（见下面 `panel.py` 的「QQ 侧」）。`--check` 只做**只读**探测，不启动、不停止。
 
 ### `fetch_arcaea_corpus.py` —— 把剧情原件切成可检索的语料库
 
@@ -190,10 +193,38 @@ python3 tools/panel.py
   start            启动机器人（日志就在这一屏）
   end              停掉它            ← 要确认
   restart          重启（用现在这份代码）← 要确认
-  status           在跑吗、跑了多久
+  status           机器人与 QQ 侧一起报
   quit             退出控制台（**机器人一起停**）← 要确认
+  napcat [start|stop|restart]   QQ 侧（NapCat）
   show / group / admin / friend / keyword / prob / rate / help
 ```
+
+#### QQ 侧（NapCat）：判据是端口，不是进程
+
+**为什么加这一块**：2026-10-17 上午，机器人进程在、8080 在听、控制台报
+「运行中」—— 但群里一条都没回。真因是 **QQ 账号掉线**，
+NapCat 的 OneBot 适配器（`:3000`）没起来，事件根本到不了机器人。
+旧判活是 `pgrep -f "opt/QQ/qq"`：**进程在 = 运行中**，看不出这个。
+
+现在判据只有一条：**`3000` 端口上有人在听**。状态分四种：
+
+| 看到什么 | 意思 |
+|---|---|
+| `就绪` | QQ 通着，机器人能收发 |
+| `启动中` | 进程在、端口还没开、且起来不到 90 秒 |
+| `未就绪` | 进程在、端口没开、已超过 90 秒 —— **多半是没登录** |
+| `未运行` | 没有 QQ 进程 |
+
+**⚠️ NapCat 不跟着控制台一起退出。** 机器人是"前端走了就跟着走"
+（ADR-026），NapCat 反过来：它揣着 QQ 登录态，重启**不保证**自动登录。
+所以 `quit` / 关窗口只带走机器人。
+
+登录这一步本模块不碰 —— 要扫码就开
+`http://127.0.0.1:6099/webui`。细节与判断理由见
+[`../docs/01-architecture.md`](../docs/01-architecture.md) **ADR-041**。
+
+判据与启停的实现在 `project_main/src/saya/napcat.py`，
+面板和 `start_saya.sh` **共用这一份**，不再各写一个 `pgrep`。
 
 启动时会**自动报到一次**（等于替你敲了一遍 `status`），
 所以一进来看见的就是当前状态，不用先敲一下。

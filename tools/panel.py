@@ -71,6 +71,7 @@ sys.path.insert(0, str(REPO_ROOT / "project_main" / "src"))
 from saya.console import prepare_console  # noqa: E402
 from saya.envfile import EnvFile  # noqa: E402
 from saya.manage import run as run_manage  # noqa: E402
+from saya import napcat  # noqa: E402
 from saya.watchdog import pid_is_alive  # noqa: E402
 
 PREFIX = "  "
@@ -212,6 +213,8 @@ class Supervisor:
         env_path: Path = DEFAULT_ENV,
         start_script: Path = START_SCRIPT,
         lock_path: Path = LOCK_PATH,
+        napcat_dir: Path | None = None,
+        napcat_wait: float = napcat.DEFAULT_WAIT,
         output=print,
     ) -> None:
         self.env_path = env_path
@@ -219,6 +222,8 @@ class Supervisor:
         # 动到正在跑的那个实例 —— 测试不该碰用户机器上的任何东西。
         self.start_script = start_script
         self.lock_path = lock_path
+        self.napcat_dir = napcat_dir or napcat.default_dir()
+        self.napcat_wait = napcat_wait
         self._output = output
         self._child: subprocess.Popen | None = None
         self._started_at: float | None = None
@@ -434,6 +439,16 @@ class Supervisor:
         return replace(started, lines=stopped.lines + started.lines)
 
     def status(self) -> Outcome:
+        """机器人与 QQ 侧**一起报**。
+
+        ⚠️ 2026-10-17 那次事故的教训：只报机器人，会得到"运行中"
+        而 QQ 那头其实早就掉线了 —— 机器人活着，但一条消息都收不到。
+        两行并排看，这种"半边活着"一眼就能看出来。
+        """
+        outcome = self._bot_status()
+        return replace(outcome, lines=outcome.lines + tuple(self.napcat_lines()))
+
+    def _bot_status(self) -> Outcome:
         if not self.running:
             stray = self.stray_bot()
             if stray is not None:
@@ -452,6 +467,88 @@ class Supervisor:
         elapsed = int(time.monotonic() - (self._started_at or time.monotonic()))
         minutes, seconds = divmod(elapsed, 60)
         return _say(f"运行中（PID {self._child.pid}），已运行 {minutes} 分 {seconds} 秒。")
+
+    # ---- QQ 侧（NapCat）----
+    #
+    # ⚠️ **它不跟着这个窗口一起死。** 机器人是"前端走了就跟着走"（ADR-026），
+    # NapCat 正相反：它揣着 QQ 登录态，重启之后不保证能自动登录。
+    # 所以这里只有人叫它停才停。
+
+    def self_qq(self) -> str:
+        """QQ 号。和 `start_saya.sh` 一样，从 `.env` 的 `SAYA_SELF_ID` 读。"""
+        try:
+            return (EnvFile(self.env_path).get("SAYA_SELF_ID") or "").strip()
+        except (OSError, ValueError):
+            return ""
+
+    def napcat_state(self) -> napcat.State:
+        return napcat.probe(self.napcat_dir)
+
+    def napcat_lines(self) -> list[str]:
+        try:
+            state = self.napcat_state()
+        except Exception:  # noqa: BLE001 - 状态查不出来不该掀翻控制台
+            logger.exception("NapCat 状态探测失败")
+            return ["NapCat：状态查不出来（详见日志）。"]
+        return napcat.describe(state, napcat_dir=self.napcat_dir)
+
+    def napcat_start(self) -> Outcome:
+        qq = self.self_qq()
+        if not qq:
+            return Outcome(
+                lines=(".env 里没有 SAYA_SELF_ID，无法启动 NapCat。",), ok=False
+            )
+        try:
+            state = napcat.start(qq, napcat_dir=self.napcat_dir, wait=self.napcat_wait)
+        except FileNotFoundError as exc:
+            return Outcome(lines=(f"找不到 NapCat：{exc}",), ok=False)
+        return Outcome(
+            lines=tuple(napcat.describe(state, napcat_dir=self.napcat_dir)),
+            ok=state.ready,
+        )
+
+    def napcat_stop(self) -> Outcome:
+        try:
+            state = napcat.stop(napcat_dir=self.napcat_dir)
+        except OSError as exc:
+            return Outcome(lines=(f"停不掉：{exc}",), ok=False)
+        return Outcome(lines=tuple(napcat.describe(state, napcat_dir=self.napcat_dir)))
+
+    def napcat_restart(self) -> Outcome:
+        qq = self.self_qq()
+        if not qq:
+            return Outcome(
+                lines=(".env 里没有 SAYA_SELF_ID，无法启动 NapCat。",), ok=False
+            )
+        try:
+            state = napcat.restart(qq, napcat_dir=self.napcat_dir, wait=self.napcat_wait)
+        except (FileNotFoundError, OSError) as exc:
+            return Outcome(lines=(f"重启失败：{exc}",), ok=False)
+        return Outcome(
+            lines=tuple(napcat.describe(state, napcat_dir=self.napcat_dir)),
+            ok=state.ready,
+        )
+
+    def napcat_command(self, args: list[str]) -> Outcome:
+        action = args[0].lower() if args else "status"
+        if action in ("", "status"):
+            return _say(*self.napcat_lines())
+        if action == "start":
+            return self.napcat_start()
+        if action == "stop":
+            return Outcome(
+                confirm="napcat-stop",
+                question="确认停止 NapCat？QQ 会下线，重新登录可能要扫码。 [y/N]",
+            )
+        if action == "restart":
+            return Outcome(
+                confirm="napcat-restart",
+                question="确认重启 NapCat？重启后可能需要在 WebUI 重新登录。 [y/N]",
+            )
+        return Outcome(
+            lines=(f"不认识：napcat {action}（可用 status / start / stop / restart）",),
+            ok=False,
+        )
 
     def _pump(self) -> None:
         """把子进程的输出原样搬到我们这屏。**读到 EOF 就结束**（进程没了）。"""
@@ -528,6 +625,8 @@ class Supervisor:
             )
         if name == "status":
             return self.status()
+        if name == "napcat":
+            return self.napcat_command(args)
         if name == "quit":
             return Outcome(
                 confirm="quit",
@@ -547,6 +646,10 @@ class Supervisor:
         if action == "takeover":
             # 用户确认过要接管那个无头实例
             return self.start(take_over=True)
+        if action == "napcat-stop":
+            return self.napcat_stop()
+        if action == "napcat-restart":
+            return self.napcat_restart()
         return Outcome()
 
 
@@ -556,10 +659,17 @@ USAGE = "\n".join(
         "  start            启动 bot（日志输出至本终端）",
         "  end              停止 bot（需确认）",
         "  restart          重启（使用当前代码，需确认）",
-        "  status           查看运行状态",
+        "  status           查看运行状态（bot 与 QQ 侧一起报）",
         "  quit             退出控制台（bot 同时终止，需确认）",
         "",
+        "QQ 侧（NapCat）：",
+        "  napcat           查看 QQ 侧状态（进程 / 登录 / 端口）",
+        "  napcat start     启动 NapCat（已在跑则只等就绪）",
+        "  napcat stop      停止 NapCat（需确认）",
+        "  napcat restart   重启 NapCat（需确认，可能要在 WebUI 重新登录）",
+        "",
         "[!] bot 会在此终端退出时同时终止。",
+        "[!] NapCat 不会 —— 它揣着 QQ 登录态，重启不保证自动登录。",
         "",
         "设置命令（与 bot 终端内命令一致）：",
         "  show                       查看当前配置",
@@ -634,6 +744,10 @@ def _report_on_startup(sup: Supervisor, output) -> str | None:
         for line in prompt.lines:
             output(f"{PREFIX}{line}")
         output(f"{PREFIX}{prompt.question}")
+        # ⚠️ QQ 侧照报 —— "机器人在跑"和"QQ 通着"是两件事，
+        # 2026-10-17 就是只看见前一件才没发现后一件已经断了。
+        for line in sup.napcat_lines():
+            output(f"{PREFIX}{line}")
         return prompt.confirm
     for line in sup.status().lines:
         output(f"{PREFIX}{line}")
@@ -698,7 +812,9 @@ BANNER = """
 ─────────────────────────────────────────────
  saya 控制台--输入 help 查看命令。
  start / end / restart / quit / status
+ napcat [start|stop|restart]   QQ 侧
  [!] bot 会在此终端退出时同时终止
+ [!] NapCat 不会（它揣着 QQ 登录态）
 ─────────────────────────────────────────────"""
 
 
@@ -709,6 +825,9 @@ def main(argv: list[str] | None = None) -> int:
         "--start-script", help="换个启动脚本（测试用）"
     )
     parser.add_argument(
+        "--napcat-dir", help="NapCat 安装目录（默认 $NAPCAT_DIR 或 ~/Napcat）"
+    )
+    parser.add_argument(
         "command", nargs="*", help="不给就进交互模式；给了就跑一条命令然后退出"
     )
     args = parser.parse_args(argv)
@@ -716,6 +835,7 @@ def main(argv: list[str] | None = None) -> int:
     sup = Supervisor(
         env_path=Path(args.env).resolve() if args.env else DEFAULT_ENV,
         start_script=Path(args.start_script).resolve() if args.start_script else START_SCRIPT,
+        napcat_dir=Path(args.napcat_dir).resolve() if args.napcat_dir else None,
     )
 
     # 非交互：跑一条就走（给脚本和测试用）。**不碰机器人、也不占锁** ——

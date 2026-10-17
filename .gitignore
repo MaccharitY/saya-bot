@@ -68,3 +68,7 @@ desktop.ini
 # 要求内容已提取进 pre/00-course-requirements.md，日常查那个就够。
 pre/requirement/*.jpg
 pre/requirement/*.png
+
+# ---- 本机工具设置 ----
+# Claude 桌面端会往这里写本机授权记录，因人而异，不该进仓库。
+.claude/settings.local.json
