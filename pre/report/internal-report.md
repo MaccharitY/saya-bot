@@ -288,7 +288,12 @@ python project_main/experiment/analyze.py --results ... --field judge \
   --confirm-tier counting --primary delegated direct
 ```
 
-要记进报告的三件套：**manifest 哈希 `63485f0af464`、后端指纹 `e72d3c7f…`、git 提交号**。
+要记进报告的三件套：**manifest 哈希 `63485f0af464`、后端指纹 `e72d3c7f…`、
+git 提交号 `94a57f5-dirty`**。
+
+> ⚠️ `-dirty` 不是笔误：三轮都跑在 2026-10-17 晚，工作区里带着后来提交为 `v0.1.3`
+> 的识图改动（检测器/设备可配、云 OCR）。这些改动就是第三轮换强工具的前提，
+> 但当时还没提交。报告里照实写，**不要写成"跑在 `v0.1.3` 上"**。
 
 ---
 
