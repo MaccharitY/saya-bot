@@ -76,6 +76,24 @@ class NameSpellingTest(unittest.TestCase):
         self.assertIn("名字只写", persona.system_prompt())
 
 
+class RuleScopeTest(unittest.TestCase):
+    """规则只放**行为边界**，性格归 `persona/saya.md` 正文（ADR-043）。
+
+    ⚠️ 所有者 2026-10-17 叫停："不再加性格补丁，直接在原始提示里减烈加温。"
+    而原来的第一条规则里就藏着一句「不要每次都热情过头」—— 那是在**压温度**，
+    跟要的方向正好相反，而且正文里根本看不见。
+    """
+
+    def test_default_rules_do_not_lower_the_temperature(self):
+        text = "\n".join(DEFAULT_PERSONA.rules)
+        self.assertNotIn("热情过头", text)
+
+    def test_default_rules_still_hold_the_boundaries(self):
+        text = "\n".join(DEFAULT_PERSONA.rules)
+        for boundary in ("语言", "不知道", "不要复述"):
+            self.assertIn(boundary, text)
+
+
 class SelfAwarenessTest(unittest.TestCase):
     """模型得知道自己实际上是什么，**但不许对群友说**。
 
