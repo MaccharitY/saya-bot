@@ -72,14 +72,14 @@ def main() -> int:
     print("| 路线 | " + " | ".join(sets) + " |")
     print("|---|" + "---:|" * len(sets))
     for route in ("D", "B", "C"):
-        cells = " | ".join(f"{accuracy(data, route, TIERS):.0%}" for data in sets.values())
+        cells = " | ".join(f"{accuracy(data, route, TIERS)*100:.1f}%" for data in sets.values())
         print(f"| {route} | {cells} |")
 
     print("\n## 去掉 OCR 层（90 题，三层等权）\n")
     print("| 路线 | " + " | ".join(sets) + " |")
     print("|---|" + "---:|" * len(sets))
     for route in ("D", "B", "C"):
-        cells = " | ".join(f"{accuracy(data, route, NO_OCR):.0%}" for data in sets.values())
+        cells = " | ".join(f"{accuracy(data, route, NO_OCR)*100:.1f}%" for data in sets.values())
         print(f"| {route} | {cells} |")
 
     print("\n## 单变量对照（百分点）\n")
@@ -95,7 +95,7 @@ def main() -> int:
             deltas = []
             for route in ("D", "B", "C"):
                 delta = accuracy(sets[after], route, tiers) - accuracy(sets[before], route, tiers)
-                deltas.append(f"{delta:+.0%}")
+                deltas.append(f"{delta*100:+.1f}pp")
             print(f"| {label} | {name} | {' | '.join(deltas)} |")
     return 0
 
