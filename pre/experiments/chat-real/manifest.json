@@ -1,0 +1,602 @@
+[
+  {
+    "id": "s01",
+    "tier": "photo",
+    "file": "images/sample/s01.jpg",
+    "question": "图中有几个正圆形徽章？",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s02",
+    "tier": "chart_doc",
+    "file": "images/sample/s02.jpg",
+    "question": "表格第四列第三行的文字是什么？",
+    "expect_keywords": [
+      "能熟练运用互联网找到自己想找的任何资源"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s03",
+    "tier": "text_screenshot",
+    "file": "images/sample/s03.jpg",
+    "question": "视频画面中央的活动名称是什么？",
+    "expect_keywords": [
+      "公开预选·本土联赛"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s04",
+    "tier": "chart_doc",
+    "file": "images/sample/s04.jpg",
+    "question": "这份文件的标题是什么？",
+    "expect_keywords": [
+      "上海市营业性演出准予许可决定"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s05",
+    "tier": "text_screenshot",
+    "file": "images/sample/s05.jpg",
+    "question": "画面中 BEST TOP10 AVG 的数值是多少？",
+    "expect_keywords": [
+      "13.17381"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s06",
+    "tier": "text_screenshot",
+    "file": "images/sample/s06.png",
+    "question": "代码中 count_k(3,3) 的返回值是多少？",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s07",
+    "tier": "text_screenshot",
+    "file": "images/sample/s07.jpg",
+    "question": "列表中第一位群友的课程状态是什么？",
+    "expect_keywords": [
+      "进行中"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s08",
+    "tier": "photo",
+    "file": "images/sample/s08.jpg",
+    "question": "图片中的笔放在书的哪一侧？",
+    "expect_keywords": [
+      "右侧"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s09",
+    "tier": "text_screenshot",
+    "file": "images/sample/s09.jpg",
+    "question": "列表中共有几位群友？",
+    "expect_keywords": [
+      "7"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s10",
+    "tier": "text_screenshot",
+    "file": "images/sample/s10.jpg",
+    "question": "图中这座山叫什么？",
+    "expect_keywords": [
+      "飞白峰"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s11",
+    "tier": "text_screenshot",
+    "file": "images/sample/s11.jpg",
+    "question": "这条帖文的点赞数是多少？",
+    "expect_keywords": [
+      "245"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s12",
+    "tier": "text_screenshot",
+    "file": "images/sample/s12.jpg",
+    "question": "列表中有几位群友的状态是「进行中」？",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s13",
+    "tier": "text_screenshot",
+    "file": "images/sample/s13.jpg",
+    "question": "新闻标题中提到的汽车型号是什么？",
+    "expect_keywords": [
+      "V800"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s14",
+    "tier": "text_screenshot",
+    "file": "images/sample/s14.png",
+    "question": "邮件中论坛的举办日期是哪一天？",
+    "expect_keywords": [
+      "2026年10月16日"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s15",
+    "tier": "chart_doc",
+    "file": "images/sample/s15.jpg",
+    "question": "海报上展示的服饰名称是什么？",
+    "expect_keywords": [
+      "源远流长"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s16",
+    "tier": "text_screenshot",
+    "file": "images/sample/s16.jpg",
+    "question": "列表中「璃梦」的下一节课是什么？",
+    "expect_keywords": [
+      "计算机网络安全"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s17",
+    "tier": "chart_doc",
+    "file": "images/sample/s17.jpg",
+    "question": "图表中 DeepSeek V41 Flash-1017 在 max 下的通过率是多少？",
+    "expect_keywords": [
+      "77.0%"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s18",
+    "tier": "text_screenshot",
+    "file": "images/sample/s18.jpg",
+    "question": "这条帖文的查看次数是多少？",
+    "expect_keywords": [
+      "10.4K"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s19",
+    "tier": "text_screenshot",
+    "file": "images/sample/s19.jpg",
+    "question": "列表中的第一位群友是谁？",
+    "expect_keywords": [
+      "Kagura"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s20",
+    "tier": "text_screenshot",
+    "file": "images/sample/s20.jpg",
+    "question": "帖子标题说 Claude 支持什么卡？",
+    "expect_keywords": [
+      "银联卡"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s21",
+    "tier": "text_screenshot",
+    "file": "images/sample/s21.png",
+    "question": "邮件中提到的羽毛球友谊赛对手是哪个书院？",
+    "expect_keywords": [
+      "Striver College（奋斗者书院）"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s22",
+    "tier": "chart_doc",
+    "file": "images/sample/s22.jpg",
+    "question": "这是第几届该活动？",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s23",
+    "tier": "text_screenshot",
+    "file": "images/sample/s23.jpg",
+    "question": "屏幕上显示的许可证类型是什么？",
+    "expect_keywords": [
+      "Educational Pack License"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s24",
+    "tier": "text_screenshot",
+    "file": "images/sample/s24.png",
+    "question": "页面显示审批通过后多少小时权益生效？",
+    "expect_keywords": [
+      "72小时"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s25",
+    "tier": "text_screenshot",
+    "file": "images/sample/s25.jpg",
+    "question": "锁屏上显示的日落时间是几点？",
+    "expect_keywords": [
+      "18:06"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s26",
+    "tier": "text_screenshot",
+    "file": "images/sample/s26.jpg",
+    "question": "推文称 OpenAI 证明了什么？",
+    "expect_keywords": [
+      "optimal packing for 16 squares"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s27",
+    "tier": "text_screenshot",
+    "file": "images/sample/s27.jpg",
+    "question": "新闻中提到肯德基从什么时候开始更换饮料供应商？",
+    "expect_keywords": [
+      "2027年1月"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s28",
+    "tier": "text_screenshot",
+    "file": "images/sample/s28.png",
+    "question": "文字中「9」出现了几次？",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s29",
+    "tier": "text_screenshot",
+    "file": "images/sample/s29.png",
+    "question": "弹窗右下角的按钮文字是什么？",
+    "expect_keywords": [
+      "确定"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s30",
+    "tier": "other",
+    "file": "images/sample/s30.jpg",
+    "question": "图中装甲的等效厚度是多少毫米？",
+    "expect_keywords": [
+      "325"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s31",
+    "tier": "photo",
+    "file": "images/sample/s31.jpg",
+    "question": "动态里提到的 ISO 是多少？",
+    "expect_keywords": [
+      "3200"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s32",
+    "tier": "text_screenshot",
+    "file": "images/sample/s32.png",
+    "question": "画面中面向镜头的角色有几位？",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s33",
+    "tier": "photo",
+    "file": "images/sample/s33.png",
+    "question": "视频通话画面中一共有几个人？",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s34",
+    "tier": "photo",
+    "file": "images/sample/s34.jpg",
+    "question": "屏幕上的时间显示为几点？",
+    "expect_keywords": [
+      "18:20"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s35",
+    "tier": "text_screenshot",
+    "file": "images/sample/s35.jpg",
+    "question": "画面中展示的是哪位角色的新装？",
+    "expect_keywords": [
+      "黍"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s36",
+    "tier": "photo",
+    "file": "images/sample/s36.jpg",
+    "question": "照片前景的铁栏杆上有什么标志？",
+    "expect_keywords": [
+      "禁止吸烟"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s37",
+    "tier": "meme",
+    "file": "images/sample/s37.jpg",
+    "question": "图中的角色在敬礼吗？",
+    "expect_keywords": [
+      "是"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s38",
+    "tier": "photo",
+    "file": "images/sample/s38.jpg",
+    "question": "图中占最大画幅的是什么？",
+    "expect_keywords": [
+      "草地"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s39",
+    "tier": "photo",
+    "file": "images/sample/s39.jpg",
+    "question": "照片中钥匙扣上的角色有几位？",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s40",
+    "tier": "text_screenshot",
+    "file": "images/sample/s40.jpg",
+    "question": "画面中显示了几颗星？",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s41",
+    "tier": "photo",
+    "file": "images/sample/s41.jpg",
+    "question": "图中的车辆属于哪个部门？",
+    "expect_keywords": [
+      "公安"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s42",
+    "tier": "meme",
+    "file": "images/sample/s42.jpg",
+    "question": "角色说的是什么？",
+    "expect_keywords": [
+      "咕噜咕噜"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s43",
+    "tier": "photo",
+    "file": "images/sample/s43.jpg",
+    "question": "照片里有人爬到树上吗？",
+    "expect_keywords": [
+      "有"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s44",
+    "tier": "photo",
+    "file": "images/sample/s44.jpg",
+    "question": "图中手形物体的袖子是什么颜色？",
+    "expect_keywords": [
+      "白色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s45",
+    "tier": "meme",
+    "file": "images/sample/s45.jpg",
+    "question": "人物的头发是什么颜色？",
+    "expect_keywords": [
+      "白色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s46",
+    "tier": "meme",
+    "file": "images/sample/s46.jpg",
+    "question": "角色的头发是什么颜色？",
+    "expect_keywords": [
+      "金色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s47",
+    "tier": "meme",
+    "file": "images/sample/s47.jpg",
+    "question": "角色的头发是什么颜色？",
+    "expect_keywords": [
+      "粉色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s48",
+    "tier": "meme",
+    "file": "images/sample/s48.jpg",
+    "question": "图中两个交通标志分别是什么？",
+    "expect_keywords": [
+      "掉头和禁止掉头"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s49",
+    "tier": "meme",
+    "file": "images/sample/s49.jpg",
+    "question": "角色面前的按钮是什么颜色？",
+    "expect_keywords": [
+      "红色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s50",
+    "tier": "meme",
+    "file": "images/sample/s50.jpg",
+    "question": "图中的文字是什么？",
+    "expect_keywords": [
+      "可是这个就是我，我在这里很委屈的"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s51",
+    "tier": "meme",
+    "file": "images/sample/s51.jpg",
+    "question": "图中有几个毛绒玩具？",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s52",
+    "tier": "meme",
+    "file": "images/sample/s52.jpg",
+    "question": "图中的角色是什么动物？",
+    "expect_keywords": [
+      "企鹅"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s53",
+    "tier": "meme",
+    "file": "images/sample/s53.jpg",
+    "question": "图中的动物在做什么？",
+    "expect_keywords": [
+      "打哈欠"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s54",
+    "tier": "meme",
+    "file": "images/sample/s54.jpg",
+    "question": "角色手里拿着什么？",
+    "expect_keywords": [
+      "薯片"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s55",
+    "tier": "meme",
+    "file": "images/sample/s55.jpg",
+    "question": "角色的头发是什么颜色？",
+    "expect_keywords": [
+      "黑色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s56",
+    "tier": "meme",
+    "file": "images/sample/s56.jpg",
+    "question": "角色的姿势是？",
+    "expect_keywords": [
+      "躺着"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s57",
+    "tier": "meme",
+    "file": "images/sample/s57.jpg",
+    "question": "图中是什么表情？",
+    "expect_keywords": [
+      "生气"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s58",
+    "tier": "meme",
+    "file": "images/sample/s58.jpg",
+    "question": "角色穿着什么颜色的校服？",
+    "expect_keywords": [
+      "白色/米色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s59",
+    "tier": "meme",
+    "file": "images/sample/s59.jpg",
+    "question": "图中的物体是什么颜色？",
+    "expect_keywords": [
+      "灰色"
+    ],
+    "match": "exact"
+  },
+  {
+    "id": "s60",
+    "tier": "meme",
+    "file": "images/sample/s60.jpg",
+    "question": "角色的眼睛是什么颜色？",
+    "expect_keywords": [
+      "蓝色"
+    ],
+    "match": "exact"
+  }
+]

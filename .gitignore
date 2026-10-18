@@ -84,3 +84,8 @@ pre/experiments/chat-real/images/
 
 # ---- 所有者提供的真实群聊图集（含个人信息，绝不入库） ----
 pre/experiments/testset/qqtestimg/
+
+# 真实工况实验：原始结果可能含图内文字，只提交聚合分析
+pre/experiments/chat-real/results*.jsonl
+pre/experiments/chat-real/annotated/
+pre/experiments/chat-real/labels.html

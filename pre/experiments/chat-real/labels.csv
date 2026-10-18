@@ -1,0 +1,61 @@
+sample_id,type,file,question,gold,needs_review
+s01,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293639793_759.jpg,图中有几个正圆形徽章？,3,0
+s02,chart_doc,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293672725_914.jpg,表格第四列第三行的文字是什么？,能熟练运用互联网找到自己想找的任何资源,0
+s03,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625197_578.jpg,视频画面中央的活动名称是什么？,公开预选·本土联赛,0
+s04,chart_doc,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293780468_50.jpg,这份文件的标题是什么？,上海市营业性演出准予许可决定,0
+s05,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293780522_320.jpg,画面中 BEST TOP10 AVG 的数值是多少？,13.17381,0
+s06,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293781109_695.png,"代码中 count_k(3,3) 的返回值是多少？",4,0
+s07,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625737_234.jpg,列表中第一位群友的课程状态是什么？,进行中,0
+s08,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293655034_441.jpg,图片中的笔放在书的哪一侧？,右侧,0
+s09,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613474_530.jpg,列表中共有几位群友？,7,0
+s10,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293797430_12.jpg,图中这座山叫什么？,飞白峰,0
+s11,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293672643_59.jpg,这条帖文的点赞数是多少？,245,0
+s12,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293655301_576.jpg,列表中有几位群友的状态是「进行中」？,5,0
+s13,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293797366_293.jpg,新闻标题中提到的汽车型号是什么？,V800,0
+s14,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293638182_73.png,邮件中论坛的举办日期是哪一天？,2026年10月16日,0
+s15,chart_doc,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805524_123.jpg,海报上展示的服饰名称是什么？,源远流长,0
+s16,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293780848_643.jpg,列表中「璃梦」的下一节课是什么？,计算机网络安全,0
+s17,chart_doc,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613145_707.jpg,图表中 DeepSeek V41 Flash-1017 在 max 下的通过率是多少？,77.0%,0
+s18,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293655081_535.jpg,这条帖文的查看次数是多少？,10.4K,0
+s19,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625755_494.jpg,列表中的第一位群友是谁？,Kagura,0
+s20,text_screenshot,pre/experiments/chat-real/images/sample/s20.jpg,帖子标题说 Claude 支持什么卡？,银联卡,0
+s21,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625198_796.png,邮件中提到的羽毛球友谊赛对手是哪个书院？,Striver College（奋斗者书院）,0
+s22,chart_doc,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805513_936.jpg,这是第几届该活动？,3,0
+s23,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293655024_222.jpg,屏幕上显示的许可证类型是什么？,Educational Pack License,0
+s24,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805549_842.png,页面显示审批通过后多少小时权益生效？,72小时,0
+s25,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805577_717.jpg,锁屏上显示的日落时间是几点？,18:06,0
+s26,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805543_853.jpg,推文称 OpenAI 证明了什么？,optimal packing for 16 squares,0
+s27,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625240_984.jpg,新闻中提到肯德基从什么时候开始更换饮料供应商？,2027年1月,0
+s28,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293797488_564.png,文字中「9」出现了几次？,2,0
+s29,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805683_530.png,弹窗右下角的按钮文字是什么？,确定,0
+s30,other,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293768631_658.jpg,图中装甲的等效厚度是多少毫米？,325,0
+s31,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293612794_614.jpg,动态里提到的 ISO 是多少？,3200,0
+s32,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613664_686.png,画面中面向镜头的角色有几位？,3,0
+s33,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293780526_612.png,视频通话画面中一共有几个人？,5,0
+s34,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805557_342.jpg,屏幕上的时间显示为几点？,18:20,0
+s35,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625802_400.jpg,画面中展示的是哪位角色的新装？,黍,0
+s36,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613347_655.jpg,照片前景的铁栏杆上有什么标志？,禁止吸烟,0
+s37,meme,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805578_61.jpg,图中的角色在敬礼吗？,是,0
+s38,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613243_238.jpg,图中占最大画幅的是什么？,草地,0
+s39,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293805501_92.jpg,照片中钥匙扣上的角色有几位？,2,0
+s40,text_screenshot,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293673520_663.jpg,画面中显示了几颗星？,2,0
+s41,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293625232_265.jpg,图中的车辆属于哪个部门？,公安,0
+s42,meme,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293672751_101.jpg,角色说的是什么？,咕噜咕噜,0
+s43,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293613453_145.jpg,照片里有人爬到树上吗？,有,0
+s44,photo,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293797352_293.jpg,图中手形物体的袖子是什么颜色？,白色,0
+s45,meme,pre/experiments/testset/qqtestimg/QQimgcommon/Image_1792293612867_551.jpg,人物的头发是什么颜色？,白色,0
+s46,meme,pre/experiments/chat-real/images/meme/meme_03_3.jpg,角色的头发是什么颜色？,金色,0
+s47,meme,pre/experiments/chat-real/images/meme/meme_28_2.jpg,角色的头发是什么颜色？,粉色,0
+s48,meme,pre/experiments/chat-real/images/meme/meme_31_2.jpg,图中两个交通标志分别是什么？,掉头和禁止掉头,0
+s49,meme,pre/experiments/chat-real/images/meme/meme_19_0.jpg,角色面前的按钮是什么颜色？,红色,0
+s50,meme,pre/experiments/chat-real/images/meme/meme_21_1.jpg,图中的文字是什么？,可是这个就是我，我在这里很委屈的,0
+s51,meme,pre/experiments/chat-real/images/meme/meme_09_3.jpg,图中有几个毛绒玩具？,2,0
+s52,meme,pre/experiments/chat-real/images/meme/meme_36_2.jpg,图中的角色是什么动物？,企鹅,0
+s53,meme,pre/experiments/chat-real/images/meme/meme_30_1.jpg,图中的动物在做什么？,打哈欠,0
+s54,meme,pre/experiments/chat-real/images/meme/meme_19_2.jpg,角色手里拿着什么？,薯片,0
+s55,meme,pre/experiments/chat-real/images/sample/s55.jpg,角色的头发是什么颜色？,黑色,0
+s56,meme,pre/experiments/chat-real/images/meme/meme_21_0.jpg,角色的姿势是？,躺着,1
+s57,meme,pre/experiments/chat-real/images/meme/meme_34_0.jpg,图中是什么表情？,生气,0
+s58,meme,pre/experiments/chat-real/images/meme/meme_35_1.jpg,角色穿着什么颜色的校服？,白色/米色,0
+s59,meme,pre/experiments/chat-real/images/meme/meme_18_1.jpg,图中的物体是什么颜色？,灰色,0
+s60,meme,pre/experiments/chat-real/images/meme/meme_08_1.jpg,角色的眼睛是什么颜色？,蓝色,0
