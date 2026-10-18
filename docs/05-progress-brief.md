@@ -23,7 +23,7 @@
   写报告时照实记，别写成"全部跑在某个 tag 上"。
   指纹那条决定了数据能不能自证"整轮是同一个后端"（四轮都是 `e72d3c7f…`）。
 
-### **实验已经跑完四轮**（这是当前最重要的事实）
+### **实验已经跑完四轮**（另有开放词表探针与真实工况）
 
 | 轮次 | 测试集 | 判据 | 专用工具 / 思考预算 | 结果（direct / delegated / hybrid） |
 |---|---|---|---|---|
@@ -31,8 +31,10 @@
 | 二 | PerceptionBench 120 题 | LLM 判官 | 同上 / 关 | 33% / **12%** / 36% |
 | 三 | 同二 | 同二 | **11x GPU + 百度云 OCR** / 关 | 32% / **11%** / 37% |
 | 四 | 同二 | 同二 | 同三 / **max** | **53% / 15% / 44%** |
+| 探针 | 同二，counting 30 题 | 同二 | 闭集旗舰 vs 开放词表 oracle | 0/30 vs **2/30**（p=0.5） |
+| 真实 | 60 张真实群聊图 | 判官 + 人工核对题目 | 11x + 云端 OCR / 关 | **83% / 48% / 82%** |
 
-**四个结论**：
+**五个结论**：
 
 1. **委派路线显著更差**：主分析（counting 层，delegated vs direct）风险差
    `max` **−0.567**（p = 0.0002）、`none` −0.300（p = 0.0052）。
@@ -53,7 +55,7 @@
 
 | 东西 | 路径 |
 |---|---|
-| **提交稿**（~1950 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
+| **提交稿**（~2230 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
 | **内部报告**（长版，写 slides 用） | [`../pre/report/internal-report.md`](../pre/report/internal-report.md) |
 | **过程流水**（为什么改、改成什么） | [`../pre/14-experiment-iteration-log.md`](../pre/14-experiment-iteration-log.md) |
 | 原始结果 + 判官结果（`none`） | `../pre/experiments/results-pb2{,-judged}.jsonl` |
