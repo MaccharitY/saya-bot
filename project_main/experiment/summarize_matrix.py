@@ -25,7 +25,7 @@ from pathlib import Path
 
 TIERS = ("counting", "localization", "fine", "ocr")
 NO_OCR = ("counting", "localization", "fine")
-ROUTE_MAP = {"direct": "D", "delegated": "B", "delegated-open": "B", "hybrid": "C", "hybrid-open": "C"}
+ROUTE_MAP = {"direct": "direct", "delegated": "delegated", "delegated-open": "delegated", "hybrid": "hybrid", "hybrid-open": "hybrid"}
 
 
 def load(path: str) -> dict[str, dict[str, bool]]:
@@ -71,14 +71,14 @@ def main() -> int:
     print("## 全部四层（120 题）\n")
     print("| 路线 | " + " | ".join(sets) + " |")
     print("|---|" + "---:|" * len(sets))
-    for route in ("D", "B", "C"):
+    for route in ("direct", "delegated", "hybrid"):
         cells = " | ".join(f"{accuracy(data, route, TIERS)*100:.1f}%" for data in sets.values())
         print(f"| {route} | {cells} |")
 
     print("\n## 去掉 OCR 层（90 题，三层等权）\n")
     print("| 路线 | " + " | ".join(sets) + " |")
     print("|---|" + "---:|" * len(sets))
-    for route in ("D", "B", "C"):
+    for route in ("direct", "delegated", "hybrid"):
         cells = " | ".join(f"{accuracy(data, route, NO_OCR)*100:.1f}%" for data in sets.values())
         print(f"| {route} | {cells} |")
 
@@ -88,12 +88,12 @@ def main() -> int:
         ("思考：第四轮 - 第三轮", "换强工具（第三轮）", "换思考（第四轮）"),
         ("词表：开放轮 - 第三轮", "换强工具（第三轮）", "换词表（开放轮）"),
     )
-    print("| 对照 | 层 | D | B | C |")
+    print("| 对照 | 层 | direct | delegated | hybrid |")
     print("|---|---|---:|---:|---:|")
     for label, before, after in comparisons:
         for name, tiers in (("全层", TIERS), ("去 OCR", NO_OCR)):
             deltas = []
-            for route in ("D", "B", "C"):
+            for route in ("direct", "delegated", "hybrid"):
                 delta = accuracy(sets[after], route, tiers) - accuracy(sets[before], route, tiers)
                 deltas.append(f"{delta*100:+.1f}pp")
             print(f"| {label} | {name} | {' | '.join(deltas)} |")
