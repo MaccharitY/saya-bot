@@ -20,8 +20,10 @@
 
 | 项 | 规定 |
 |---|---|
-| 来源 | 所有者提供的图集（群聊里真实出现过的图） |
-| 存放 | `pre/experiments/chat-real/images/`，**整目录 gitignore** |
+| 来源 | 所有者提供的图集：`pre/experiments/testset/qqtestimg/`（**整目录 gitignore**） |
+| 普通图 | `QQimgcommon/` —— 180 张 |
+| 表情包 | 长截图经 `project_main/experiment/split_memes.py` 切分 → `pre/experiments/chat-real/images/meme/`（**gitignore**），得 **148 张** |
+| 盘点 | `project_main/experiment/chat_workload_inventory.py` → `pre/experiments/chat-real/inventory.csv` |
 | 仓库里只留 | 聚合结果、哈希 ID、标注表、分析报告 |
 | 隐私 | 不记录 QQ 号、群号、昵称；图里若含个人信息，不转录、不引用 |
 | 动图 | 只取首帧，并在标注里记 `animated=1` |

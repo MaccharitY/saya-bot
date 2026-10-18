@@ -81,3 +81,6 @@ pre/experiments/testset/*.jsonl
 # ---- 真实群聊图集：只留聚合结果与标注表 ----
 # 原始图来自真实群聊，可能含个人信息；仓库里只提交哈希 ID 与统计。
 pre/experiments/chat-real/images/
+
+# ---- 所有者提供的真实群聊图集（含个人信息，绝不入库） ----
+pre/experiments/testset/qqtestimg/
