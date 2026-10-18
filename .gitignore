@@ -77,3 +77,7 @@ pre/requirement/*.png
 # PerceptionBench 单个 JSONL 1.6 GB（图是 base64 内嵌的），绝不能进仓库。
 # manifest 仍然提交 —— 它只有题目与答案，几万字。
 pre/experiments/testset/*.jsonl
+
+# ---- 真实群聊图集：只留聚合结果与标注表 ----
+# 原始图来自真实群聊，可能含个人信息；仓库里只提交哈希 ID 与统计。
+pre/experiments/chat-real/images/
