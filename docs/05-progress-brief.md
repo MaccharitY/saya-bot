@@ -32,20 +32,23 @@
 | 三 | 同二 | 同二 | **11x GPU + 百度云 OCR** / 关 | 32% / **11%** / 37% |
 | 四 | 同二 | 同二 | 同三 / **max** | **53% / 15% / 44%** |
 
-**三个结论**：
+**四个结论**：
 
 1. **委派路线显著更差**：主分析（counting 层，delegated vs direct）风险差
    `max` **−0.567**（p = 0.0002）、`none` −0.300（p = 0.0052）。
-2. **换强工具没有用**（12% → 11%）—— 上限在**词表**，不在精度。
+2. **换强工具没有用**（12% → 11%）—— 在闭集工具之间，上限在**词表**。
 3. **开满思考只救得了"看见图的路线"**：direct +21 点、hybrid +7 点，
    delegated 只 +4 点，counting 层 3% → 3%。推理补不回工具从未产出的信息。
    代价：direct 端到端 1.06 s → 33.9 s，成本 ¥0.07 → ¥9.97 / 120 题。
+4. **开放词表也没救回计数**（30 题探针）：闭集旗舰 0/30、开放词表 2/30，
+   McNemar p = 0.5，不显著。**词表是必要条件，不是充分条件** ——
+   计数瓶颈在检测器的实例枚举能力。按事先规则，没有扩到满测。
 
 ### 材料在哪
 
 | 东西 | 路径 |
 |---|---|
-| **提交稿**（~1200 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
+| **提交稿**（~1950 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
 | **内部报告**（长版，写 slides 用） | [`../pre/report/internal-report.md`](../pre/report/internal-report.md) |
 | **过程流水**（为什么改、改成什么） | [`../pre/14-experiment-iteration-log.md`](../pre/14-experiment-iteration-log.md) |
 | 原始结果 + 判官结果（`none`） | `../pre/experiments/results-pb2{,-judged}.jsonl` |
@@ -53,6 +56,8 @@
 | 原始结果 + 判官结果（`max`） | `../pre/experiments/results-pb-max{,-judged}.jsonl` |
 | 分析报告（`max`） | `../pre/experiments/analysis-pb-max.md` |
 | 30 题预试（max，counting） | `../pre/experiments/results-pb-max-counting{,-judged}.jsonl` |
+| 开放词表探针（30 题） | `../pre/experiments/results-open30{,-judged}.jsonl` |
+| 满测用 oracle 词表 | `../pre/experiments/pb/targets.json`、`manifest-open.json` |
 | 人工抽检表 | `../pre/experiments/review-pb/`、`review-coco/` |
 
 ### 下一步（按这个顺序）
