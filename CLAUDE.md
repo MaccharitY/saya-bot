@@ -24,6 +24,8 @@ QQ 群聊里以**个人账号**身份运行的对话机器人，核心模型 Dee
   —— 这里**不写具体条数**：数字天天变，写了就会腐烂，跑一下最准
 - 新增代码前先读 [`docs/05-progress-brief.md`](docs/05-progress-brief.md) —— 那是交接页，
   **先读它的第 0 节**
+- **实验总览**在 [`pre/01-overview.md`](pre/01-overview.md)；文档职责见
+  [`docs/06-doc-map.md`](docs/06-doc-map.md)
 - 最近更新：**2026-10-18**
 
 ## 硬约束
