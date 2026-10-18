@@ -30,11 +30,24 @@ from saya.services.llm import JSON, ChatResult, LLMClient, image_block, text_blo
 ROUTE_DIRECT = "direct"
 ROUTE_DELEGATED = "delegated"
 ROUTE_HYBRID = "hybrid"
+# ⚠️ 下面两个只在**实验**里用：同样的委派/混合，但把题目里的目标词表交给检测器
+# （YOLOE 一类开放词表模型）。机器人本体不暴露这两个视图模式 ——
+# 它们需要题目侧先给出词表，那是实验装置，不是运行时能力。
+ROUTE_DELEGATED_OPEN = "delegated-open"
+ROUTE_HYBRID_OPEN = "hybrid-open"
 
 ALL_ROUTES: tuple[str, ...] = (ROUTE_DIRECT, ROUTE_DELEGATED, ROUTE_HYBRID)
 # 三条都实现了。但后两条**需要配套的附属**（专用 CV 模型），没配会在调用时报错。
 IMPLEMENTED_ROUTES: tuple[str, ...] = ALL_ROUTES
 NEEDS_TOOLS: tuple[str, ...] = (ROUTE_DELEGATED, ROUTE_HYBRID)
+# 实验矩阵用这个：闭合词表与开放词表各一条，便于在同一份结果里比较
+EXPERIMENT_ROUTES: tuple[str, ...] = (
+    ROUTE_DIRECT,
+    ROUTE_DELEGATED,
+    ROUTE_DELEGATED_OPEN,
+    ROUTE_HYBRID,
+    ROUTE_HYBRID_OPEN,
+)
 
 # 官方支持 JPEG / PNG / GIF / WebP，且**按文件实际内容判断**，不看扩展名。
 # 请求体上限 48 MiB，base64 会放大约 1/3，所以原图留到这个数就够安全。
@@ -200,18 +213,29 @@ class Vision:
         *,
         route: str | None = None,
         system_prompt: str | None = None,
+        vocabulary: str = "",
     ) -> VisionResult:
-        """一张或多张图。群聊里一条消息常带好几张图，所以核心实现是多图的。"""
+        """一张或多张图。群聊里一条消息常带好几张图，所以核心实现是多图的。
+
+        `vocabulary` 只在开放词表实验里用：逗号分隔的目标类别，交给检测器。
+        为空时行为与以前完全一致。
+        """
         if not images:
             raise VisionError("没有提供任何图片")
 
         chosen = route or self._route
         if chosen == ROUTE_DIRECT:
             return self._describe_direct(list(images), question, system_prompt=system_prompt)
-        if chosen == ROUTE_DELEGATED:
-            return self._describe_delegated(list(images), question, system_prompt=system_prompt)
-        if chosen == ROUTE_HYBRID:
-            return self._describe_hybrid(list(images), question, system_prompt=system_prompt)
+        if chosen in (ROUTE_DELEGATED, ROUTE_DELEGATED_OPEN):
+            return self._describe_delegated(
+                list(images), question, system_prompt=system_prompt, route=chosen,
+                vocabulary=vocabulary,
+            )
+        if chosen in (ROUTE_HYBRID, ROUTE_HYBRID_OPEN):
+            return self._describe_hybrid(
+                list(images), question, system_prompt=system_prompt, route=chosen,
+                vocabulary=vocabulary,
+            )
         raise VisionError(f"未知的看图路线：{chosen}")
 
     def _require_tools(self, route: str) -> CvTools:
@@ -223,11 +247,17 @@ class Vision:
         return self._tools
 
     def _describe_delegated(
-        self, images: Sequence[ImageRef], question: str, *, system_prompt: str | None
+        self,
+        images: Sequence[ImageRef],
+        question: str,
+        *,
+        system_prompt: str | None,
+        route: str = ROUTE_DELEGATED,
+        vocabulary: str = "",
     ) -> VisionResult:
         """路线 B：**图片完全不进主模型**，附属把图变成文字，主模型只读文字。"""
-        tools = self._require_tools(ROUTE_DELEGATED)
-        evidence = self._collect_evidence(tools, images)
+        tools = self._require_tools(route)
+        evidence = self._collect_evidence(tools, images, vocabulary=vocabulary)
 
         messages: list[JSON] = []
         if system_prompt:
@@ -253,15 +283,22 @@ class Vision:
         )
 
         result = self._client.chat(messages, temperature=self._temperature)
-        return VisionResult.from_chat(result, route=ROUTE_DELEGATED)
+        return VisionResult.from_chat(result, route=route)
 
-    def _collect_evidence(self, tools: CvTools, images: Sequence[ImageRef]) -> str:
+    def _collect_evidence(
+        self, tools: CvTools, images: Sequence[ImageRef], *, vocabulary: str = ""
+    ) -> str:
         sections: list[str] = []
         for index, image in enumerate(images, start=1):
             local = self._ensure_local(image)
             label = f"第 {index} 张图" if len(images) > 1 else "图片"
             lines = [f"【{label}】"]
-            for title, call in (("目标检测", tools.detect), ("文字识别", tools.ocr)):
+
+            def detect(path, _vocabulary=vocabulary):
+                # 开放词表变体把题目里的目标类别交给检测器；闭合词表行为不变
+                return tools.detect(path, classes=_vocabulary) if _vocabulary else tools.detect(path)
+
+            for title, call in (("目标检测", detect), ("文字识别", tools.ocr)):
                 try:
                     lines.append(f"{title}：\n{call(local)}")
                 except CvToolsError as exc:
@@ -271,14 +308,20 @@ class Vision:
         return "\n\n".join(sections)
 
     def _describe_hybrid(
-        self, images: Sequence[ImageRef], question: str, *, system_prompt: str | None
+        self,
+        images: Sequence[ImageRef],
+        question: str,
+        *,
+        system_prompt: str | None,
+        route: str = ROUTE_HYBRID,
+        vocabulary: str = "",
     ) -> VisionResult:
         """路线 C：附属出**带编号的结构化产物**，主模型基于 [标注图 + 编号说明] 推理。
 
         与 Set-of-Mark（arXiv 2310.11441）的做法一致：先用现成模型出候选，
         再把带标记的图交给多模态模型。
         """
-        tools = self._require_tools(ROUTE_HYBRID)
+        tools = self._require_tools(route)
         blocks: list[JSON] = [text_block(question)]
         notes: list[str] = []
 
@@ -287,7 +330,11 @@ class Vision:
             annotated = self._cache_dir / "annotated" / f"{local.stem}.marked{index}.png"
             note = ""
             try:
-                note = tools.annotate(local, annotated)
+                note = (
+                    tools.annotate(local, annotated, classes=vocabulary)
+                    if vocabulary
+                    else tools.annotate(local, annotated)
+                )
             except CvToolsError as exc:
                 note = f"第 {index} 张图标注失败（{exc}），退回原图"
 
@@ -310,7 +357,7 @@ class Vision:
         messages.append({"role": "user", "content": blocks})
 
         result = self._client.chat(messages, temperature=self._temperature)
-        return VisionResult.from_chat(result, route=ROUTE_HYBRID)
+        return VisionResult.from_chat(result, route=route)
 
     def _describe_direct(
         self, images: Sequence[ImageRef], question: str, *, system_prompt: str | None
@@ -352,10 +399,13 @@ class Vision:
 
 
 __all__ = [
+    "EXPERIMENT_ROUTES",
     "IMPLEMENTED_ROUTES",
     "ROUTE_DELEGATED",
+    "ROUTE_DELEGATED_OPEN",
     "ROUTE_DIRECT",
     "ROUTE_HYBRID",
+    "ROUTE_HYBRID_OPEN",
     "Vision",
     "VisionError",
     "VisionResult",

@@ -1,0 +1,392 @@
+[
+  {
+    "id": "counting_0001",
+    "tier": "counting",
+    "file": "images/counting_bd54fda2c5a8.png",
+    "question": "How many numbered labels inside black circles appear in the image in total?",
+    "expect_keywords": [
+      "15"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 1,
+    "target": "numbered label"
+  },
+  {
+    "id": "counting_0003",
+    "tier": "counting",
+    "file": "images/counting_66e9cdba9d9a.png",
+    "question": "How many rabbits are there in the picture? (including visible but partially occluded rabbits)",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 3,
+    "target": "rabbit"
+  },
+  {
+    "id": "counting_0010",
+    "tier": "counting",
+    "file": "images/counting_839ad06fd2ad.jpg",
+    "question": "How many independent pop-up windows are there in total within the screenshot?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "ScreenSpot-Pro",
+    "pb_index": 10,
+    "target": "window"
+  },
+  {
+    "id": "counting_0022",
+    "tier": "counting",
+    "file": "images/counting_d7b76bf399c7.png",
+    "question": "How many pieces of cut watermelon are visible in the picture? (Only output the number)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 22,
+    "target": "watermelon"
+  },
+  {
+    "id": "counting_0023",
+    "tier": "counting",
+    "file": "images/counting_78821720cfe2.jpg",
+    "question": "How many bottles are there within the visible range of the first row in the image?",
+    "expect_keywords": [
+      "7"
+    ],
+    "match": "exact",
+    "source": "PointBench",
+    "pb_index": 23,
+    "target": "bottle"
+  },
+  {
+    "id": "counting_0028",
+    "tier": "counting",
+    "file": "images/counting_565af1c3cde2.png",
+    "question": "How many arrows are there in the image? Just answer with the number directly.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 28,
+    "target": "arrow"
+  },
+  {
+    "id": "counting_0031",
+    "tier": "counting",
+    "file": "images/counting_9cf0d2ddefec.png",
+    "question": "Observe the image. What is the total number of independent rounded-rectangle process modules containing bold text?",
+    "expect_keywords": [
+      "13"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 31,
+    "target": "process module"
+  },
+  {
+    "id": "counting_0035",
+    "tier": "counting",
+    "file": "images/counting_ac09127e83f9.png",
+    "question": "How many birds are there in the image? Answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 35,
+    "target": "bird"
+  },
+  {
+    "id": "counting_0039",
+    "tier": "counting",
+    "file": "images/counting_48724bcbd7a7.jpg",
+    "question": "Count the number of pieces outside the chessboard in the image.",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-sub",
+    "pb_index": 39,
+    "target": "chess piece"
+  },
+  {
+    "id": "counting_0040",
+    "tier": "counting",
+    "file": "images/counting_657828958b1f.jpg",
+    "question": "There are three figures in each row. How many red triangles are in the middle figure of the top row?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 40,
+    "target": "red triangle"
+  },
+  {
+    "id": "counting_0049",
+    "tier": "counting",
+    "file": "images/counting_967b5819c62a.jpg",
+    "question": "Observe the image. Looking from right to left, how many columns are there in the visible array of bronze disks?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 49,
+    "target": "bronze disk"
+  },
+  {
+    "id": "counting_0051",
+    "tier": "counting",
+    "file": "images/counting_a7a8bc71ad10.jpg",
+    "question": "Observe the person's own left hand in the image. How many visible fingers are not blocked by other fingers? (Output only the number)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 51,
+    "target": "finger"
+  },
+  {
+    "id": "counting_0052",
+    "tier": "counting",
+    "file": "images/counting_9682f57e7bd3.jpg",
+    "question": "Look at the picture. How many hangers with white plastic hooks are at least partially visible in the image?",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "ERQA",
+    "pb_index": 52,
+    "target": "hanger"
+  },
+  {
+    "id": "counting_0054",
+    "tier": "counting",
+    "file": "images/counting_2f75c73390e8.jpg",
+    "question": "Count the total number of boats in the image that do not have a cockpit structure. Answer with only the numerical value.",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "TreeBench",
+    "pb_index": 54,
+    "target": "boat"
+  },
+  {
+    "id": "counting_0064",
+    "tier": "counting",
+    "file": "images/counting_c3b0d3343f74.jpg",
+    "question": "Look at the picture and count how many black railings of the spiral staircase are visible in the image?",
+    "expect_keywords": [
+      "8"
+    ],
+    "match": "exact",
+    "source": "DA-2K",
+    "pb_index": 64,
+    "target": "railing"
+  },
+  {
+    "id": "counting_0067",
+    "tier": "counting",
+    "file": "images/counting_8734f8db130f.jpg",
+    "question": "Observe the image: starting from the starting dot of the \"plastic cup\", how many points on the path intersect with other paths?",
+    "expect_keywords": [
+      "11"
+    ],
+    "match": "exact",
+    "source": "BabyVision",
+    "pb_index": 67,
+    "target": "path"
+  },
+  {
+    "id": "counting_0068",
+    "tier": "counting",
+    "file": "images/counting_5d6ebc717cc6.jpg",
+    "question": "How many obstacle lines are there in the image in total?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "VPCT",
+    "pb_index": 68,
+    "target": "obstacle line"
+  },
+  {
+    "id": "counting_0072",
+    "tier": "counting",
+    "file": "images/counting_9e9b80f51cf8.png",
+    "question": "Look at the storage boxes in the lower right corner of the image. How many pink storage boxes are there?",
+    "expect_keywords": [
+      "5"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 72,
+    "target": "storage box"
+  },
+  {
+    "id": "counting_0073",
+    "tier": "counting",
+    "file": "images/counting_165b3dd6eda1.png",
+    "question": "How many independent green region blocks are there in the image? (Answer with the number directly)",
+    "expect_keywords": [
+      "3"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 73,
+    "target": "green region"
+  },
+  {
+    "id": "counting_0078",
+    "tier": "counting",
+    "file": "images/counting_c781c6e5b100.jpg",
+    "question": "How many fish appear in the image in total? Just answer with the number.",
+    "expect_keywords": [
+      "12"
+    ],
+    "match": "exact",
+    "source": "DA-2K",
+    "pb_index": 78,
+    "target": "fish"
+  },
+  {
+    "id": "counting_0079",
+    "tier": "counting",
+    "file": "images/counting_baec46fcdcea.jpg",
+    "question": "Observe the eyeshadow palette in the image. How many eyeshadow color blocks does the palette contain in total?",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 79,
+    "target": "eyeshadow color block"
+  },
+  {
+    "id": "counting_0085",
+    "tier": "counting",
+    "file": "images/counting_c529d65cf4ba.png",
+    "question": "Excluding text and punctuation, how many blue curves are there in the image? Answer with just the number.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 85,
+    "target": "blue curve"
+  },
+  {
+    "id": "counting_0086",
+    "tier": "counting",
+    "file": "images/counting_7f143612a096.jpg",
+    "question": "How many rows does the black horizontal dividing line divide this image into? (Please answer with a number only)",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "CountBench",
+    "pb_index": 86,
+    "target": "dividing line"
+  },
+  {
+    "id": "counting_0089",
+    "tier": "counting",
+    "file": "images/counting_e8a856af2815.jpg",
+    "question": "Observe the pattern numbered 6 in the figure, and count how many smallest-unit triangles there are in total in this pattern?",
+    "expect_keywords": [
+      "10"
+    ],
+    "match": "exact",
+    "source": "VisuLogic",
+    "pb_index": 89,
+    "target": "triangle"
+  },
+  {
+    "id": "counting_0100",
+    "tier": "counting",
+    "file": "images/counting_4a348cd5ae1b.png",
+    "question": "How many intersection points does the figure in the image have in total?",
+    "expect_keywords": [
+      "110"
+    ],
+    "match": "exact",
+    "source": "VLMs-are-Blind",
+    "pb_index": 100,
+    "target": "intersection point"
+  },
+  {
+    "id": "counting_0109",
+    "tier": "counting",
+    "file": "images/counting_2e12c49a67b4.jpg",
+    "question": "How many pieces are there in each row of this puzzle?",
+    "expect_keywords": [
+      "50 pieces"
+    ],
+    "match": "exact",
+    "source": "VibeEval",
+    "pb_index": 109,
+    "target": "puzzle piece"
+  },
+  {
+    "id": "counting_0112",
+    "tier": "counting",
+    "file": "images/counting_4a6d963ec1bc.png",
+    "question": "How many air conditioners are there in the room in total? (Not counting the outdoor units) Just answer with the number directly.",
+    "expect_keywords": [
+      "4"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 112,
+    "target": "air conditioner"
+  },
+  {
+    "id": "counting_0119",
+    "tier": "counting",
+    "file": "images/counting_b238414885a0.png",
+    "question": "Count how many pink circles there are in the picture. Just answer with the number directly.",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 119,
+    "target": "pink circle"
+  },
+  {
+    "id": "counting_0125",
+    "tier": "counting",
+    "file": "images/counting_53d0a902e353.jpg",
+    "question": "Observe the red box in the picture. How many flowers have their main body inside the red box?",
+    "expect_keywords": [
+      "2"
+    ],
+    "match": "exact",
+    "source": "NA",
+    "pb_index": 125,
+    "target": "flower"
+  },
+  {
+    "id": "counting_0126",
+    "tier": "counting",
+    "file": "images/counting_0521d14a787f.jpg",
+    "question": "How many squares have a yellow background and the number 2 on them? (Answer with just the number.)",
+    "expect_keywords": [
+      "12"
+    ],
+    "match": "exact",
+    "source": "ZeroBench-main",
+    "pb_index": 126,
+    "target": "square"
+  }
+]

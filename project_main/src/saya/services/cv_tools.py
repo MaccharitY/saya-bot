@@ -41,19 +41,31 @@ class CvTools:
         except McpError as exc:
             raise CvToolsError(str(exc)) from exc
 
-    def detect(self, image_path: str | Path, *, detail: str = "count") -> str:
-        """目标检测。detail="count" 只给类别计数（省 token）；"boxes" 带坐标。"""
-        return self._call("detect_objects", image_path=str(image_path), detail=detail)
+    def detect(
+        self, image_path: str | Path, *, detail: str = "count", classes: str = ""
+    ) -> str:
+        """目标检测。detail="count" 只给类别计数（省 token）；"boxes" 带坐标。
+
+        `classes` 只在开放词表实验里传：逗号分隔的目标类别，交给 YOLOE 一类模型。
+        为空时行为与闭合词表完全一致。
+        """
+        arguments = {"image_path": str(image_path), "detail": detail}
+        if classes:
+            arguments["classes"] = classes
+        return self._call("detect_objects", **arguments)
 
     def ocr(self, image_path: str | Path) -> str:
         """识别图里的文字。"""
         return self._call("read_text", image_path=str(image_path))
 
-    def annotate(self, image_path: str | Path, output_path: str | Path) -> str:
+    def annotate(
+        self, image_path: str | Path, output_path: str | Path, *, classes: str = ""
+    ) -> str:
         """画出编号框并把新图另存到 output_path。"""
-        return self._call(
-            "annotate_objects", image_path=str(image_path), output_path=str(output_path)
-        )
+        arguments = {"image_path": str(image_path), "output_path": str(output_path)}
+        if classes:
+            arguments["classes"] = classes
+        return self._call("annotate_objects", **arguments)
 
     def close(self) -> None:
         self._client.close()

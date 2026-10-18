@@ -49,7 +49,7 @@ from saya.services.cv_tools import (  # noqa: E402
     start_cv_tools,
 )
 from saya.services.llm import LLMClient, LLMError  # noqa: E402
-from saya.services.vision import ALL_ROUTES, Vision, VisionError  # noqa: E402
+from saya.services.vision import EXPERIMENT_ROUTES, Vision, VisionError  # noqa: E402
 
 # __file__ = project_main/experiment/run_experiment.py → parents[1] = project_main
 DEFAULT_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
@@ -262,8 +262,25 @@ def run_one(
     meta: dict = {}
     error = ""
 
+    # 开放词表变体：把题目里的目标词表交给检测器。
+    # ⚠️ 这是**实验装置**，不是机器人运行时能力 —— 词表由题目侧给出（oracle）。
+    open_vocab = vision.route.endswith("-open")
+    vocabulary = (item.get("target") or "").strip() if open_vocab else ""
+    if open_vocab and not vocabulary:
+        return {
+            "id": item["id"],
+            "tier": item.get("tier", ""),
+            "route": vision.route,
+            "file": item.get("file", ""),
+            "answer": "",
+            "correct": None,
+            "error": "开放词表路线缺少 target 字段",
+        }
+
     try:
-        result = vision.describe_many([image], item["question"])
+        result = vision.describe_many(
+            [image], item["question"], vocabulary=vocabulary
+        )
         answer = result.answer
         meta = {
             "model": result.model,
@@ -287,6 +304,8 @@ def run_one(
         "id": item["id"],
         "tier": item.get("tier", ""),
         "route": vision.route,
+        # 开放词表实验的词表来源（闭合词表为空）—— 复盘时能确认题目给了什么
+        "vocabulary": vocabulary,
         # ⚠️ 聚类分析的重抽样单位（pre/13 §3.3），必须落盘
         "file": item.get("file", ""),
         "question": item["question"],
@@ -507,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="三条视觉路线的对照实验")
     parser.add_argument("--manifest", required=True, help="测试集清单")
     parser.add_argument("--out", required=True, help="结果写到哪（jsonl）")
-    parser.add_argument("--routes", nargs="+", default=list(ALL_ROUTES), choices=list(ALL_ROUTES))
+    parser.add_argument("--routes", nargs="+", default=list(EXPERIMENT_ROUTES), choices=list(EXPERIMENT_ROUTES))
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（冒烟用）")
     parser.add_argument(
         "--no-warmup",

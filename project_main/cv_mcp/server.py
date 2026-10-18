@@ -48,8 +48,13 @@ _MODEL_DIR = Path(os.environ.get("SAYA_CV_MODEL_DIR", Path.home() / ".cache" / "
 # 换之前先读报告里的讨论 —— 我们撞到的限制是**词表**（80 类），不是精度，
 # 换更大的模型不会让它认识"棋子"或"数字标签"。
 _YOLO_WEIGHTS = str(_MODEL_DIR / os.environ.get("SAYA_YOLO_WEIGHTS", "yolo11n.pt"))
+# 开放词表模型（YOLOE-26 一类）。只有调用方传了 `classes` 才会加载，
+# 所以闭合词表的实验与线上行为完全不受影响。
+_WORLD_WEIGHTS = str(_MODEL_DIR / os.environ.get("SAYA_YOLO_WORLD", "yoloe-26x-seg.pt"))
 
 _yolo = None
+_world = None
+_world_classes = ""
 _ocr = None
 # 检测侧的降级说明（换权重失败 / GPU 不可用）。和云 OCR 那条一样：**退回要留痕**。
 _yolo_note = ""
@@ -83,6 +88,37 @@ def _predict(path):
     """
     global _yolo_note
     model = _get_yolo()
+    device = _device()
+    try:
+        return model.predict(str(path), verbose=False, device=device)
+    except Exception:  # noqa: BLE001
+        if device == "cpu":
+            raise
+        _yolo_note += "（GPU 推理失败，检测已退回 CPU）\n"
+        return model.predict(str(path), verbose=False, device="cpu")
+
+
+def _get_world(classes: str):
+    """加载开放词表模型，并把词表设成调用方给的那一组。
+
+    词表没变就不重复 `set_classes` —— 它会重建文本嵌入，比推理本身还贵。
+    """
+    global _world, _world_classes
+    if _world is None:
+        from ultralytics import YOLOE  # noqa: PLC0415 - 只有开放词表实验才用
+
+        _MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        _world = YOLOE(_WORLD_WEIGHTS)
+    if classes != _world_classes:
+        names = [item.strip() for item in classes.split(",") if item.strip()]
+        _world.set_classes(names)
+        _world_classes = classes
+    return _world
+
+
+def _predict_world(path, classes: str):
+    global _yolo_note
+    model = _get_world(classes)
     device = _device()
     try:
         return model.predict(str(path), verbose=False, device=device)
@@ -150,12 +186,14 @@ def image_info(image_path: str) -> str:
 
 
 @mcp.tool()
-def detect_objects(image_path: str, detail: str = "count") -> str:
-    """检测图片里的目标（YOLO）。
+def detect_objects(image_path: str, detail: str = "count", classes: str = "") -> str:
+    """检测图片里的目标（YOLO / YOLOE）。
 
     Args:
         image_path: 本地图片路径
         detail: "count" 只给类别与数量（省 token）；"boxes" 额外给出坐标框
+        classes: 可选，逗号分隔的开放词表类别（如 "rabbit,bird"）。
+                 传了就用开放词表模型；不传则用闭合词表模型。
 
     Returns:
         检测结果的文字描述。检测不到目标时会明确说明。
@@ -166,7 +204,10 @@ def detect_objects(image_path: str, detail: str = "count") -> str:
 
     started = time.monotonic()
     try:
-        results = _predict(path)
+        if classes.strip():
+            results = _predict_world(path, classes)
+        else:
+            results = _predict(path)
     except Exception as exc:  # noqa: BLE001 - 出错要让模型看到原因，而不是断链
         return f"检测失败：{type(exc).__name__}: {exc}"
     elapsed = int((time.monotonic() - started) * 1000)
@@ -253,7 +294,7 @@ def read_text(image_path: str) -> str:
 
 
 @mcp.tool()
-def annotate_objects(image_path: str, output_path: str) -> str:
+def annotate_objects(image_path: str, output_path: str, classes: str = "") -> str:
     """检测目标、**在图上画出编号方框**并另存为新图片，返回编号说明。
 
     这是路线 C（混合）的"结构化产物"：附属负责**定位与编号**，
@@ -263,6 +304,7 @@ def annotate_objects(image_path: str, output_path: str) -> str:
     Args:
         image_path: 输入图片路径
         output_path: 标注后图片保存到哪里（建议 .png）
+        classes: 可选，逗号分隔的开放词表类别；不传则用闭合词表模型
 
     Returns:
         编号说明（第几号框是什么），供主模型对照图片使用。
@@ -275,7 +317,10 @@ def annotate_objects(image_path: str, output_path: str) -> str:
 
     started = time.monotonic()
     try:
-        results = _predict(path)
+        if classes.strip():
+            results = _predict_world(path, classes)
+        else:
+            results = _predict(path)
     except Exception as exc:  # noqa: BLE001
         return f"检测失败：{type(exc).__name__}: {exc}"
 
