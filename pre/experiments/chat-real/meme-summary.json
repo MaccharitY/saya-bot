@@ -1,0 +1,30 @@
+{
+  "n": 18,
+  "no_text": 11,
+  "has_text": 7,
+  "ocr_full": 4,
+  "ocr_partial": 1,
+  "ocr_miss": 2,
+  "no_text_but_ocr_output": 2,
+  "no_text_ids": [
+    "s46",
+    "s47",
+    "s49",
+    "s51",
+    "s53",
+    "s55",
+    "s56",
+    "s57",
+    "s58",
+    "s59",
+    "s60"
+  ],
+  "miss_ids": [
+    "s52",
+    "s54"
+  ],
+  "noise_ids": [
+    "s55",
+    "s60"
+  ]
+}
