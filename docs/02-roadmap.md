@@ -132,6 +132,10 @@
 - [x] **锚点论文**：每路线「最有用 + 较新」各一篇，六篇摘要已逐篇开原文核对
       （`pre/11-literature.md` §7.2）；**MMVP 与 HuggingGPT 的会议归属仍待另核**
 - [x] results 填实测数据 + 图表（`pre/report/report-draft.md`）
+- [x] **机制与价值研究** —— `pre/16-mechanism-and-value.md`：
+      注意力为什么能反复重看图（ViT / Registers / VLM-R³ / SIEVE），
+      以及群聊机器人的分流、空证据兜底、选择性思考、高分辨率与"再看一眼"
+- [ ] 把机制与价值写进 slides 与报告（按老师建议裁剪篇幅）
 - [ ] slides
 - [ ] 核对 `pre/requirement/` 里的原件（**该目录不公开**）；发邮件给 TA（邮箱见原件）
 

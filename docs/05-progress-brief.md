@@ -58,6 +58,7 @@
 | **提交稿**（~2230 字，四节） | [`../pre/report/report-draft.md`](../pre/report/report-draft.md) |
 | **内部报告**（长版，写 slides 用） | [`../pre/report/internal-report.md`](../pre/report/internal-report.md) |
 | **过程流水**（为什么改、改成什么） | [`../pre/14-experiment-iteration-log.md`](../pre/14-experiment-iteration-log.md) |
+| **机制与价值**（深度 + 落地建议） | [`../pre/16-mechanism-and-value.md`](../pre/16-mechanism-and-value.md) |
 | 原始结果 + 判官结果（`none`） | `../pre/experiments/results-pb2{,-judged}.jsonl` |
 | 分析报告（`none`） | `../pre/experiments/analysis-pb2.md` |
 | 原始结果 + 判官结果（`max`） | `../pre/experiments/results-pb-max{,-judged}.jsonl` |
