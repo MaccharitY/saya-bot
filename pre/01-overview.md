@@ -161,3 +161,20 @@ QQ 群聊机器人（个人账号接入）里，**视觉任务该由谁承担**�
 | 数据 | `pre/experiments/`（原始结果、判官结果、分析） |
 
 命令与口径见 `pre/13-experimental-protocol.md` §7。
+
+### 8.1 运行环境
+
+| 项 | 值 |
+|---|---|
+| 主机 | Windows 11（10.0.26200.9457） |
+| 运行时 | WSL2 Ubuntu 26.04.1 LTS，内核 6.18.54.1-microsoft-standard-WSL2 |
+| 主实验 Python | 3.14.4（venv） |
+| 判分/分析 Python | 3.11.9（Windows） |
+| CPU | Intel Core i9-13900HX（32 逻辑核） |
+| GPU | NVIDIA RTX 5070 Ti Laptop，12 GB，驱动 616.92 |
+| CUDA | torch 2.14.1+cu130 |
+| 关键库 | ultralytics 8.4.177、rapidocr-onnxruntime 1.2.3、onnxruntime 1.31.0、pillow 12.3.0、numpy 2.5.4、opencv 5.0.0.93 |
+| 模型调用 | 远程 `api.deepseek.com`；OCR 云端/本地 |
+
+> ⚠️ 表述纪律：这是**笔记本上的 WSL2**，不是"Linux 服务器"；
+> 模型是**远程 API**，本地只跑检测与 OCR。
