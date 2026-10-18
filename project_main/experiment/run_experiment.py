@@ -410,7 +410,7 @@ def dry_run(items: list[dict], images_dir: Path, routes: list[str], config: Conf
         by_tier[item.get("tier", "?")] = by_tier.get(item.get("tier", "?"), 0) + 1
     print(f"  分层：{by_tier}")
 
-    if any(route in ("delegated", "hybrid") for route in routes):
+    if any(route in ("delegated", "delegated-open", "hybrid", "hybrid-open") for route in routes):
         print("\n  → 试着启动附属（专用 CV 模型）…")
         if not config.cv_mcp_command.strip():
             print("    × 没配 SAYA_CV_MCP_COMMAND，delegated / hybrid 跑不了")
@@ -572,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     tools = None
-    if any(route in ("delegated", "hybrid") for route in args.routes):
+    if any(route in ("delegated", "delegated-open", "hybrid", "hybrid-open") for route in args.routes):
         tools = start_cv_tools(
             config.cv_mcp_command, extra_env=cv_subprocess_env(
                 model_dir=config.cv_model_dir,
