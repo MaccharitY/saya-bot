@@ -43,6 +43,10 @@
 4. **开放词表也没救回计数**（30 题探针）：闭集旗舰 0/30、开放词表 2/30，
    McNemar p = 0.5，不显著。**词表是必要条件，不是充分条件** ——
    计数瓶颈在检测器的实例枚举能力。按事先规则，没有扩到满测。
+5. **真实工况验证**（60 张真实群聊图）：直连 **83%**、混合 **82%**、委派 **48%**。
+   文字截图上委派仍可用（80% vs 92%，不显著）；**表情包上崩到 11%**；
+   **照片上混合最好（82%）**。空证据率解释了一切：截图上检测器 52% 为空但 OCR 全有产出，
+   表情包上 OCR 56% 为空。
 
 ### 材料在哪
 
@@ -57,14 +61,14 @@
 | 分析报告（`max`） | `../pre/experiments/analysis-pb-max.md` |
 | 30 题预试（max，counting） | `../pre/experiments/results-pb-max-counting{,-judged}.jsonl` |
 | 开放词表探针（30 题） | `../pre/experiments/results-open30{,-judged}.jsonl` |
+| **真实工况（60 图）** | `../pre/experiments/chat-real/analysis.md` |
 | 满测用 oracle 词表 | `../pre/experiments/pb/targets.json`、`manifest-open.json` |
 | 人工抽检表 | `../pre/experiments/review-pb/`、`review-coco/` |
 
 ### 下一步（按这个顺序）
 
-1. **真实工况实验** —— 图集待所有者提供；设计已落盘在
-   [`../pre/15-chat-workload.md`](../pre/15-chat-workload.md)。
-   60 张真实图 + 构造问题，测三路线的准确率、延迟、**空证据率**
+1. ~~真实工况实验~~ ✅ **已完成**（60 张真实图）：见
+   [`../pre/experiments/chat-real/analysis.md`](../pre/experiments/chat-real/analysis.md)
 2. **人工抽检** —— 表已生成，**待人填**；填完才算得出判官一致率
 3. **锚点论文收尾** —— 六篇候选摘要已核（`11-literature.md` §7.2）；
    MMVP 与 HuggingGPT 的**会议归属**还需另核
