@@ -68,7 +68,13 @@ def main() -> int:
             except CvToolsError as exc:
                 error = str(exc)
             match = _BOXES.search(detect)
-            ocr_lines = [line for line in ocr.splitlines() if line and not line.startswith("识别到")]
+            if "没有识别到" in ocr:
+                ocr_chars = 0
+            else:
+                ocr_lines = [
+                    line for line in ocr.splitlines() if line and not line.startswith("识别到")
+                ]
+                ocr_chars = sum(len(line) for line in ocr_lines)
             rows.append(
                 {
                     "id": item["id"],
@@ -76,7 +82,7 @@ def main() -> int:
                     "detect_empty": int("没有检测到" in detect),
                     "detect_count": int(match.group(1)) if match else 0,
                     "ocr_empty": int("没有识别到" in ocr),
-                    "ocr_chars": sum(len(line) for line in ocr_lines),
+                    "ocr_chars": ocr_chars,
                     "error": error,
                 }
             )
