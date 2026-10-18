@@ -50,6 +50,7 @@
 | `14-experiment-iteration-log.md` | 逐轮过程流水（为什么改、结果） | 历史；不改写 |
 | `15-chat-workload.md` | 真实工况的设计 | 已完成；结果在 `experiments/chat-real/analysis.md` |
 | `16-mechanism-and-value.md` | 机制解释与产品建议 | 现行 |
+| `17-paper-summaries.md` | 六篇文献的扩展摘要（每篇约 1000 字） | 现行；报告写作素材 |
 | `report/report-draft.md` | 提交版报告（~2230 字） | 草稿；待老师口径后裁剪 |
 | `report/internal-report.md` | 长版内部报告（写 slides 用） | 草稿；与总览重复处以总览为准 |
 | `experiments/` | 原始数据、判官结果、分析 | **唯一数据源** |
