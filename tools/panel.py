@@ -726,6 +726,23 @@ USAGE = "\n".join(
         "  device auto|cpu|cuda:N      检测跑在哪",
         "",
         "策略：silent / mention / keyword / random / always / selective",
+        "",
+        "检测权重（yolo）：",
+        "    n    最小最快（默认）",
+        "    s    小",
+        "    m    中",
+        "    l    大",
+        "    x    最大最准",
+        "",
+        "OCR 后端（ocr）：",
+        "    auto     优先云端，失败退回本地（默认）",
+        "    cloud    只用云端",
+        "    local    只用本地",
+        "",
+        "检测设备（device）：",
+        "    auto     有 GPU 就用 GPU（默认）",
+        "    cpu      只用 CPU",
+        "    cuda:N   指定第 N 块 GPU",
     ]
 )
 

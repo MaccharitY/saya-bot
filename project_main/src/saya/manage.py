@@ -377,7 +377,30 @@ COMMANDS: dict[str, tuple[str, object]] = {
 USAGE = "\n".join(
     ["命令（无需前缀）："]
     + [f"  {name:<9} {summary}" for name, (summary, _) in COMMANDS.items()]
-    + ["", "策略：", policy_list(), "", "更改写入 .env。"]
+    + [
+        "",
+        "策略：",
+        policy_list(),
+        "",
+        "检测权重（yolo）：",
+        "    n    最小最快（默认）",
+        "    s    小",
+        "    m    中",
+        "    l    大",
+        "    x    最大最准",
+        "",
+        "OCR 后端（ocr）：",
+        "    auto     优先云端，失败退回本地（默认）",
+        "    cloud    只用云端",
+        "    local    只用本地",
+        "",
+        "检测设备（device）：",
+        "    auto     有 GPU 就用 GPU（默认）",
+        "    cpu      只用 CPU",
+        "    cuda:N   指定第 N 块 GPU",
+        "",
+        "更改写入 .env。",
+    ]
 )
 
 
